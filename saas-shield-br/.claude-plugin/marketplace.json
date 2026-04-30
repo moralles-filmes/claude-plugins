@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "saas-shield-br-marketplace",
+  "displayName": "SaaS Shield BR — Marketplace",
+  "description": "Marketplace local com plugin saas-shield-br: skills/agents para SaaS multi-tenant em Supabase + Vercel + React/Vite com foco em segurança, custo e PT-BR.",
+  "owner": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "saas-shield-br",
+      "source": "./",
+      "description": "10 skills + 4 subagents + 5 commands + 2 hooks para SaaS multi-tenant Supabase com isolamento blindado e workflow PT-BR."
+    }
+  ]
+}

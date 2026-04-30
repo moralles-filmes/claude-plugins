@@ -1,0 +1,26 @@
+# Empacotamento
+*.zip
+*.tar.gz
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node (caso scripts dos hooks evoluam)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Logs
+*.log
+
+# Cache de plugins (gerado pelo Claude Code, não commitar)
+.cache/

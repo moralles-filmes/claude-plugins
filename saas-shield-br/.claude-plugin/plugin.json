@@ -1,0 +1,23 @@
+{
+  "name": "saas-shield-br",
+  "version": "1.0.0",
+  "description": "Suite global de skills + agents para SaaS multi-tenant em Supabase/Vercel/React+Vite. Foco extremo em segurança (RLS, isolamento tenant, secrets), economia de custo (queries, índices, bundle) e padrões PT-BR. Inclui 10 skills, 4 subagents especializados, 5 slash commands e hooks pré-commit.",
+  "author": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "homepage": "https://github.com/morallesfilms/saas-shield-br",
+  "license": "MIT",
+  "keywords": [
+    "supabase",
+    "vercel",
+    "multi-tenant",
+    "security",
+    "rls",
+    "saas",
+    "pt-br",
+    "react",
+    "vite",
+    "typescript"
+  ]
+}

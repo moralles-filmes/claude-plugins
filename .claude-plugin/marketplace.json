@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "morallesfilms-local",
+  "displayName": "Morallesfilms — Marketplace local",
+  "description": "Marketplace pessoal de plugins Claude Code do Yuri Moraes.",
+  "owner": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "saas-shield-br",
+      "source": "./saas-shield-br",
+      "description": "Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite. Foco em segurança (RLS, isolamento tenant, secrets), economia de custo e padrões PT-BR. 10 skills, 4 subagents, 5 commands, 2 hooks."
+    }
+  ]
+}
