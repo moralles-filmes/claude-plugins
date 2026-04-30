@@ -8,12 +8,30 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 
 ## Instalar em qualquer máquina
 
+### Setup automático (recomendado)
+
+Roda 1 comando e o script faz tudo: registra marketplaces oficiais Anthropic, clona seu marketplace pessoal, instala os 5 plugins do dia-a-dia (saas-shield-br + canvas-design + frontend-design + skill-creator + mcp-builder).
+
+**Windows (PowerShell):**
+```powershell
+iwr -useb https://raw.githubusercontent.com/moralles-filmes/claude-plugins/main/setup-claude.ps1 | iex
+```
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/moralles-filmes/claude-plugins/main/setup-claude.sh | bash
+```
+
+> Pré-requisitos: Claude Code + git instalados e no PATH.
+
+### Setup manual
+
 ```bash
 # 1. Clone este repo onde preferir
-git clone <URL-DO-REPO> ~/claude-plugins
+git clone https://github.com/moralles-filmes/claude-plugins.git ~/Documents/claude-plugins
 
 # 2. Registra como marketplace no Claude Code
-claude plugin marketplace add ~/claude-plugins
+claude plugin marketplace add ~/Documents/claude-plugins
 
 # 3. Instala o plugin desejado
 claude plugin install saas-shield-br
