@@ -1,0 +1,23 @@
+{
+  "name": "code-health",
+  "version": "0.1.0",
+  "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js. Encontra dead code, arquivos órfãos, botões fantasma, rotas quebradas, dados mockados e stubs. Modo padrão: report → aprovar → fix com checkpoint git.",
+  "author": {
+    "name": "Moralles Filmes",
+    "url": "https://github.com/moralles-filmes"
+    },
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
+  "repository": "https://github.com/moralles-filmes/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "code-quality",
+    "dead-code",
+    "cleanup",
+    "audit",
+    "refactoring",
+    "javascript",
+    "typescript",
+    "react",
+    "nextjs"
+  ]
+}

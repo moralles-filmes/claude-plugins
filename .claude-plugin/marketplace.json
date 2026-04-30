@@ -12,6 +12,11 @@
       "name": "saas-shield-br",
       "source": "./saas-shield-br",
       "description": "Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite. Foco em segurança (RLS, isolamento tenant, secrets), economia de custo e padrões PT-BR. 10 skills, 4 subagents, 5 commands, 2 hooks."
+    },
+    {
+      "name": "code-health",
+      "source": "./code-health",
+      "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js. Encontra dead code (arquivos órfãos, imports/exports não usados, deps esquecidas, assets sem ref) e código não-funcional (botões fantasma, rotas quebradas, dados mockados, stubs, empty handlers). Modo report-first com checkpoint git e severidade BLOCKER/HIGH/MEDIUM/LOW. 2 skills, 2 subagents, 3 commands."
     }
   ]
 }
