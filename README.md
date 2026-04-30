@@ -90,3 +90,22 @@ node scripts/validate.mjs
 ```
 
 Mesmo script roda no CI a cada push (`.github/workflows/validate.yml`).
+
+### Pre-push hook automático
+
+Pra a validação rodar automaticamente antes de **todo** `git push`:
+
+**Windows (PowerShell):**
+```powershell
+.\scripts\install-hooks.ps1
+```
+
+**macOS / Linux:**
+```bash
+chmod +x scripts/install-hooks.sh
+./scripts/install-hooks.sh
+```
+
+Isso configura `core.hooksPath = .githooks` neste repo. Push só acontece se `validate.mjs` passar. Pra pular numa emergência: `git push --no-verify`.
+
+> **Nota**: `setup-claude.ps1` / `setup-claude.sh` já fazem isso automaticamente quando clonam o repo numa máquina nova.

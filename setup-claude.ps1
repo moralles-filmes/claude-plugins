@@ -1,6 +1,6 @@
-# setup-claude.ps1 — Bootstrap completo do ambiente Claude Code numa máquina nova (Windows)
+# setup-claude.ps1 -- Bootstrap completo do ambiente Claude Code numa maquina nova (Windows)
 #
-# Pré-requisitos:
+# Pre-requisitos:
 #   - Claude Code instalado (https://docs.claude.com/en/docs/claude-code)
 #   - git instalado
 #
@@ -14,28 +14,28 @@
 
 $ErrorActionPreference = "Stop"
 
-function Write-Step { param($Msg) Write-Host "→ $Msg" -ForegroundColor Cyan }
-function Write-Ok   { param($Msg) Write-Host "✓ $Msg" -ForegroundColor Green }
-function Write-Warn { param($Msg) Write-Host "⚠ $Msg" -ForegroundColor Yellow }
+function Write-Step { param($Msg) Write-Host "-> $Msg" -ForegroundColor Cyan }
+function Write-Ok   { param($Msg) Write-Host "[OK] $Msg" -ForegroundColor Green }
+function Write-Warn { param($Msg) Write-Host "[!] $Msg" -ForegroundColor Yellow }
 
-# ─── Pré-flight checks ─────────────────────────────────────────────────
-Write-Step "Verificando dependências..."
+# --- Pre-flight checks ------------------------------------------------
+Write-Step "Verificando dependencias..."
 
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Claude Code não encontrado no PATH." -ForegroundColor Red
+    Write-Host "[X] Claude Code nao encontrado no PATH." -ForegroundColor Red
     Write-Host "   Instale em: https://docs.claude.com/en/docs/claude-code"
     exit 1
 }
-Write-Ok "claude CLI OK ($(claude --version 2>$null))"
+Write-Ok "claude CLI OK"
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ git não encontrado no PATH." -ForegroundColor Red
+    Write-Host "[X] git nao encontrado no PATH." -ForegroundColor Red
     Write-Host "   Instale via: winget install --id Git.Git"
     exit 1
 }
-Write-Ok "git OK ($(git --version))"
+Write-Ok "git OK"
 
-# ─── Marketplaces oficiais ─────────────────────────────────────────────
+# --- Marketplaces oficiais --------------------------------------------
 Write-Step "Adicionando marketplaces oficiais Anthropic..."
 
 $officialMarketplaces = @(
@@ -48,14 +48,14 @@ foreach ($m in $officialMarketplaces) {
 }
 Write-Ok "Marketplaces oficiais registrados"
 
-# ─── Marketplace pessoal ───────────────────────────────────────────────
+# --- Marketplace pessoal ----------------------------------------------
 Write-Step "Configurando marketplace pessoal..."
 
 $pluginDir = "$env:USERPROFILE\Documents\claude-plugins"
 $repoUrl = "https://github.com/moralles-filmes/claude-plugins.git"
 
 if (Test-Path $pluginDir) {
-    Write-Host "  Pasta já existe — fazendo git pull..."
+    Write-Host "  Pasta ja existe -- fazendo git pull..."
     Push-Location $pluginDir
     git pull --quiet
     Pop-Location
@@ -64,36 +64,44 @@ if (Test-Path $pluginDir) {
     git clone --quiet $repoUrl $pluginDir
 }
 
+# Ativa hooks de validacao local
+Push-Location $pluginDir
+if (Test-Path .githooks) {
+    git config core.hooksPath .githooks 2>$null
+    Write-Host "  Hooks de validacao ativados (.githooks/)"
+}
+Pop-Location
+
 claude plugin marketplace add $pluginDir 2>&1 | Out-Null
 Write-Ok "Marketplace pessoal em $pluginDir"
 
-# ─── Instalação dos plugins ───────────────────────────────────────────
+# --- Instalacao dos plugins -------------------------------------------
 Write-Step "Instalando plugins..."
 
 $plugins = @(
-    @{ name = 'saas-shield-br';   marketplace = 'morallesfilms-local' },
-    @{ name = 'canvas-design';    marketplace = 'anthropics-skills' },
-    @{ name = 'frontend-design';  marketplace = 'claude-plugins-official' },
-    @{ name = 'skill-creator';    marketplace = 'anthropics-skills' },
-    @{ name = 'mcp-builder';      marketplace = 'anthropics-skills' }
+    'saas-shield-br',
+    'canvas-design',
+    'frontend-design',
+    'skill-creator',
+    'mcp-builder'
 )
 
 foreach ($p in $plugins) {
-    Write-Host "  → $($p.name)"
+    Write-Host "  -> $p"
     try {
-        claude plugin install $($p.name) 2>&1 | Out-Null
+        claude plugin install $p 2>&1 | Out-Null
     } catch {
-        Write-Warn "  Não foi possível instalar $($p.name) — talvez nome diferente no marketplace. Verifique manualmente."
+        Write-Warn "  Nao foi possivel instalar $p -- talvez nome diferente no marketplace. Verifique manualmente."
     }
 }
 
-# ─── Resumo ────────────────────────────────────────────────────────────
+# --- Resumo -----------------------------------------------------------
 Write-Host ""
-Write-Ok "Setup concluído"
+Write-Ok "Setup concluido"
 Write-Host ""
 Write-Host "Plugins instalados:" -ForegroundColor Cyan
 claude plugin list
 
 Write-Host ""
-Write-Host "Próximo passo:" -ForegroundColor Cyan
+Write-Host "Proximo passo:" -ForegroundColor Cyan
 Write-Host "  Abra um projeto seu e teste: /saas-shield-br:audit-tenant"

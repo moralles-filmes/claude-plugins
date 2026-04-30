@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# .githooks/pre-push
+#
+# Roda validação antes de cada `git push`. Bloqueia push se algo estiver quebrado.
+# Ativado via `git config core.hooksPath .githooks` (rodado pelo install-hooks).
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "⚠ pre-push: 'node' não encontrado no PATH — pulando validação."
+  echo "  (Instale Node 18+ para validar antes do push)"
+  exit 0
+fi
+
+echo "→ Rodando validação (scripts/validate.mjs)..."
+echo ""
+
+if node scripts/validate.mjs; then
+  echo ""
+  echo "✓ Validação OK — push liberado."
+  exit 0
+else
+  echo ""
+  echo "✗ Validação falhou — push bloqueado."
+  echo "  Corrija os erros acima ou pule a validação com:"
+  echo "    git push --no-verify"
+  exit 1
+fi

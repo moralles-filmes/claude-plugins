@@ -65,6 +65,13 @@ else
   git clone --quiet "$REPO_URL" "$PLUGIN_DIR"
 fi
 
+# Ativa hooks de validação local
+if [ -d "$PLUGIN_DIR/.githooks" ]; then
+  (cd "$PLUGIN_DIR" && git config core.hooksPath .githooks 2>/dev/null || true)
+  chmod +x "$PLUGIN_DIR"/.githooks/* 2>/dev/null || true
+  echo "  Hooks de validação ativados (.githooks/)"
+fi
+
 claude plugin marketplace add "$PLUGIN_DIR" >/dev/null 2>&1 || true
 ok "Marketplace pessoal em $PLUGIN_DIR"
 
