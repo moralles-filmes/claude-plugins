@@ -67,10 +67,26 @@ claude plugin update saas-shield-br
 claude-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json     # lista de plugins
+├── .github/workflows/
+│   └── validate.yml         # CI: valida JSON, frontmatter, scripts
+├── scripts/
+│   └── validate.mjs         # rodável local também
 ├── saas-shield-br/          # plugin
 │   ├── .claude-plugin/
 │   │   └── plugin.json
 │   ├── skills/, agents/, commands/, hooks/
 │   └── README.md
+├── setup-claude.ps1         # bootstrap Windows
+├── setup-claude.sh          # bootstrap macOS/Linux
 └── README.md                # este arquivo
 ```
+
+## Validação local antes de push
+
+Antes de fazer `git push`, rode pra pegar erros na hora:
+
+```bash
+node scripts/validate.mjs
+```
+
+Mesmo script roda no CI a cada push (`.github/workflows/validate.yml`).
