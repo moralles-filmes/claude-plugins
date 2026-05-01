@@ -1,0 +1,28 @@
+{
+  "name": "saas-builder-br",
+  "version": "1.0.0",
+  "description": "Orquestrador central + 8 subagents especializados para construção de SaaS multi-tenant em Vite+React+TS / Supabase / Vercel. Cada subagent tem contexto isolado e tarefa clara, com gates automáticos chamando o saas-shield-br para auditoria de segurança. Pensado para devs brasileiros que constroem SaaS com integrações WhatsApp (Z-API + Cloud API) e LLMs (OpenAI/Anthropic/Gemini).",
+  "author": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "homepage": "https://github.com/morallesfilms/saas-builder-br",
+  "license": "MIT",
+  "keywords": [
+    "supabase",
+    "vercel",
+    "vite",
+    "react",
+    "typescript",
+    "multi-tenant",
+    "saas",
+    "orchestrator",
+    "subagents",
+    "whatsapp",
+    "z-api",
+    "openai",
+    "anthropic",
+    "gemini",
+    "pt-br"
+  ]
+}

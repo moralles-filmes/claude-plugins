@@ -17,6 +17,11 @@
       "name": "code-health",
       "source": "./code-health",
       "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js. Encontra dead code (arquivos órfãos, imports/exports não usados, deps esquecidas, assets sem ref) e código não-funcional (botões fantasma, rotas quebradas, dados mockados, stubs, empty handlers). Modo report-first com checkpoint git e severidade BLOCKER/HIGH/MEDIUM/LOW. 2 skills, 2 subagents, 3 commands."
+    },
+    {
+      "name": "saas-builder-br",
+      "source": "./saas-builder-br",
+      "description": "Orquestrador central + 8 subagents especializados para construir SaaS multi-tenant em Vite + React + TypeScript / Supabase / Vercel. Pipeline de 8 fases (concept → schema → backend → frontend → integrations → code_health → security_audit → deploy) com gates automáticos plugados em saas-shield-br (segurança) e code-health (qualidade funcional). Inclui 5 skills (vite-react-arquitetura, tanstack-query-supabase, whatsapp-zapi-integracao, llm-multi-provider, responsive-mobile-first) e 3 commands (/novo-saas, /proximo-passo, /quem-faz)."
     }
   ]
 }
