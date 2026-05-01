@@ -16,7 +16,7 @@
     {
       "name": "code-health",
       "source": "./code-health",
-      "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js. Encontra dead code (arquivos órfãos, imports/exports não usados, deps esquecidas, assets sem ref) e código não-funcional (botões fantasma, rotas quebradas, dados mockados, stubs, empty handlers). Modo report-first com checkpoint git e severidade BLOCKER/HIGH/MEDIUM/LOW. 2 skills, 2 subagents, 3 commands."
+      "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js/Vite + Supabase-aware. 3 frentes: (1) dead code (arquivos órfãos, imports/deps/assets não usados); (2) código não-funcional (botões fantasma, rotas quebradas, mocks em produção, stubs, empty handlers); (3) Supabase audit (typos em .from(), invokes quebrados, dead tables/functions, Realtime sem cleanup). Modo report-first com checkpoint git e severidade BLOCKER/HIGH/MEDIUM/LOW. 2 skills, 3 subagents, 4 commands."
     },
     {
       "name": "saas-builder-br",

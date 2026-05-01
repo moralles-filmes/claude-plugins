@@ -1,9 +1,10 @@
 # code-health
 
-Plugin para Claude Code focado em **manter projetos JS/TS/React/Next.js limpos e funcionais**. Faz duas coisas, bem:
+Plugin para Claude Code focado em **manter projetos JS/TS/React/Next.js limpos e funcionais**. Faz três coisas, bem:
 
 1. **Dead-code cleanup** — varre o projeto procurando arquivos órfãos, imports/exports não usados, dependências esquecidas no `package.json`, assets em `public/` sem referência e código comentado.
 2. **Functional audit** — encontra botões fantasma (sem handler ou só com `console.log`), rotas quebradas, dados mockados em rotas de produção, funções stub (`return Promise.resolve()`), `catch {}` vazios, TODOs antigos.
+3. **Supabase audit** (opcional, ativa só em projeto com `supabase/`) — cruza schema declarado em `supabase/migrations/` + `supabase/functions/` com referências em `src/`: acha typos em `.from('x')`, invokes quebrados, colunas provavelmente erradas, tabelas/funções dead, Realtime sem cleanup.
 
 ## Filosofia
 
@@ -25,7 +26,8 @@ Plugin para Claude Code focado em **manter projetos JS/TS/React/Next.js limpos e
 |---|---|
 | `/code-health:cleanup [scope]` | Varredura de dead code (scope: `full|imports|deps|assets|files`) |
 | `/code-health:audit [scope]` | Auditoria funcional (scope: `full|buttons|routes|mocks|stubs|handlers|todos`) |
-| `/code-health:health` | Roda os dois em paralelo e gera relatório consolidado |
+| `/code-health:audit-supabase` | Auditoria cruzada Supabase (migrations vs src/) — só roda se houver `supabase/` |
+| `/code-health:health` | Roda os três em paralelo e gera relatório consolidado |
 
 ## Subagents
 
@@ -33,6 +35,7 @@ Plugin para Claude Code focado em **manter projetos JS/TS/React/Next.js limpos e
 |---|---|
 | `dead-code-scanner` | Pelo skill `dead-code-cleanup` para varredura paralela (knip + ts-prune + depcheck + eslint + ripgrep) |
 | `functional-auditor` | Pelo skill `functional-audit` para varredura paralela dos 7 detectores |
+| `supabase-auditor` | Pelo `/code-health:audit-supabase` — 6 detectores específicos de Supabase (broken-table, broken-invoke, unknown-column, dead-table, dead-edge-function, realtime-no-cleanup) |
 
 Os subagents são **read-only** — escrevem findings em `/tmp/*.json` e retornam apenas um sumário. O agente principal lê o JSON e produz o relatório markdown.
 
