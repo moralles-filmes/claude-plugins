@@ -126,17 +126,20 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 ## Fase 6 — `code_health`
 **Dono**: você mesmo, delegando para o plugin `code-health`.
 
-**Por que essa fase existe**: o `qa-testes` valida o que o código FAZ. O `code-health` acha o que o código DEIXA DE FAZER — botão sem handler, rota que dá 404, dado mockado em produção, stub esquecido, catch vazio, TODOs antigos, código comentado.
+**Por que essa fase existe**: o `qa-testes` valida o que o código FAZ. O `code-health` acha o que o código DEIXA DE FAZER — botão sem handler, rota que dá 404, dado mockado em produção, stub esquecido, catch vazio, TODOs antigos, código comentado, **e referências quebradas a tabelas/funções Supabase**.
 
-**Ações**:
-1. Dispare `/code-health:audit full` — chama o subagent `functional-auditor` (escreve em `/tmp/functional-findings.json`)
-2. Dispare `/code-health:cleanup full` — chama o subagent `dead-code-scanner` (escreve em `/tmp/dead-code-findings.json`)
-3. Leia ambos os JSONs e consolide em `.claude/code-health-report.md`
-4. Avalie o **veredito** do `functional-auditor`:
-   - `PRODUCTION_READY` → avança
-   - `NEEDS_WORK` → você mostra o relatório, pergunta ao usuário se quer abrir branch de fix antes de avançar
-   - `NOT_PRODUCTION_READY` → BLOQUEIA. Volta para `frontend-react` ou `backend-supabase` corrigir os BLOCKERs (phantom button em rota de checkout, broken route, etc.)
-5. Findings de dead-code não bloqueiam — viram uma issue/TODO interno opcional.
+**Ações** (3 varreduras em paralelo):
+1. Dispare `/code-health:audit full` — chama o subagent `functional-auditor` (escreve em `/tmp/functional-findings.json`) — phantom buttons, broken routes, mocks em produção, stubs, etc.
+2. Dispare `/code-health:cleanup full` — chama o subagent `dead-code-scanner` (escreve em `/tmp/dead-code-findings.json`) — arquivos órfãos, deps esquecidas, imports não usados.
+3. Dispare `/code-health:audit-supabase` — chama o subagent `supabase-auditor` (escreve em `/tmp/supabase-findings.json`) — typos em `.from()`, invokes quebrados, dead tables/functions, Realtime sem cleanup. **Só roda se tiver `supabase/migrations/` ou `supabase/functions/` no projeto** (auto-detect).
+4. Leia os 3 JSONs e consolide em `.claude/code-health-report.md`.
+5. Avalie os **vereditos** combinados (`functional-auditor` E `supabase-auditor`):
+   - Ambos `PRODUCTION_READY` → avança
+   - Algum `NEEDS_WORK` → você mostra o relatório consolidado, pergunta ao usuário se quer abrir branch de fix antes de avançar
+   - Algum `NOT_PRODUCTION_READY` → BLOQUEIA. Roteia o fix:
+     - BLOCKER do `functional-auditor` (phantom button em checkout, broken route) → volta para `frontend-react`
+     - BLOCKER do `supabase-auditor` (typo em `.from()` ou `.invoke()`) → volta para `frontend-react` (típicamente é typo no código) OU `db-schema-designer` (se a tabela realmente precisa ser criada)
+6. Findings de dead-code (do `dead-code-scanner`) e dead-table/dead-function (do `supabase-auditor`) **não bloqueiam** — viram lista opcional de limpeza no relatório.
 
 **Importante**: o code-health tem checkpoint git automático e roda fix em lotes com smoke test (`tsc --noEmit + build`) entre cada lote. Você NÃO precisa supervisionar a aplicação dos fixes — só o veredito.
 
@@ -176,6 +179,7 @@ Quando o usuário interrompe a sequência com um pedido pontual, use esta tabela
 | "secret", "chave vazada", "env exposta" | `secret-hunter` (shield) |
 | "dead code", "código morto", "limpa o código", "unused", "knip" | `/code-health:cleanup` |
 | "phantom button", "broken route", "mock em produção", "stub", "pronto pra produção", "production ready" | `/code-health:audit` |
+| "typo no nome da tabela", "broken invoke", "tabela morta", "função supabase não usada", "realtime cleanup", "audita supabase" | `/code-health:audit-supabase` |
 | "saúde do código", "code health", "varredura completa" | `/code-health:health` |
 | "novo projeto", "começar saas", "ideia de produto" | volta para fase 1 → `arquiteto-saas` |
 
