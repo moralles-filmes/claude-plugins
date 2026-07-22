@@ -1,23 +1,25 @@
 {
   "name": "saas-shield-br",
-  "version": "1.0.0",
-  "description": "Suite global de skills + agents para SaaS multi-tenant em Supabase/Vercel/React+Vite. Foco extremo em segurança (RLS, isolamento tenant, secrets), economia de custo (queries, índices, bundle) e padrões PT-BR. Inclui 10 skills, 4 subagents especializados, 5 slash commands e hooks pré-commit.",
+  "version": "2.0.0",
+  "description": "Suite de skills + agents auditores para SaaS multi-tenant em Supabase/Vercel — convention-driven: não assume company_id, lê o tenancy-profile do projeto e suporta Next.js App Router, Vite e monorepo, com 4 arquétipos de tenant (company_id/JWT, unit_id/membership, org+unit/RBAC, unit_id/set). Foco em segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets), custo e padrões PT-BR. 12 skills, 6 subagents auditores (contrato de saída único), 5 slash commands e hooks pré-commit.",
   "author": {
     "name": "Yuri Moraes",
     "email": "morallesfilms@gmail.com"
   },
-  "homepage": "https://github.com/morallesfilms/saas-shield-br",
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
   "license": "MIT",
   "keywords": [
     "supabase",
     "vercel",
+    "nextjs",
+    "vite",
+    "react",
+    "typescript",
     "multi-tenant",
+    "convention-driven",
     "security",
     "rls",
     "saas",
-    "pt-br",
-    "react",
-    "vite",
-    "typescript"
+    "pt-br"
   ]
 }

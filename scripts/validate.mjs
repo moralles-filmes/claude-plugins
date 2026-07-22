@@ -32,6 +32,11 @@ const REPO_ROOT = join(__dirname, '..')
 const errors = []
 const warnings = []
 
+// nomes globais (para cross-checks): skills existentes e nomes de agentes (unicidade)
+const allSkillNames = new Set()
+const allAgentNames = new Map() // name → arquivo
+const REMOVED_AGENTS = ['tenant-leak-hunter'] // agentes aposentados que não devem mais ser referenciados
+
 function err(msg) { errors.push(msg) }
 function warn(msg) { warnings.push(msg) }
 function ok(msg) { console.log(`  \x1b[32m✓\x1b[0m ${msg}`) }
@@ -62,9 +67,29 @@ function parseFrontmatter(content) {
   const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!m) return null
   const fm = {}
+  let currentListKey = null
   for (const line of m[1].split(/\r?\n/)) {
+    // item de lista YAML: "  - valor"
+    const li = line.match(/^\s*-\s+(.*)$/)
+    if (li && currentListKey) {
+      fm[currentListKey].push(li[1].trim())
+      continue
+    }
+    // chave: (valor vazio → inicia lista) OU chave: valor (escalar)
     const kv = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$/)
-    if (kv) fm[kv[1]] = kv[2].trim()
+    if (kv) {
+      const key = kv[1]
+      const val = kv[2].trim()
+      if (val === '') {
+        fm[key] = []
+        currentListKey = key
+      } else {
+        fm[key] = val
+        currentListKey = null
+      }
+      continue
+    }
+    currentListKey = null
   }
   return fm
 }
@@ -161,6 +186,8 @@ for (const dir of pluginDirs) {
     if (fm.name && fm.name !== skill) {
       warn(`${rel(skillPath)}: frontmatter \`name: ${fm.name}\` difere da pasta "${skill}"`)
     }
+    allSkillNames.add(skill)
+    if (fm.name) allSkillNames.add(fm.name)
     if (fm.name && fm.description) ok(`${dir}/skills/${skill}/`)
   }
 }
@@ -183,6 +210,46 @@ for (const dir of pluginDirs) {
     }
     if (!fm.name) err(`${rel(path)}: frontmatter sem \`name\``)
     if (!fm.description) err(`${rel(path)}: frontmatter sem \`description\``)
+
+    // filename ↔ name
+    const base = basename(file, '.md')
+    if (fm.name && fm.name !== base) {
+      err(`${rel(path)}: \`name: ${fm.name}\` difere do arquivo "${base}.md"`)
+    }
+    // nome único entre todos os agentes
+    if (fm.name) {
+      if (allAgentNames.has(fm.name)) {
+        err(`${rel(path)}: nome de agente duplicado "${fm.name}" (já em ${allAgentNames.get(fm.name)})`)
+      } else {
+        allAgentNames.set(fm.name, rel(path))
+      }
+    }
+    // tools recomendado (allowlist explícita é a barreira de segurança em plugin agents)
+    if (!fm.tools) warn(`${rel(path)}: sem \`tools\` — recomende allowlist explícita`)
+    // auditor de segurança (saas-shield-br) deve ser read-only
+    const isAuditor = fm.name && /-(auditor|hunter|validator|reviewer)$/.test(fm.name)
+    const toolsStr = Array.isArray(fm.tools) ? fm.tools.join(',') : (fm.tools || '')
+    if (dir === 'saas-shield-br' && isAuditor && /\b(Write|Edit|NotebookEdit)\b/.test(toolsStr)) {
+      err(`${rel(path)}: agente auditor "${fm.name}" tem ferramenta de escrita — deve ser read-only`)
+    }
+    // skills: pré-carregadas devem existir
+    if (Array.isArray(fm.skills)) {
+      for (const s of fm.skills) {
+        if (!allSkillNames.has(s)) {
+          err(`${rel(path)}: \`skills: ${s}\` não existe em nenhum plugin do repo`)
+        }
+      }
+    }
+    // corpo: uso legado do "Task tool" e referências a agentes removidos
+    if (/\bTask tool\b/i.test(content)) {
+      warn(`${rel(path)}: cita "Task tool" (legado) — use "Agent tool"`)
+    }
+    for (const removed of REMOVED_AGENTS) {
+      if (content.includes(removed)) {
+        warn(`${rel(path)}: referencia agente removido "${removed}"`)
+      }
+    }
+
     if (fm.name && fm.description) ok(`${dir}/agents/${file}`)
   }
 }
@@ -204,6 +271,14 @@ for (const dir of pluginDirs) {
       continue
     }
     if (!fm.description) err(`${rel(path)}: frontmatter sem \`description\``)
+    if (/\bTask tool\b/i.test(content)) {
+      warn(`${rel(path)}: cita "Task tool" (legado) — use "Agent tool"`)
+    }
+    for (const removed of REMOVED_AGENTS) {
+      if (content.includes(removed)) {
+        warn(`${rel(path)}: referencia agente removido "${removed}"`)
+      }
+    }
     if (fm.description) ok(`${dir}/commands/${file}`)
   }
 }

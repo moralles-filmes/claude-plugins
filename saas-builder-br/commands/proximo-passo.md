@@ -19,7 +19,7 @@ Ações:
 1. Leia .claude/saas-state.json
 2. Identifique a fase atual e o que está completo/pendente
 3. Decida o próximo passo:
-   - Se há gate de segurança pendente → dispare o agent do shield (rls-auditor / tenant-leak-hunter / secret-hunter)
+   - Se há gate de segurança pendente → dispare o agent do shield (rls-auditor / tenant-isolation-auditor / secret-hunter)
    - Se a fase atual tem entregável incompleto → invoque o agent dono da fase
    - Se a fase está done → pergunte ao usuário se pode avançar para a próxima
 

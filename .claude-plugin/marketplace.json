@@ -11,7 +11,7 @@
     {
       "name": "saas-shield-br",
       "source": "./saas-shield-br",
-      "description": "Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite. Foco em segurança (RLS, isolamento tenant, secrets), economia de custo e padrões PT-BR. 10 skills, 4 subagents, 5 commands, 2 hooks."
+      "description": "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets), custo e PT-BR. 12 skills, 6 subagents, 5 commands, hooks."
     },
     {
       "name": "code-health",

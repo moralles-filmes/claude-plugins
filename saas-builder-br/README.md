@@ -37,7 +37,7 @@ Resultado prático: você descreve a ideia em linguagem natural (`/novo-saas <co
 
 GATES AUTOMÁTICOS:
   Após Fase 2 (schema)         → rls-auditor              [saas-shield-br]
-  Após Fase 3 (backend)        → tenant-leak-hunter       [saas-shield-br]
+  Após Fase 3 (backend)        → tenant-isolation-auditor       [saas-shield-br]
   Após Fase 5 (integrations)   → secret-hunter            [saas-shield-br]
   Fase 6 (code_health)         → functional-auditor       [code-health]
                                   + dead-code-scanner     [code-health]
@@ -107,7 +107,7 @@ Este plugin **assume que `saas-shield-br` E `code-health` estão instalados**. O
 | Gate | Quando | Plugin | Agent / Command |
 |---|---|---|---|
 | Pós-schema | Toda nova migration | saas-shield-br | `rls-auditor` |
-| Pós-backend | Edge Functions criadas | saas-shield-br | `tenant-leak-hunter` |
+| Pós-backend | Edge Functions criadas | saas-shield-br | `tenant-isolation-auditor` |
 | Pós-integrações | Antes de commit final | saas-shield-br | `secret-hunter` |
 | Fase 6 — Code health | Frontend completo | code-health | `/code-health:audit` + `/code-health:cleanup` |
 | Fase 7 — Security | Antes do deploy | saas-shield-br | 4 agents consolidados |

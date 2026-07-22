@@ -1,12 +1,12 @@
 {
   "name": "saas-builder-br",
-  "version": "1.0.0",
-  "description": "Orquestrador central + 8 subagents especializados para construção de SaaS multi-tenant em Vite+React+TS / Supabase / Vercel. Cada subagent tem contexto isolado e tarefa clara, com gates automáticos chamando o saas-shield-br para auditoria de segurança. Pensado para devs brasileiros que constroem SaaS com integrações WhatsApp (Z-API + Cloud API) e LLMs (OpenAI/Anthropic/Gemini).",
+  "version": "1.1.0",
+  "description": "Orquestrador central + 8 subagents especializados para construção de SaaS multi-tenant em Vite+React+TS / Supabase / Vercel. Cada subagent tem contexto isolado e tarefa clara, com gates automáticos chamando o saas-shield-br para auditoria de segurança. O db-schema-designer é convention-driven: lê o .claude/tenancy-profile.yml do projeto e gera no arquétipo correto (company_id/JWT, unit_id/membership, org+unit/RBAC, unit_id/set) — não assume company_id. Pensado para devs brasileiros que constroem SaaS com integrações WhatsApp (Z-API + Cloud API) e LLMs (OpenAI/Anthropic/Gemini).",
   "author": {
     "name": "Yuri Moraes",
     "email": "morallesfilms@gmail.com"
   },
-  "homepage": "https://github.com/morallesfilms/saas-builder-br",
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
   "license": "MIT",
   "keywords": [
     "supabase",
@@ -15,6 +15,7 @@
     "react",
     "typescript",
     "multi-tenant",
+    "convention-driven",
     "saas",
     "orchestrator",
     "subagents",

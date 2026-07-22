@@ -1,113 +1,103 @@
 # saas-shield-br
 
-> Plugin Claude Code para devs brasileiros que constroem SaaS multi-tenant em Supabase + Vercel + React/Vite. Foco em **segurança extrema** (RLS, isolamento de tenant, secrets), **economia de custo** (queries, índices, bundle) e **padrões PT-BR**.
+> Plugin Claude Code para devs brasileiros que constroem SaaS multi-tenant em Supabase + Vercel. **Convention-driven**: não assume `company_id` — lê o `tenancy-profile` do projeto e funciona em **Next.js App Router, Vite ou monorepo**, com 4 arquétipos de tenant. Foco em **segurança** (RLS, isolamento de tenant, identidade/acesso, integrações, secrets), **custo** e **padrões PT-BR**.
+
+## O modelo convention-driven (v2)
+
+O plugin **não** tem um esquema de tenant fixo. Antes de auditar ou gerar, ele resolve a convenção do projeto a partir de `.claude/tenancy-profile.yml` (ou detecta). Os invariantes de segurança são universais; o que varia (coluna de tenant, resolver, caminho de escrita, framework) é **parâmetro**. Arquétipos suportados:
+
+| Arquétipo | Tenant | Resolver | Escrita |
+|---|---|---|---|
+| **A** | `company_id` | JWT claim (`get_current_company_id`) | trigger `force_company_id` |
+| **B** | `unit_id` (org→unit→member) | membership-lookup (`is_unit_member`) | server-scoped |
+| **C** | `organization_id`+`unit_id` | RBAC (`has_permission`) | RPC `SECURITY DEFINER` |
+| **D** | `unit_id` | set-returning (`current_unit_ids`) + `app.has_role` | server-scoped |
+
+A skill **`tenant-model`** é a fonte única da verdade (spec do profile + detecção + arquétipos). A skill **`agent-result-contract`** define o formato de saída único de todos os auditores.
 
 ## O que está dentro
 
-### 10 Skills
+### 12 Skills
 
 | Skill | Categoria | O que faz |
 |---|---|---|
-| `rls-reviewer` | Segurança | Audita policies RLS — `FORCE RLS`, `USING` vs `WITH CHECK`, `SECURITY DEFINER` + `search_path`, anti-patterns |
-| `multi-tenant-auditor` | Segurança | Auditoria profunda de isolamento — `company_id NOT NULL`, triggers `*_force_company_id`, resolver canônico, leak detection |
-| `secret-scanner` | Segurança | Detecta secrets vazados — `service_role` em cliente, `.env` commitado, JWT/keys hardcoded, `VITE_` abuse |
-| `supabase-migrator` | Backend | Gera migrations no padrão MarginPro — timestamp, idempotência, FORCE RLS, triggers, policies |
-| `edge-function-guard` | Backend | Revisa Edge Functions — JWT validation, CORS, error leakage, rate limiting, auth header forwarding |
-| `cost-optimizer` | Performance | Reduz custo Supabase/Vercel — índices RLS-aware, STABLE caching, N+1, realtime caro, bundle size |
-| `schema-diff` | DevOps | Drift entre migrations locais ↔ remoto — tabelas sem RLS, sem trigger, sem índice |
-| `vercel-deploy-guard` | DevOps | Pré-deploy — env vars, headers de segurança (CSP/HSTS), source maps, bundle limit |
-| `pt-br-translator` | UX | Revisa UI strings PT-BR — gênero, formalidade, idiomáticos comuns, formato BR de data/número |
-| `token-budget-analyst` | Workflow | Otimiza prompts/contexto Claude — pruning, cache, tool description size |
+| `tenant-model` | Fundação | Fonte da verdade de tenancy — spec do `tenancy-profile`, detecção, invariantes universais, 4 arquétipos |
+| `agent-result-contract` | Fundação | Contrato único de saída dos auditores (veredito PASS/FAIL/INCONCLUSIVE, severidade P0–P3, regras de evidência) |
+| `rls-reviewer` | Segurança | Audita RLS parametrizado pelo profile — `FORCE RLS`, `USING`+`WITH CHECK`, `SECURITY DEFINER`+`search_path`, 12 anti-patterns |
+| `multi-tenant-auditor` | Segurança | Isolamento no repo inteiro — tabelas órfãs, fronteira privilegiada, views, leak detection (base do tenant-isolation-auditor) |
+| `secret-scanner` | Segurança | Detecta secrets vazados — `service_role` no cliente, `.env` commitado, keys hardcoded, `VITE_`/`NEXT_PUBLIC_` abuse |
+| `supabase-migrator` | Backend | Gera migrations seguras no **arquétipo do projeto** — timestamp, idempotência, FORCE RLS, policies |
+| `edge-function-guard` | Backend | Revisa Edge Functions — JWT, CORS, error leakage, rate limiting, auth header |
+| `cost-optimizer` | Performance | Reduz custo Supabase/Vercel — índices RLS-aware, STABLE caching, N+1, realtime, bundle |
+| `schema-diff` | DevOps | Drift entre migrations locais ↔ remoto |
+| `vercel-deploy-guard` | DevOps | Pré-deploy — env vars, headers (CSP/HSTS), source maps, bundle limit |
+| `pt-br-translator` | UX | Revisa UI strings PT-BR — gênero, formalidade, idiomáticos, formato BR |
+| `token-budget-analyst` | Workflow | Otimiza prompts/contexto Claude |
 
-### 4 Subagents
+### 6 Subagents auditores
+
+Todos read-only (`Read, Grep, Glob`), com `maxTurns`/`effort`, pré-carregando as skills de conhecimento via `skills:` e reportando no `agent-result-contract`. Análise **estática** — comandos de execução são emitidos como próxima ação, nunca reportados como executados.
 
 | Agent | Quando usar |
 |---|---|
 | `rls-auditor` | Auditoria isolada e profunda de RLS num PR ou migration |
-| `tenant-leak-hunter` | Caça vazamentos cross-tenant — JOINs sem filtro, views, edge functions com `service_role` |
-| `secret-hunter` | Varredura completa do repo + histórico git por secrets |
-| `migration-validator` | Valida migration proposta antes de aplicar (dry-run + checklist) |
+| `tenant-isolation-auditor` | Caça vazamentos cross-tenant no repo (funde o antigo tenant-leak-hunter + execução do multi-tenant-auditor) |
+| `identity-access-auditor` | Memberships, RBAC, convites, troca de tenant, super admin, anti-lockout, escalonamento de privilégio |
+| `integration-reliability-auditor` | Webhooks (assinatura), filas (claim/retry), idempotência, dedup, APIs externas |
+| `secret-hunter` | Varredura estática de secrets (código + `.env` + bundle); emite comandos de deep-scan (git/gitleaks) |
+| `migration-validator` | Valida migration antes de aplicar (RLS + tenant + idempotência + reversibilidade + compatibilidade) |
 
 ### 5 Slash Commands
 
-- `/audit-tenant` — roda multi-tenant-auditor no projeto inteiro
-- `/check-rls [arquivo]` — revisa RLS num arquivo específico ou em todas migrations recentes
-- `/secret-scan` — scan completo de secrets (incluindo histórico git)
-- `/pre-deploy` — checklist completo antes de fazer deploy (Vercel + Supabase)
-- `/new-migration [descrição]` — gera nova migration no seu padrão
+- `/audit-tenant` — resolve o profile e dispara o `tenant-isolation-auditor`
+- `/check-rls [arquivo]` — revisa RLS (parametrizado) num arquivo ou nas migrations recentes
+- `/secret-scan` — scan de secrets (estático + comandos de histórico git)
+- `/pre-deploy` — checklist: secrets → isolamento → identidade → integrações → schema → RLS → Vercel → edge functions
+- `/new-migration [descrição]` — gera migration no arquétipo do projeto
 
-### 2 Hooks
+### Hooks
 
-- **PreToolUse** em `Write|Edit` para `*.sql` — roda rls-reviewer automaticamente
-- **PreToolUse** em `Bash` quando comando é `git commit` — roda secret-scanner antes de permitir
+- **PreToolUse** em `Write|Edit` para `*.sql` — checa anti-patterns
+- **PreToolUse** em `Bash` no `git commit` — roda secret-scan antes de permitir
+
+## O `tenancy-profile` do projeto
+
+Coloque em `.claude/tenancy-profile.yml` do repo (ou deixe o plugin detectar):
+
+```yaml
+framework: next-app          # vite | next-app | monorepo | expo | fastify
+tenant:
+  columns: [unit_id]
+  resolver: current_unit_ids
+  resolver_kind: set         # jwt-claim | membership-lookup | set
+  force_trigger: false
+  write_path: server-scoped  # force-trigger | server-scoped | rpc-security-definer
+membership: { model: multi, table: user_unit_roles }
+roles: { model: numeric-levels }
+super_admin: { authority: user_profiles.is_super_admin, fn: is_super_admin }
+secrets_boundary: route-handler
+client_env_prefix: NEXT_PUBLIC_
+display_term: Unidade
+```
 
 ## Instalação
 
-### Opção A: Plugin global (recomendado)
-
 ```bash
-# 1. Adiciona o marketplace local (uma vez)
-claude plugin marketplace add /caminho/para/saas-shield-br
-
-# 2. Instala o plugin
+# adiciona o marketplace local (uma vez) e instala
+claude plugin marketplace add /caminho/para/claude-plugins
 claude plugin install saas-shield-br
 ```
 
-### Opção B: Skills soltas em `~/.claude/skills/`
-
-```bash
-# Linux/macOS
-cp -r saas-shield-br/skills/* ~/.claude/skills/
-
-# Windows (PowerShell)
-Copy-Item -Recurse saas-shield-br\skills\* $env:USERPROFILE\.claude\skills\
-```
-
-### Opção C: Por projeto (`.claude/skills/` no repo)
-
-```bash
-mkdir -p .claude
-cp -r saas-shield-br/skills .claude/
-cp -r saas-shield-br/agents .claude/
-cp -r saas-shield-br/commands .claude/
-```
-
-## Como o plugin pensa sobre segurança
-
-Toda skill de segurança parte do princípio **"nunca confie no cliente"** e segue o modelo de defesa em três camadas que o `rls-reviewer` e `multi-tenant-auditor` validam:
-
-1. **Coluna `company_id NOT NULL`** em toda tabela de domínio, com FK para `public.companies(id)`.
-2. **Resolver canônico `get_current_company_id()`** — `STABLE SECURITY DEFINER`, `SET search_path = public`, lê `auth.uid() → profiles.company_id`.
-3. **Triggers `*_force_company_id`** — sobrescrevem `NEW.company_id` em INSERT/UPDATE para defender contra cliente malicioso. Imutável em UPDATE.
-4. **`FORCE RLS` + policies `USING + WITH CHECK`** em toda tabela.
-
-Toda skill nesse plugin verifica essas 4 camadas e rejeita migrations/queries que violem qualquer uma delas.
-
 ## Filosofia
 
-- **Falha cedo, falha alto.** Um leak cross-tenant é incidente de segurança, não warning. As skills são treinadas a marcar como bloqueante.
-- **Performance é parte da segurança.** RLS sem índice em `company_id` é DoS esperando acontecer. `cost-optimizer` cobre isso.
-- **PT-BR como cidadão de primeira classe.** Skills, agents e commands escrevem outputs em português — porque sua UI também é.
-- **Token economy embutida.** O `token-budget-analyst` audita seu workflow e o plugin foi escrito com prompts curtos e referências `reference.md` carregadas sob demanda.
-
-## Estrutura de arquivos
-
-```
-saas-shield-br/
-├── .claude-plugin/
-│   └── plugin.json          # manifesto
-├── skills/                  # 10 skills (cada uma com SKILL.md + reference.md)
-├── agents/                  # 4 subagents (markdown com frontmatter)
-├── commands/                # 5 slash commands
-├── hooks/
-│   └── hooks.json           # 2 hooks
-├── README.md                # este arquivo
-└── CHANGELOG.md
-```
+- **Convention over hardcode.** Um plugin que só serve para `company_id` audita errado 3 em cada 4 projetos reais. Este lê a convenção primeiro.
+- **Falha cedo, falha alto.** Leak cross-tenant é incidente, não warning.
+- **Honestidade de capacidade.** Auditor read-only não afirma ter rodado `git log`/`db reset` — ele emite o comando.
+- **PT-BR e token economy** embutidos (`reference.md` sob demanda).
 
 ## Versionamento
 
-Versão atual: **1.0.0** — ver [CHANGELOG.md](./CHANGELOG.md).
+Versão atual: **2.0.0** — ver [CHANGELOG.md](./CHANGELOG.md). A v2 é convention-driven e **breaking** vs. a v1 (agente `tenant-leak-hunter` fundido em `tenant-isolation-auditor`, contrato de saída novo, não assume mais `company_id`).
 
 ## Licença
 

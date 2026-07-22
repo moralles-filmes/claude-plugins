@@ -272,7 +272,7 @@ service_role usado em: <lista das funções, com justificativa>
 Webhooks com HMAC: <lista>
 Storage policies: <sim/não, qual bucket>
 
-🚦 Gate obrigatório próximo: tenant-leak-hunter (saas-shield-br)
+🚦 Gate obrigatório próximo: tenant-isolation-auditor (saas-shield-br)
    → varre supabase/functions/ procurando vazamento
 ```
 

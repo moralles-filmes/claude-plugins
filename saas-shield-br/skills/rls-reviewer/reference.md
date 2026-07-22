@@ -1,255 +1,156 @@
 # RLS Reviewer — Referência Técnica
 
-Esta é a referência completa do `rls-reviewer`. Carregue sob demanda quando precisar do checklist ou da lista de anti-patterns.
+Referência completa do `rls-reviewer`. Carregue sob demanda.
 
-## Modelo mental: as 4 camadas
+> **Convenção:** `<TC>` = a(s) coluna(s) de tenant do projeto, `<R>` = o resolver canônico, `<WP>` = o caminho de escrita — tudo vindo do `.claude/tenancy-profile.yml` (skill [tenant-model]). Nos exemplos abaixo usamos `company_id`/`get_current_company_id()` **como ilustração do Arquétipo A**; num projeto `unit_id`/`current_unit_ids()` (Arquétipo D), troque os identificadores. Os **anti-patterns** valem em qualquer arquétipo.
+
+## Modelo mental: as 4 camadas (parametrizado)
 
 ```
 Cliente (frontend, com JWT)
-        │
-        ▼ INSERT/UPDATE com company_id qualquer
-        │
-┌───────────────────────┐
-│  CAMADA 1: COLUNA     │ company_id uuid NOT NULL REFERENCES companies(id)
-│  Estrutural           │ Não pode ser NULL, FK garante existência
-└───────────────────────┘
-        │
+        │  INSERT/UPDATE tentando setar <TC> arbitrário
         ▼
-┌───────────────────────┐
-│  CAMADA 2: TRIGGER    │ BEFORE INSERT/UPDATE
-│  Defesa server-side   │   IF auth.uid() IS NOT NULL THEN
-│                       │     IF TG_OP = 'INSERT' THEN
-│                       │       NEW.company_id := get_current_company_id();
-│                       │     ELSIF TG_OP = 'UPDATE' THEN
-│                       │       NEW.company_id := OLD.company_id;  -- imutável
-│                       │     END IF;
-│                       │   END IF;
-└───────────────────────┘
-        │
+CAMADA 1 — COLUNA      <TC> not null  (+ FK para a tabela de tenant)
+CAMADA 2 — ESCRITA     conforme <WP>:
+                        • force-trigger  → BEFORE INSERT/UPDATE deriva <TC> do servidor; imutável no UPDATE
+                        • server-scoped  → escrita só server-side; WITH CHECK barra tenant alheio
+                        • rpc-sec-definer→ sem DML de cliente; RPC valida o tenant
+CAMADA 3 — RLS+FORCE   ENABLE + FORCE ROW LEVEL SECURITY  ← afeta até o dono da tabela
+CAMADA 4 — POLICIES    USING (<TC> ~ <R>)  +  WITH CHECK (<TC> ~ <R>)
         ▼
-┌───────────────────────┐
-│  CAMADA 3: RLS+FORCE  │ ENABLE ROW LEVEL SECURITY
-│                       │ FORCE ROW LEVEL SECURITY  ← afeta até dono da tabela
-└───────────────────────┘
-        │
-        ▼
-┌───────────────────────┐
-│  CAMADA 4: POLICIES   │ USING       (company_id = get_current_company_id())
-│                       │ WITH CHECK  (company_id = get_current_company_id())
-└───────────────────────┘
-        │
-        ▼
-       Linha visível / aceita / negada
+      Linha visível / aceita / negada
 ```
 
-## Checklist (24 itens)
+## Checklist
 
-### Estrutural — Coluna (4 itens)
+### Coluna (universal)
+- [ ] Tabela tem `<TC>` `not null`?
+- [ ] FK para a tabela de tenant declarada (com `on delete` explícito)?
+- [ ] Índice em `<TC>` (ou composto começando por ele)?
+- [ ] Sem `DEFAULT '<uuid-fixo>'` na coluna de tenant?
 
-- [ ] Tabela tem coluna `company_id uuid NOT NULL`?
-- [ ] FK referenciando `public.companies(id)` declarada?
-- [ ] Existe índice em `company_id` (ou index composto começando com ele)?
-- [ ] Default da coluna é `NULL` ou inexistente (não `DEFAULT 'algum-uuid'`)?
+### Escrita — depende de `<WP>`
+- **Se `force-trigger`**: trigger `BEFORE INSERT OR UPDATE` deriva `<TC>` de `<R>` no INSERT e preserva `OLD.<TC>` no UPDATE; função `SECURITY DEFINER` + `SET search_path`; não deixa `<TC>` do cliente passar quando `auth.uid()` é NULL.
+- **Se `server-scoped`**: não há policy de INSERT permissiva demais; `WITH CHECK` amarra a `<R>`; a escrita real acontece no servidor com filtro de tenant explícito.
+- **Se `rpc-security-definer`**: a tabela **não** tem policy de escrita para `authenticated`; toda mutação passa por RPC `SECURITY DEFINER` que valida o tenant internamente.
 
-### Trigger (5 itens)
+> Não penalize a ausência de force-trigger fora do Arquétipo A. Valide **o caminho declarado**.
 
-- [ ] Existe trigger `<tabela>_force_company_id` `BEFORE INSERT OR UPDATE`?
-- [ ] Trigger usa `public.get_current_company_id()` no INSERT?
-- [ ] Trigger preserva `OLD.company_id` no UPDATE (imutável)?
-- [ ] Trigger bloqueia o UUID placeholder `00000000-0000-0000-0000-000000000001` em produção?
-- [ ] Função do trigger é `SECURITY DEFINER` com `SET search_path = public`?
+### RLS (universal)
+- [ ] `ENABLE ROW LEVEL SECURITY`?
+- [ ] `FORCE ROW LEVEL SECURITY`?
+- [ ] Schema `public` (ou auditado se outro)?
 
-### RLS (3 itens)
+### Policies (universal)
+- [ ] SELECT com `USING (<TC> ~ <R>)`?
+- [ ] INSERT com `WITH CHECK (<TC> ~ <R>)`?
+- [ ] UPDATE com **ambos** `USING` e `WITH CHECK`?
+- [ ] DELETE com `USING (<TC> ~ <R>)`?
+- [ ] Nenhuma `USING (true)` / `WITH CHECK (true)`?
+- [ ] `TO authenticated` (não `TO public`)?
+- [ ] Ramo de super-admin explícito (autoridade separada) OU super barrado?
+- [ ] Nomes descritivos (`<table>_select_own_tenant`)?
 
-- [ ] `ALTER TABLE … ENABLE ROW LEVEL SECURITY` declarado?
-- [ ] `ALTER TABLE … FORCE ROW LEVEL SECURITY` declarado?
-- [ ] Schema da tabela é `public` (ou auditado se for outro)?
+### Resolver `<R>` (universal)
+- [ ] Existe e é `STABLE SECURITY DEFINER`?
+- [ ] `SET search_path` (`''`/`public`)?
+- [ ] Autoridade correta ao `resolver_kind`: JWT `app_metadata` (nunca `user_metadata`) | membership-lookup | set-returning?
+- [ ] Para mutações críticas, há variante estrita que nega quando sem vínculo?
 
-### Policies (8 itens)
-
-- [ ] Policy SELECT existe e usa `USING (company_id = public.get_current_company_id())`?
-- [ ] Policy INSERT existe e usa `WITH CHECK (company_id = public.get_current_company_id())`?
-- [ ] Policy UPDATE existe e tem **ambos** `USING` e `WITH CHECK`?
-- [ ] Policy DELETE existe e usa `USING (company_id = public.get_current_company_id())`?
-- [ ] Nenhuma policy usa `USING (true)` ou `WITH CHECK (true)`?
-- [ ] Policies têm `TO authenticated` (não `TO public`)?
-- [ ] Para tabelas só-leitura por usuário, há policy de role específica (`TO service_role`)?
-- [ ] Nome das policies é descritivo (`<table>_select_own_tenant`, não `policy1`)?
-
-### Função resolver (4 itens)
-
-- [ ] `get_current_company_id()` existe e é `STABLE SECURITY DEFINER`?
-- [ ] `SET search_path = public` no resolver?
-- [ ] Tem fallback para usuário sem perfil (placeholder ou erro controlado)?
-- [ ] Existe variante `_strict()` que lança 403 quando sem vínculo (para mutações críticas)?
-
-## Os 12 anti-patterns 🚨
+## Os 12 anti-patterns 🚨 (universais)
 
 ### #1 — `USING (true)`
 ```sql
--- ❌ NUNCA
-CREATE POLICY "all_access" ON public.invoices
-  FOR SELECT USING (true);
+CREATE POLICY "all_access" ON public.invoices FOR SELECT USING (true);  -- ❌
 ```
-Equivale a desligar RLS. Se a intenção era pular RLS, use `service_role`.
+Equivale a desligar RLS. Se a intenção era pular RLS, use `service_role` server-side.
 
 ### #2 — INSERT sem `WITH CHECK`
-```sql
--- ❌
-CREATE POLICY "insert_invoice" ON public.invoices
-  FOR INSERT TO authenticated
-  USING (company_id = public.get_current_company_id());
-```
-`USING` não roda em INSERT. O cliente pode inserir linha de **qualquer** `company_id`.
-
+`USING` não roda em INSERT → o cliente insere linha de qualquer tenant.
 ```sql
 -- ✅
 CREATE POLICY "invoices_insert_own_tenant" ON public.invoices
   FOR INSERT TO authenticated
-  WITH CHECK (company_id = public.get_current_company_id());
+  WITH CHECK (company_id = public.get_current_company_id());   -- troque pelos seus <TC>/<R>
 ```
 
 ### #3 — UPDATE só com `USING`
 Permite mover linha entre tenants. Sempre `USING + WITH CHECK`.
 
 ### #4 — `SECURITY DEFINER` sem `search_path`
-```sql
--- ❌ vulnerável a search_path hijack
-CREATE FUNCTION public.get_current_company_id()
-RETURNS uuid LANGUAGE sql SECURITY DEFINER
-AS $$ SELECT company_id FROM profiles WHERE id = auth.uid(); $$;
-```
-Atacante cria schema com função `auth.uid()` maliciosa e altera `search_path` na sessão.
-
+Atacante cria schema com função homônima e sequestra o `search_path` da sessão.
 ```sql
 -- ✅
 CREATE OR REPLACE FUNCTION public.get_current_company_id()
-RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT COALESCE(
-    (SELECT company_id FROM public.profiles WHERE id = auth.uid()),
-    '00000000-0000-0000-0000-000000000001'::uuid
-  );
-$$;
+RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$ SELECT ... $$;
 ```
 
 ### #5 — Resolver `VOLATILE`
-Sem `STABLE`, o planner re-executa a função para cada linha. Em tabela com 100k linhas, RLS fica 100x mais lento. Sempre `STABLE` (ou `IMMUTABLE` se nunca mudar).
+Sem `STABLE`, o planner re-executa por linha → RLS ~100x mais lento em tabelas grandes.
 
 ### #6 — RLS sem `FORCE`
-`ROW LEVEL SECURITY` sozinho **não afeta o dono da tabela**. Em Supabase, qualquer função `SECURITY DEFINER` mal escrita pode rodar como dono e ler tudo.
-
+`ROW LEVEL SECURITY` sozinho não afeta o dono da tabela; funções `SECURITY DEFINER` mal escritas leem tudo.
 ```sql
 ALTER TABLE public.invoices FORCE ROW LEVEL SECURITY;
 ```
 
 ### #7 — View sem `security_invoker`
-PostgreSQL 15+. Views por padrão rodam com permissões de quem **criou** a view, não de quem consulta. Em tabelas RLS, isso vaza dados.
-
+PG15+. View roda com permissão de quem a criou, não de quem consulta → vaza dados de RLS.
 ```sql
--- ✅
-CREATE VIEW public.invoices_summary
-WITH (security_invoker = on)  -- crítico
-AS SELECT … FROM public.invoices;
+CREATE VIEW public.invoices_summary WITH (security_invoker = on) AS SELECT ...;
 ```
 
 ### #8 — Comparação fora do resolver
 ```sql
--- ❌ não usa o resolver canônico
-USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()))
+USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()))  -- ❌
 ```
-Cada policy reimplementa a lógica. Bug em uma não propaga fix para todas. Sempre via `public.get_current_company_id()`.
+Cada policy reimplementa a lógica; bug em uma não propaga fix. Sempre via `<R>`.
 
-### #9 — Trigger `force_company_id` permissivo demais
-```sql
--- ❌ se auth.uid() é NULL, NEW.company_id passa intacto do cliente
-IF auth.uid() IS NOT NULL THEN
-  NEW.company_id := get_current_company_id();
-END IF;
-```
-Em chamadas de `service_role` ou Edge Function autenticada por outra forma, isso vira bypass. Garanta que o ELSE também tenha defesa (ou seja, nega).
+### #9 — Caminho de escrita permissivo demais
+Trigger que passa `<TC>` do cliente quando `auth.uid()` é NULL; RPC `SECURITY DEFINER` que não valida o tenant; escrita server-side sem `.eq(<TC>)`. Qualquer um vira bypass.
 
-### #10 — Tabela sem índice em `company_id`
-RLS vira full table scan + filter. Para tabelas grandes:
+### #10 — Tabela sem índice em `<TC>`
+RLS vira full scan + filter.
 ```sql
-CREATE INDEX idx_invoices_company_id ON public.invoices (company_id);
--- ou composto se houver outro filtro comum:
-CREATE INDEX idx_invoices_company_status ON public.invoices (company_id, status);
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON public.invoices (company_id);
 ```
 
 ### #11 — `service_role` no frontend
-A chave `service_role` ignora RLS. Se o `.env` do cliente (`VITE_*` ou similar) tem ela, **qualquer usuário pode dropar o banco**. Sempre `anon` no cliente, `service_role` só em servidor (Edge Function, backend).
+A `service_role` ignora RLS. Se está no env do cliente (`VITE_*`/`NEXT_PUBLIC_*`), qualquer usuário lê/escreve tudo. `service_role` só server-side.
 
 ### #12 — Policy sem role específico (`TO public`)
-```sql
--- ❌ aplica até para anônimos não autenticados
-CREATE POLICY … FOR SELECT USING (…);
-```
-Sempre `TO authenticated`. Para casos especiais, `TO service_role` ou roles custom.
+Aplica até para anônimos. Sempre `TO authenticated` (ou role específico).
 
-## Padrão de policy correta (template)
+## Template de policy correta (Arquétipo A — ilustração)
+
+Para os templates dos Arquétipos B (`unit_id`/membership), C (`org+unit`/RBAC) e D (`unit_id`/set), veja `reference.md` da skill [tenant-model]. Exemplo do Arquétipo A:
 
 ```sql
--- 1. Habilita RLS forçado
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices FORCE ROW LEVEL SECURITY;
 
--- 2. SELECT
-CREATE POLICY "invoices_select_own_tenant"
-  ON public.invoices
-  FOR SELECT
-  TO authenticated
+CREATE POLICY "invoices_select_own_tenant" ON public.invoices
+  FOR SELECT TO authenticated
   USING (company_id = public.get_current_company_id());
 
--- 3. INSERT
-CREATE POLICY "invoices_insert_own_tenant"
-  ON public.invoices
-  FOR INSERT
-  TO authenticated
+CREATE POLICY "invoices_insert_own_tenant" ON public.invoices
+  FOR INSERT TO authenticated
   WITH CHECK (company_id = public.get_current_company_id());
 
--- 4. UPDATE (ambas as cláusulas)
-CREATE POLICY "invoices_update_own_tenant"
-  ON public.invoices
-  FOR UPDATE
-  TO authenticated
+CREATE POLICY "invoices_update_own_tenant" ON public.invoices
+  FOR UPDATE TO authenticated
   USING (company_id = public.get_current_company_id())
   WITH CHECK (company_id = public.get_current_company_id());
 
--- 5. DELETE
-CREATE POLICY "invoices_delete_own_tenant"
-  ON public.invoices
-  FOR DELETE
-  TO authenticated
+CREATE POLICY "invoices_delete_own_tenant" ON public.invoices
+  FOR DELETE TO authenticated
   USING (company_id = public.get_current_company_id());
 
--- 6. Trigger force_company_id
-CREATE OR REPLACE FUNCTION public.invoices_force_company_id()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF TG_OP = 'INSERT' THEN
-      NEW.company_id := public.get_current_company_id_strict();
-    ELSIF TG_OP = 'UPDATE' THEN
-      NEW.company_id := OLD.company_id;
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER invoices_force_company_id
-  BEFORE INSERT OR UPDATE ON public.invoices
-  FOR EACH ROW EXECUTE FUNCTION public.invoices_force_company_id();
-
--- 7. Índice obrigatório para performance do RLS
 CREATE INDEX IF NOT EXISTS idx_invoices_company_id ON public.invoices (company_id);
 ```
 
-## Como rodar EXPLAIN ANALYZE em policy suspeita
+## EXPLAIN ANALYZE em policy suspeita
 
 ```sql
 SET role authenticated;
@@ -257,5 +158,4 @@ SET request.jwt.claims = '{"sub":"<uuid-de-um-usuario-real>"}';
 EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.invoices LIMIT 10;
 RESET role;
 ```
-
-Procure por: `Filter: (company_id = ...)` com `Rows Removed by Filter` alto = RLS funcionando mas índice ausente.
+`Filter: (<TC> = ...)` com `Rows Removed by Filter` alto = RLS ok mas índice ausente.

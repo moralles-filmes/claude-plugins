@@ -7,9 +7,9 @@ Rode scan completo de secrets.
 
 ## Como proceder
 
-1. **Invoque o subagent `secret-hunter`** (Task tool):
-   - Subagent faz a varredura num contexto isolado
-   - Devolve relatório consolidado sem inflar contexto principal
+1. **Dispare o agente `secret-hunter`** (Agent tool com `subagent_type: secret-hunter`):
+   - O agente faz a varredura estática num contexto isolado
+   - Devolve relatório no contrato padrão (`agent-result-contract`) sem inflar o contexto principal
 
 2. **Após relatório**, **se** o usuário passou `with-history` em `$ARGUMENTS`:
    - Não rode `git log` automaticamente (a skill não tem permissão e é arriscado)
