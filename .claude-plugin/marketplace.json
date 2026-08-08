@@ -1,27 +1,32 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "name": "morallesfilms-local",
-  "displayName": "Morallesfilms — Marketplace local",
-  "description": "Marketplace pessoal de plugins Claude Code do Yuri Moraes.",
-  "owner": {
-    "name": "Yuri Moraes",
-    "email": "morallesfilms@gmail.com"
-  },
-  "plugins": [
-    {
-      "name": "saas-shield-br",
-      "source": "./saas-shield-br",
-      "description": "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets), custo e PT-BR. 12 skills, 6 subagents, 5 commands, hooks."
-    },
-    {
-      "name": "code-health",
-      "source": "./code-health",
-      "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js/Vite + Supabase-aware. 3 frentes: (1) dead code (arquivos órfãos, imports/deps/assets não usados); (2) código não-funcional (botões fantasma, rotas quebradas, mocks em produção, stubs, empty handlers); (3) Supabase audit (typos em .from(), invokes quebrados, dead tables/functions, Realtime sem cleanup). Modo report-first com checkpoint git e severidade BLOCKER/HIGH/MEDIUM/LOW. 2 skills, 3 subagents, 4 commands."
-    },
-    {
-      "name": "saas-builder-br",
-      "source": "./saas-builder-br",
-      "description": "Orquestrador central + 8 subagents especializados para construir SaaS multi-tenant em Vite + React + TypeScript / Supabase / Vercel. Pipeline de 8 fases (concept → schema → backend → frontend → integrations → code_health → security_audit → deploy) com gates automáticos plugados em saas-shield-br (segurança) e code-health (qualidade funcional). Inclui 5 skills (vite-react-arquitetura, tanstack-query-supabase, whatsapp-zapi-integracao, llm-multi-provider, responsive-mobile-first) e 3 commands (/novo-saas, /proximo-passo, /quem-faz)."
-    }
-  ]
+    "$schema":  "https://json-schema.org/draft/2020-12/schema",
+    "name":  "morallesfilms-local",
+    "displayName":  "Morallesfilms — Marketplace local",
+    "description":  "Marketplace pessoal de plugins Claude Code do Yuri Moraes.",
+    "owner":  {
+                  "name":  "Yuri Moraes",
+                  "email":  "morallesfilms@gmail.com"
+              },
+    "plugins":  [
+                    {
+                        "name":  "saas-shield-br",
+                        "source":  "./saas-shield-br",
+                        "description":  "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets), custo e PT-BR. 12 skills, 6 subagents, 5 commands, hooks."
+                    },
+                    {
+                        "name":  "code-health",
+                        "source":  "./code-health",
+                        "description":  "Auditoria e limpeza de código para projetos JS/TS/React/Next.js/Vite + Supabase-aware. 3 frentes: (1) dead code (arquivos órfãos, imports/deps/assets não usados); (2) código não-funcional (botões fantasma, rotas quebradas, mocks em produção, stubs, empty handlers); (3) Supabase audit (typos em .from(), invokes quebrados, dead tables/functions, Realtime sem cleanup). Modo report-first com checkpoint git e severidade BLOCKER/HIGH/MEDIUM/LOW. 2 skills, 3 subagents, 4 commands."
+                    },
+                    {
+                        "name":  "saas-builder-br",
+                        "source":  "./saas-builder-br",
+                        "description":  "Orquestrador central + 8 subagents especializados para construir SaaS multi-tenant em Vite + React + TypeScript / Supabase / Vercel. Pipeline de 8 fases (concept → schema → backend → frontend → integrations → code_health → security_audit → deploy) com gates automáticos plugados em saas-shield-br (segurança) e code-health (qualidade funcional). Inclui 5 skills (vite-react-arquitetura, tanstack-query-supabase, whatsapp-zapi-integracao, llm-multi-provider, responsive-mobile-first) e 3 commands (/novo-saas, /proximo-passo, /quem-faz)."
+                    },
+                    {
+                        "name":  "turbo",
+                        "source":  "./turbo",
+                        "description":  "Otimizador de performance ponta a ponta para React/Next + Postgres/Supabase (RLS multi-tenant) + infra. Mede antes de mexer (baseline em disco), corrige em passos pequenos e reversiveis, e instala guarda-corpos (budgets em CI, testes de regressao, isolamento de tenant) para o ganho nao regredir. Gerencia o proprio contexto via estado em .turbo/ para nao perder o fio em sistemas grandes. 4 skills, 1 subagent, 1 command (/turbo)."
+                    }
+                ]
 }

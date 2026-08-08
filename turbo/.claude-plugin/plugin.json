@@ -1,0 +1,12 @@
+{
+  "name": "turbo",
+  "version": "1.0.0",
+  "description": "Otimizador de performance ponta a ponta para React/Next, Postgres/Supabase (RLS multi-tenant) e infra. Mede antes de mexer (baseline em disco), corrige em passos pequenos e reversiveis, e instala guarda-corpos (budgets em CI, testes de regressao, isolamento de tenant) para o ganho nao regredir. Gerencia o proprio contexto via estado em .turbo/ para nao perder o fio em sistemas grandes. 4 skills, 1 subagent, 1 command (/turbo).",
+  "author": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
+  "license": "MIT",
+  "keywords": ["performance", "profiling", "react", "nextjs", "postgres", "supabase", "rls", "multi-tenant", "optimization", "pt-br"]
+}
