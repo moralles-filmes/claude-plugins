@@ -80,6 +80,8 @@ step "Instalando plugins..."
 
 PLUGINS=(
   'saas-shield-br'
+  'code-health'
+  'saas-audit-br'
   'canvas-design'
   'frontend-design'
   'skill-creator'
@@ -103,3 +105,4 @@ claude plugin list
 echo ""
 echo "Próximo passo:"
 echo "  Abra um projeto seu e teste: /saas-shield-br:audit-tenant"
+echo "  Auditoria completa (sem editar código): /saas-audit-br:audit --audit-only"

@@ -80,6 +80,8 @@ Write-Step "Instalando plugins..."
 
 $plugins = @(
     'saas-shield-br',
+    'code-health',
+    'saas-audit-br',
     'canvas-design',
     'frontend-design',
     'skill-creator',
@@ -105,3 +107,4 @@ claude plugin list
 Write-Host ""
 Write-Host "Proximo passo:" -ForegroundColor Cyan
 Write-Host "  Abra um projeto seu e teste: /saas-shield-br:audit-tenant"
+Write-Host "  Auditoria completa (sem editar codigo): /saas-audit-br:audit --audit-only"

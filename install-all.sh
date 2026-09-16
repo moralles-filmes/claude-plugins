@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-all.sh — Instala os 3 plugins do marketplace morallesfilms-local
+# install-all.sh — Instala todos os plugins do marketplace morallesfilms-local
 # Uso (Linux/macOS):
 #   cd ~/claude-plugins
 #   chmod +x install-all.sh
@@ -17,8 +17,8 @@ echo ""
 # 1. Adiciona marketplace (idempotente — Claude ignora se já existir)
 claude plugin marketplace add "$ROOT"
 
-# 2. Instala os 3 plugins
-for p in saas-shield-br code-health saas-builder-br; do
+# 2. Instala todos os plugins (mantenha em sincronia com .claude-plugin/marketplace.json)
+for p in saas-shield-br code-health saas-builder-br turbo saas-audit-br; do
   echo ""
   echo "==> Instalando $p..."
   claude plugin install "$p"
@@ -34,4 +34,5 @@ echo ""
 echo "Próximos passos:"
 echo "  1. Em qualquer projeto, abra Claude Code"
 echo "  2. Teste com: /novo-saas <conceito do seu projeto>"
+echo "     Ou audite um SaaS existente: /saas-audit-br:audit --audit-only"
 echo ""

@@ -27,6 +27,11 @@
                         "name":  "turbo",
                         "source":  "./turbo",
                         "description":  "Otimizador de performance ponta a ponta para React/Next + Postgres/Supabase (RLS multi-tenant) + infra. Mede antes de mexer (baseline em disco), corrige em passos pequenos e reversiveis, e instala guarda-corpos (budgets em CI, testes de regressao, isolamento de tenant) para o ganho nao regredir. Gerencia o proprio contexto via estado em .turbo/ para nao perder o fio em sistemas grandes. 4 skills, 1 subagent, 1 command (/turbo)."
+                    },
+                    {
+                        "name":  "saas-audit-br",
+                        "source":  "./saas-audit-br",
+                        "description":  "Orquestrador de auditoria ponta a ponta para SaaS. Reutiliza saas-shield-br + code-health, adiciona auditoria de processo/IA/resiliência, classifica P0-P3, corrige em fases com testes e mantém estado em disco para retomada após compactação/sessão. Inclui auditoria completa e por módulo."
                     }
                 ]
 }
