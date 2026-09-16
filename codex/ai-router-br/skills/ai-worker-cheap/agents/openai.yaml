@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepSeek Worker"
+  short_description: "Forçar worker econômico DeepSeek"
+  default_prompt: "Use $ai-worker-cheap quando o usuário pedir DeepSeek para trabalho barato e delimitado."

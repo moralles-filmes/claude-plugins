@@ -1,0 +1,19 @@
+{
+  "name": "ai-router-br",
+  "version": "1.1.0",
+  "description": "Roteamento transversal e seguro de tarefas entre o agente principal, Codex worker via login ChatGPT e DeepSeek econômico via API, com risco, budget, worktrees, fallback e revisão obrigatória.",
+  "author": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "ai-router",
+    "codex",
+    "deepseek",
+    "worktree",
+    "security",
+    "pt-br"
+  ]
+}

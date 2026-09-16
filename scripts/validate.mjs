@@ -141,7 +141,7 @@ step('Validando plugin.json de cada plugin')
 const pluginDirs = readdirSync(REPO_ROOT, { withFileTypes: true })
   .filter(d => d.isDirectory())
   .map(d => d.name)
-  .filter(n => !n.startsWith('.') && n !== 'scripts' && n !== 'node_modules')
+  .filter(n => !n.startsWith('.') && n !== 'scripts' && n !== 'node_modules' && n !== 'codex')
 
 if (pluginDirs.length === 0) {
   warn('Nenhum plugin encontrado na raiz')
@@ -311,6 +311,66 @@ for (const dir of pluginDirs) {
       }
     }
   }
+}
+
+// ─── 7. Marketplace Codex (.agents/plugins/marketplace.json) ─────────
+
+step('Validando marketplace Codex')
+
+const codexMpPath = join(REPO_ROOT, '.agents', 'plugins', 'marketplace.json')
+if (existsSync(codexMpPath)) {
+  const cmp = validateJson(codexMpPath, ['name', 'plugins'])
+  if (cmp) {
+    if (!/^[A-Za-z0-9_-]+$/.test(cmp.name || '')) err(`${rel(codexMpPath)}: \`name\` inválido`)
+    for (const p of cmp.plugins || []) {
+      const label = `${rel(codexMpPath)}: plugin "${p.name}"`
+      if (!/^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/.test(p.name || '')) err(`${label}: \`name\` inválido`)
+      if (p.source?.source !== 'local' || typeof p.source?.path !== 'string') { err(`${label}: \`source\` deve ser {source:"local", path}`); continue }
+      if (!['NOT_AVAILABLE', 'AVAILABLE', 'INSTALLED_BY_DEFAULT'].includes(p.policy?.installation)) err(`${label}: policy.installation inválido`)
+      if (!['ON_INSTALL', 'ON_USE'].includes(p.policy?.authentication)) err(`${label}: policy.authentication inválido`)
+      if (!p.category) err(`${label}: \`category\` ausente`)
+      const pluginRoot = join(REPO_ROOT, p.source.path)
+      const manifestPath = join(pluginRoot, '.codex-plugin', 'plugin.json')
+      if (!existsSync(manifestPath)) { err(`${label}: ${p.source.path}/.codex-plugin/plugin.json não existe`); continue }
+      const m = validateJson(manifestPath, ['name', 'version', 'description', 'author', 'interface'])
+      if (!m) continue
+      if (m.name !== p.name) err(`${rel(manifestPath)}: name "${m.name}" difere da entrada "${p.name}"`)
+      if (!/^\d+\.\d+\.\d+([-+].*)?$/.test(m.version || '')) err(`${rel(manifestPath)}: version não é semver`)
+      if ('hooks' in m) err(`${rel(manifestPath)}: campo \`hooks\` não é aceito pelo Codex`)
+      for (const f of ['displayName', 'shortDescription', 'longDescription', 'developerName', 'category']) {
+        if (!m.interface?.[f]) err(`${rel(manifestPath)}: interface.${f} ausente`)
+      }
+      if (!m.interface?.defaultPrompt && !m.interface?.default_prompt) err(`${rel(manifestPath)}: interface.defaultPrompt ausente`)
+      const skillsDir = join(pluginRoot, 'skills')
+      for (const s of existsSync(skillsDir) ? readdirSync(skillsDir, { withFileTypes: true }).filter(d => d.isDirectory()) : []) {
+        const fm = existsSync(join(skillsDir, s.name, 'SKILL.md')) ? parseFrontmatter(readFileSync(join(skillsDir, s.name, 'SKILL.md'), 'utf-8')) : null
+        if (!fm?.name || !fm?.description) err(`${p.source.path}/skills/${s.name}/SKILL.md: frontmatter precisa de name e description`)
+        if (fm && fm['disable-model-invocation'] && fm['disable-model-invocation'] !== 'false') err(`${p.source.path}/skills/${s.name}: disable-model-invocation deve ser false no Codex`)
+      }
+      ok(`codex: ${p.source.path} → "${m.name}" v${m.version}`)
+    }
+  }
+}
+
+// ─── 8. ai-router-br: núcleo idêntico entre Claude e Codex ───────────
+
+step('Validando sincronização ai-router-br (Claude ↔ Codex)')
+
+const claudeRouter = join(REPO_ROOT, 'ai-router-br')
+const codexRouter = join(REPO_ROOT, 'codex', 'ai-router-br')
+if (existsSync(claudeRouter) && existsSync(codexRouter)) {
+  const shared = ['lib', 'workers', 'scripts', 'tests', 'templates', 'references']
+  const files = dir => shared.flatMap(s => walk(join(dir, s)).map(f => relative(dir, f).replace(/\\/g, '/')))
+  const a = new Set(files(claudeRouter)), b = new Set(files(codexRouter))
+  let drift = 0
+  for (const f of new Set([...a, ...b])) {
+    const norm = p => existsSync(p) ? readFileSync(p, 'utf-8').replace(/\r\n/g, '\n') : null
+    if (norm(join(claudeRouter, f)) !== norm(join(codexRouter, f))) { err(`ai-router-br: ${f} difere entre ai-router-br/ e codex/ai-router-br/`); drift++ }
+  }
+  const versions = ['ai-router-br/package.json', 'ai-router-br/.claude-plugin/plugin.json', 'codex/ai-router-br/package.json', 'codex/ai-router-br/.codex-plugin/plugin.json']
+    .map(f => JSON.parse(readFileSync(join(REPO_ROOT, f), 'utf-8')).version)
+  if (new Set(versions).size !== 1) err(`ai-router-br: versões divergentes ${versions.join(', ')}`)
+  if (!drift) ok(`núcleo compartilhado idêntico (${a.size} arquivos), versão ${versions[0]}`)
 }
 
 // ─── Resumo ──────────────────────────────────────────────────────────

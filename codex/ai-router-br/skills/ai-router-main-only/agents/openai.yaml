@@ -1,0 +1,4 @@
+interface:
+  display_name: "Main Only"
+  short_description: "Executar sem delegação"
+  default_prompt: "Use $ai-router-main-only para manter a tarefa inteira nesta sessão principal."

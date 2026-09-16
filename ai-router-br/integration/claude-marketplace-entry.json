@@ -1,0 +1,5 @@
+{
+  "name": "ai-router-br",
+  "source": "./ai-router-br",
+  "description": "Roteamento seguro de modelos por risco/custo com Codex e DeepSeek workers."
+}

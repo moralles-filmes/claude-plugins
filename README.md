@@ -9,6 +9,48 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 - **[saas-builder-br](./saas-builder-br/)** — Orquestrador + subagents para construir SaaS multi-tenant (Vite + React + TS / Supabase / Vercel), com gates plugados em saas-shield-br e code-health.
 - **[turbo](./turbo/)** — Otimização de performance ponta a ponta (React/Next + Postgres/Supabase), com baseline medido e guarda-corpos contra regressão.
 - **[saas-audit-br](./saas-audit-br/)** — Orquestrador de auditoria completa de SaaS (audit → fix → test), reutilizando saas-shield-br + code-health.
+- **[ai-router-br](./ai-router-br/)** — Roteamento seguro de tarefas por risco/custo entre o agente principal, Codex worker (login ChatGPT) e DeepSeek worker (API). Versão nativa Codex em [codex/ai-router-br](./codex/ai-router-br/).
+
+## Instalando em uma máquina nova
+
+Este repositório é a fonte oficial para reconstruir o ambiente inteiro (Claude Code + Codex + plugins).
+
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/moralles-filmes/claude-plugins.git
+cd claude-plugins
+.\setup-claude.ps1
+```
+> Se a política de execução bloquear: `powershell -ExecutionPolicy Bypass -File .\setup-claude.ps1`
+
+**macOS / Linux:**
+```bash
+git clone https://github.com/moralles-filmes/claude-plugins.git
+cd claude-plugins
+./setup-claude.sh
+```
+
+O setup, de forma idempotente:
+
+1. verifica Git e Node.js 20+;
+2. verifica Claude Code e Codex CLI — se faltarem, instala pelos instaladores oficiais (`irm https://claude.ai/install.ps1 | iex` e `irm https://chatgpt.com/codex/install.ps1 | iex`; no macOS/Linux, os equivalentes `install.sh`);
+3. confere o login do Claude (assinatura) e se o Codex está autenticado **via ChatGPT** — nunca troca login por API key; se precisar, pede só o `codex login` interativo;
+4. registra/atualiza os marketplaces e instala/atualiza **todos** os plugins deste repositório (lidos de `.claude-plugin/marketplace.json`, inclui `ai-router-br`) + `frontend-design`, `skill-creator` e `superpowers`;
+5. instala a versão nativa Codex do `ai-router-br` (`.agents/plugins/marketplace.json`) e coloca o bloco curto do router no `AGENTS.md` global do Codex;
+6. valida os plugins, roda os testes essenciais e o doctor;
+7. verifica apenas se `DEEPSEEK_API_KEY` **existe** (nunca mostra o valor). Se faltar, configure-a localmente nas variáveis de ambiente do usuário ou no seu gerenciador de secrets — **nunca cole a chave em chat, Git, CLAUDE.md, AGENTS.md ou `.ai-router/`**. Sem ela tudo funciona com Claude + Codex.
+
+Rode o mesmo comando no futuro para atualizar: ele faz só `git pull --ff-only` (e pula se houver mudanças locais), nunca usa comandos Git destrutivos e não mexe em secrets. Opções: `-CheckOnly` (só verifica, não altera nada), `-NoInstall`, `-NoPull`, `-SkipCodex`, `-SkipExtras`, `-SkipTests`, `-LocalMarketplace` (no `.sh`: `--check-only`, `--no-install`, ...).
+
+## Usando em um projeto novo
+
+Depois da instalação global não há nada para configurar por projeto: abra o projeto no **Claude Code** ou no **Codex** e faça seu pedido normalmente, sem mencionar o router.
+
+- Para trabalho substancial, o agente principal aciona o `ai-router-br` (Claude: `ai-router-br:route`, via hook de início de sessão; Codex: skill `$ai-router`).
+- No primeiro uso em cada projeto o router **se auto-inicializa** em silêncio: cria `.ai-router/` (config, estado, tarefas, resultados), adiciona `.ai-router/` ao `.git/info/exclude` local e acrescenta um bloco curto e idêntico em `CLAUDE.md` e `AGENTS.md`, preservando o conteúdo existente. Rodar de novo não duplica nada.
+- Tarefas críticas (auth, RLS, tenancy, pagamentos, produção) ficam com o agente principal; coding vai de preferência para o Codex worker; volume/mecânico para o DeepSeek. Nenhum resultado de worker é integrado sem revisão, e os testes do trabalho delegado rodam na sua árvore depois dessa revisão.
+- Os workers precisam de Git: numa pasta sem repositório o router só classifica e não cria nada. `.ai-router/` é sempre local — nunca faça commit dessa pasta.
+- Faça commit do bloco em `CLAUDE.md`/`AGENTS.md` quando quiser; enquanto isso ele não bloqueia os workers (o router reconhece que a mudança é só dele).
 
 ## saas-audit-br — orquestrador de auditoria
 
@@ -55,19 +97,14 @@ Detalhes em [saas-audit-br/README.md](./saas-audit-br/README.md).
 
 ### Setup automático (recomendado)
 
-Roda 1 comando e o script faz tudo: registra marketplaces oficiais Anthropic, clona seu marketplace pessoal, instala os 7 plugins do dia-a-dia (saas-shield-br + code-health + saas-audit-br + canvas-design + frontend-design + skill-creator + mcp-builder).
+Veja [Instalando em uma máquina nova](#instalando-em-uma-máquina-nova). Sem clonar antes, o mesmo script também funciona remoto (clona em `~/Documents/claude-plugins`):
 
-**Windows (PowerShell):**
 ```powershell
 iwr -useb https://raw.githubusercontent.com/moralles-filmes/claude-plugins/main/setup-claude.ps1 | iex
 ```
-
-**macOS / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/moralles-filmes/claude-plugins/main/setup-claude.sh | bash
 ```
-
-> Pré-requisitos: Claude Code + git instalados e no PATH.
 
 ### Setup manual
 
@@ -113,20 +150,27 @@ claude plugin update saas-shield-br
 ```
 claude-plugins/
 ├── .claude-plugin/
-│   └── marketplace.json     # lista de plugins
+│   └── marketplace.json     # lista de plugins Claude Code
+├── .agents/plugins/
+│   └── marketplace.json     # marketplace Codex (ai-router-br nativo)
 ├── .github/workflows/
-│   └── validate.yml         # CI: valida JSON, frontmatter, scripts
+│   └── validate.yml         # CI: valida JSON, frontmatter, scripts + testes do ai-router-br
 ├── scripts/
-│   └── validate.mjs         # rodável local também
+│   └── validate.mjs         # rodável local também (Claude + Codex + sincronia do ai-router-br)
 ├── saas-shield-br/          # plugin
 │   ├── .claude-plugin/
 │   │   └── plugin.json
 │   ├── skills/, agents/, commands/, hooks/
 │   └── README.md
-├── setup-claude.ps1         # bootstrap Windows
-├── setup-claude.sh          # bootstrap macOS/Linux
+├── ai-router-br/            # plugin Claude Code (núcleo compartilhado + skills/hook Claude)
+├── codex/
+│   └── ai-router-br/        # plugin Codex nativo (.codex-plugin/, skills com agents/openai.yaml)
+├── setup-claude.ps1         # bootstrap/atualização Windows
+├── setup-claude.sh          # bootstrap/atualização macOS/Linux
 └── README.md                # este arquivo
 ```
+
+O núcleo do ai-router-br (`lib/`, `workers/`, `scripts/`, `tests/`, `templates/`, `references/`) é idêntico em `ai-router-br/` e `codex/ai-router-br/`; `scripts/validate.mjs` falha se as cópias divergirem.
 
 ## Validação local antes de push
 

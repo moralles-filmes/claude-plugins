@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Router"
+  short_description: "Classificar e rotear trabalho por risco/custo"
+  default_prompt: "Use $ai-router para classificar e rotear trabalho substancial por risco/custo, mantendo esta sessão Codex como único agente principal."

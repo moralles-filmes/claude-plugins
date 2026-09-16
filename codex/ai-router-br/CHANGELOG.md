@@ -1,0 +1,49 @@
+# Changelog
+
+## 1.1.0 — 2026-09-16
+Instalação no marketplace `morallesfilms-local`, com auditoria do pacote 1.0.0.
+
+### Adicionado
+- Auto-inicialização idempotente no primeiro uso em qualquer projeto (`.ai-router/`, exclude local do Git, `config.yml`, estado mínimo e bloco curto em `CLAUDE.md`/`AGENTS.md`), sem autorização e sem duplicar conteúdo.
+- Hook `SessionStart` (Claude) para acionar `ai-router-br:route` em pedidos substanciais sem o usuário citar o router.
+- `sync-rules.mjs --codex-home` para o mesmo bloco no `AGENTS.md` global do Codex.
+- `doctor`: método de login do Codex, prontidão de worker externo com motivos, detecção de `saas-audit-br`, checagem de chave também no escopo User/Machine do Windows (só presença).
+- Resultado `status: blocked` estruturado para repo sujo, secret rastreado e comando de teste inseguro.
+
+### Corrigido (segurança)
+- Denylist `**/…` não bloqueava arquivos na raiz (`credentials.json`, `*.pem`, `*.key`, `secrets.*`); `.git/` na raiz também passa a ser bloqueado.
+- Fallback do Codex podia mascarar teste quebrado ou violação de escopo (regex genérica em qualquer erro); agora só falhas de login/execução do Codex contam como indisponibilidade.
+- Arquivos dentro de diretórios novos escapavam da validação de escopo (`git status` colapsado).
+- Commit feito pelo worker escondia mudanças da validação; `git commit/push` e `npm publish` eram aceitos como comando de teste.
+- `forbidden_files` do TASK PACKAGE não era aplicado.
+- Symlinks podiam enviar arquivos de fora do repositório ao DeepSeek ou redirecionar escrita.
+- Caminhos com `:`/ponto final (truques do Windows) passavam na normalização.
+- Ambiente do worker mantinha `DATABASE_URL` com senha, `*_ACCESS_KEY`, `*_AUTH`.
+- `.ai-router/config.yml` do projeto (inclusive versionado num clone) podia redirecionar a `DEEPSEEK_API_KEY`, trocar o comando do Codex, usar `danger-full-access`, desligar login ChatGPT/Git limpo e ampliar allowlist/budget. Agora o config do projeto só aperta a segurança, um config rastreado é ignorado e `.ai-router/` versionado bloqueia o dispatch (`tracked_router_config`).
+- Testes rodavam código do worker fora do sandbox antes da revisão; arquivos escondidos por `.gitignore` do próprio worker rodavam sem aparecer no patch e podiam alterar o repositório principal. Agora os testes são adiados ao principal por padrão (`tests_pending`), arquivos ignorados criados pelo worker são descartados e escritas no repositório principal durante execução/testes viram `scope_violation`.
+- Redaction sobre o JSON serializado podia quebrar o registro do resultado e alterar o patch em silêncio; agora é campo a campo e o patch só é mascarado com `patch_redacted: true`.
+- Budget do DeepSeek aceitava valor não numérico (sem limite) e valor acima do teto do config.
+- Allowlist de testes aceitava `node -e`, caminhos com nome permitido (`./bin/jest`), `npx`, `npm exec` e flags de configuração do npm; `git` aceitava `--output`/`-O`/`--ext-diff`.
+- Allowlist de testes aceitava `node --test-reporter=data:...` (código inline) ou reporter/destino arbitrários, e pager do `git grep` via flags curtas agrupadas (`-iO<pager>`) e abreviações (`--open-files-in-pag=`).
+- `.ai-router/` versionado com outra caixa (`.AI-ROUTER/`) escapava da detecção no Windows/macOS e o `config.yml` era lido.
+- Descarte de arquivos ignorados apagava arquivos fora da worktree através de junction/symlink criado pelo worker; links criados pelo worker agora são removidos sem serem seguidos e reprovam a validação.
+- `budgets.default_profile` do config do projeto podia subir o perfil padrão de budget.
+- Gate de secret rastreado não via caminhos com acento (`git ls-files` sem `-z`) e bloqueava código (`secrets.ts`) e documentação (`secrets.example.json`).
+- Gate de Git limpo aceitava qualquer texto entre os marcadores do router.
+- Config do Git do usuário (`diff.external`, `diff.noprefix`, cor) alterava o patch.
+- Login do Codex aceitava código de saída diferente de 0; texto da própria tarefa ("401", "network") podia disparar fallback indevido.
+
+### Corrigido (auto-inicialização e setup)
+- Marcador de início solto em `CLAUDE.md`/`AGENTS.md` fazia a segunda sincronização apagar o texto do usuário; `lib/rules.mjs` tinha bytes NUL literais (git o tratava como binário).
+- Auto-init não escreve mais fora de repositórios Git, em `~/.claude`/`~/.codex` nem em `.ai-router/` versionado.
+- Worktree de falhas elegíveis a fallback não fica mais para trás; diretório temporário removido se `git worktree add` falhar.
+- Hook `SessionStart` também em `resume`.
+
+### Corrigido (funcional)
+- Skills referenciavam `scripts/ai-router.mjs` relativo ao projeto; agora usam `${CLAUDE_PLUGIN_ROOT}`.
+- Falha de rede, 402 e timeout do DeepSeek passam a ser indisponibilidade (fallback para Codex); budget acumulado entre tentativas.
+- `npm` como comando de teste no Windows sem shell; kill da árvore de processos no timeout; EPIPE no stdin.
+- `sync-rules` agora verifica de fato se o bloco é idêntico nos dois arquivos.
+
+## 1.0.0 — 2026-09-16
+- Initial router, workers, safety gates, skills, tests and docs.

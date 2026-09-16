@@ -1,0 +1,49 @@
+# ai-router-br project config. Local only: never commit .ai-router/.
+# Security settings can only be tightened here. Endpoint, Codex command, ChatGPT auth and clean-git gate
+# always come from the plugin; budgets/limits only go down, prices only up, allowlists only shrink.
+version: 1
+router:
+  auto_delegate: true
+  small_task_direct: true
+  small_task_max_files: 1
+  small_task_max_chars: 500
+
+risk:
+  critical_score: 8
+
+budgets:
+  cheap_max_usd: 0.15
+  normal_max_usd: 0.75
+  large_max_usd: 3.00
+  default_profile: normal
+
+deepseek:
+  base_url: https://api.deepseek.com
+  model: deepseek-flash
+  max_attempts: 2
+  timeout_ms: 180000
+  max_output_tokens: 16000
+  max_context_chars: 180000
+  pricing_as_of: 2026-09-16
+  peak_cache_miss_input_usd_per_mtok: 0.30
+  peak_output_usd_per_mtok: 1.20
+
+codex:
+  command: codex
+  require_chatgpt_auth: true
+  timeout_ms: 900000
+  sandbox: workspace-write
+  disable_features: [plugins]
+  ignore_user_config: false
+
+execution:
+  require_clean_git_for_external_workers: true
+  keep_failed_worktree: true
+  run_tests_in_worktree: false
+  max_files: 20
+  max_file_chars: 60000
+  test_timeout_ms: 300000
+  allowed_test_executables: [node, npm, pnpm, yarn, bun, git, tsc, vitest, jest]
+
+security:
+  forbidden_files: [.env, .env.*, **/.env, **/.env.*, **/*.pem, **/*.key, **/*.p12, **/*.pfx, **/credentials.json, **/secrets.*, .git/**, **/.git/**]

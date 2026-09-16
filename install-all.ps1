@@ -15,11 +15,23 @@ Write-Host ""
 & claude plugin marketplace add $root
 
 # 2. Instala todos os plugins (mantenha em sincronia com .claude-plugin/marketplace.json)
-$plugins = @("saas-shield-br", "code-health", "saas-builder-br", "turbo", "saas-audit-br")
+$plugins = @("saas-shield-br", "code-health", "saas-builder-br", "turbo", "saas-audit-br", "ai-router-br")
 foreach ($p in $plugins) {
     Write-Host ""
     Write-Host "==> Instalando $p..." -ForegroundColor Cyan
     & claude plugin install $p
+}
+
+# 3. Versao nativa Codex do ai-router-br (somente se o Codex CLI estiver instalado)
+if (Get-Command codex -ErrorAction SilentlyContinue) {
+    Write-Host ""
+    Write-Host "==> Instalando ai-router-br no Codex..." -ForegroundColor Cyan
+    $markets = (& codex plugin marketplace list) -join "`n"
+    if ($markets -notmatch '(?m)^\s*morallesfilms-local\s') { & codex plugin marketplace add $root }
+    & codex plugin add ai-router-br@morallesfilms-local
+} else {
+    Write-Host ""
+    Write-Host "Codex CLI nao encontrado: pulei a versao Codex do ai-router-br (use .\setup-claude.ps1 para o setup completo)." -ForegroundColor Yellow
 }
 
 Write-Host ""

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Router Dry Run"
+  short_description: "Classificar sem executar"
+  default_prompt: "Use $ai-router-dry-run para mostrar tier, executor, fallback, budget e auditoria sem executar workers."

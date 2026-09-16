@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Worker"
+  short_description: "Forçar worker Codex seguro"
+  default_prompt: "Use $ai-worker-codex quando o usuário pedir explicitamente Codex worker para uma subtarefa delimitada."

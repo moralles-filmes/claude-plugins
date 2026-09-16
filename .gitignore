@@ -24,3 +24,9 @@ yarn-error.log
 
 # Cache de plugins (gerado pelo Claude Code, não commitar)
 .cache/
+
+# Estado local do ai-router-br (tarefas, resultados, custos) e secrets locais
+.ai-router/
+.env
+.env.*
+!.env.example

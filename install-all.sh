@@ -18,11 +18,22 @@ echo ""
 claude plugin marketplace add "$ROOT"
 
 # 2. Instala todos os plugins (mantenha em sincronia com .claude-plugin/marketplace.json)
-for p in saas-shield-br code-health saas-builder-br turbo saas-audit-br; do
+for p in saas-shield-br code-health saas-builder-br turbo saas-audit-br ai-router-br; do
   echo ""
   echo "==> Instalando $p..."
   claude plugin install "$p"
 done
+
+# 3. Versão nativa Codex do ai-router-br (somente se o Codex CLI estiver instalado)
+if command -v codex >/dev/null 2>&1; then
+  echo ""
+  echo "==> Instalando ai-router-br no Codex..."
+  codex plugin marketplace list 2>/dev/null | grep -Eq '^[[:space:]]*morallesfilms-local[[:space:]]' || codex plugin marketplace add "$ROOT"
+  codex plugin add ai-router-br@morallesfilms-local
+else
+  echo ""
+  echo "Codex CLI não encontrado: pulei a versão Codex do ai-router-br (use ./setup-claude.sh para o setup completo)."
+fi
 
 echo ""
 echo "==> Instalação concluída."

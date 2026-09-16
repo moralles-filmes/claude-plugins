@@ -11,7 +11,7 @@ jobs:
   validate:
     name: Validar plugins
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 6
 
     steps:
       - name: Checkout
@@ -24,3 +24,19 @@ jobs:
 
       - name: Rodar validação
         run: node scripts/validate.mjs
+
+      - name: ai-router-br (Claude) — testes, auditoria e validação
+        working-directory: ai-router-br
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "ci"
+          npm test
+          npm run security:audit
+          npm run validate
+
+      - name: ai-router-br (Codex) — testes, auditoria e validação
+        working-directory: codex/ai-router-br
+        run: |
+          npm test
+          npm run security:audit
+          npm run validate

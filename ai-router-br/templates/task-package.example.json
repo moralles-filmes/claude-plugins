@@ -1,0 +1,15 @@
+{
+  "id": "TASK-004",
+  "objective": "Criar componente seletor de unidade.",
+  "context": "Componente visual sem alterar autenticação ou sessão.",
+  "relevant_files": ["src/components/Header.tsx", "src/hooks/useUnits.ts"],
+  "allowed_files": ["src/components/Header.tsx", "src/hooks/useUnits.ts"],
+  "forbidden_files": ["supabase/migrations/", ".env"],
+  "restrictions": ["Não alterar auth, RLS ou migrations"],
+  "acceptance": ["Listar somente unidades autorizadas", "Responsivo", "Não alterar sessão"],
+  "tests": ["npm test -- --runInBand"],
+  "budget": {"profile": "normal", "max_budget_usd": 0.75},
+  "max_turns": 20,
+  "max_attempts": 2,
+  "result_format": "structured-json"
+}

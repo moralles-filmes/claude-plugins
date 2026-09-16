@@ -1,0 +1,39 @@
+{
+  "name": "ai-router-br",
+  "version": "1.1.0",
+  "description": "Roteamento transversal de tarefas para Codex principal, Codex worker isolado ou DeepSeek econômico, com risco, budget, fallback e revisão.",
+  "author": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
+  "repository": "https://github.com/moralles-filmes/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "ai-router",
+    "codex",
+    "deepseek",
+    "worktree",
+    "security",
+    "pt-br"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "AI Router BR",
+    "shortDescription": "Roteia tarefas por risco e custo",
+    "longDescription": "Roteamento seguro de tarefas de desenvolvimento entre o Codex principal, workers Codex por login ChatGPT e DeepSeek por API, com classificação contextual de risco, budgets, worktrees, fallback, revisão obrigatória e gates de auditoria.",
+    "developerName": "Yuri Moraes",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Task routing",
+      "Risk classification",
+      "Codex worker",
+      "DeepSeek worker",
+      "Worktree isolation",
+      "Budget gates"
+    ],
+    "defaultPrompt": [
+      "Use $ai-router para classificar e rotear trabalho substancial por risco e custo."
+    ]
+  }
+}
