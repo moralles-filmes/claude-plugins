@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.1 — 2026-09-17
+Sem mudança funcional no Codex; versão alinhada à correção da skill `route` do Claude Code (auditoria de módulo via `saas-audit-br:module`).
+
 ## 1.2.0 — 2026-09-17
 Mostra no chat quem executou cada tarefa.
 

@@ -13,6 +13,9 @@ description: Padrão de roteador multi-provider para LLMs (OpenAI, Anthropic, Ge
 4. **Retry exponencial** apenas em 5xx e 429.
 5. **Cache** quando temperatura = 0 e prompt é determinístico.
 6. **Limite por tenant** (rate limit + budget mensal).
+7. **Timeout em toda chamada** — 30s, 60s em streaming (`AbortController`).
+
+> `company_id` nos exemplos é a coluna de tenant do arquétipo A. Use a coluna do `.claude/tenancy-profile.yml` do projeto.
 
 ## Modelos atuais (atualize quando lançarem novos)
 
@@ -148,10 +151,16 @@ async function callWithRetry(modelId: ModelId, body: LlmRequest, max = 3) {
 
 async function callProvider(modelId: ModelId, body: LlmRequest) {
   const meta = MODELS[modelId];
-  switch (meta.provider) {
-    case "openai":    return callOpenAI(modelId, body);
-    case "anthropic": return callAnthropic(modelId, body);
-    case "google":    return callGemini(modelId, body);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), body.stream ? 60_000 : 30_000);
+  try {
+    switch (meta.provider) {
+      case "openai":    return await callOpenAI(modelId, body, ac.signal);
+      case "anthropic": return await callAnthropic(modelId, body, ac.signal);
+      case "google":    return await callGemini(modelId, body, ac.signal);
+    }
+  } finally {
+    clearTimeout(timer);
   }
 }
 ```
@@ -160,9 +169,10 @@ async function callProvider(modelId: ModelId, body: LlmRequest) {
 
 ### OpenAI (Chat Completions)
 ```ts
-async function callOpenAI(model: string, req: LlmRequest) {
+async function callOpenAI(model: string, req: LlmRequest, signal: AbortSignal) {
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
+    signal,
     headers: {
       "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
       "Content-Type": "application/json",
@@ -193,9 +203,10 @@ async function callOpenAI(model: string, req: LlmRequest) {
 
 ### Anthropic (Messages API)
 ```ts
-async function callAnthropic(model: string, req: LlmRequest) {
+async function callAnthropic(model: string, req: LlmRequest, signal: AbortSignal) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
+    signal,
     headers: {
       "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
       "anthropic-version": "2023-06-01",
@@ -225,10 +236,11 @@ async function callAnthropic(model: string, req: LlmRequest) {
 
 ### Google (Gemini)
 ```ts
-async function callGemini(model: string, req: LlmRequest) {
+async function callGemini(model: string, req: LlmRequest, signal: AbortSignal) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${Deno.env.get("GOOGLE_API_KEY")}`;
   const r = await fetch(url, {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: req.prompt }] }],
@@ -257,7 +269,39 @@ async function callGemini(model: string, req: LlmRequest) {
 
 ## Streaming (SSE)
 
-Use quando o usuário precisa ver tokens chegando (chat). No frontend:
+Use quando o usuário precisa ver tokens chegando (chat). Na Edge Function:
+
+```ts
+// supabase/functions/llm-stream/index.ts
+serve(async (req) => {
+  const ctx = await authenticate(req);
+  const { prompt } = await req.json();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      try {
+        for await (const chunk of streamFromAnthropic(prompt)) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
+});
+```
+
+No frontend (`fetch` + `getReader()`, não `EventSource`, que não envia Authorization):
 
 ```ts
 // Cliente
@@ -314,9 +358,56 @@ create index llm_cache_company_id_cache_key_idx on public.llm_cache(company_id, 
 
 Use SHA256 do prompt+system+model como `cache_key` se não vier explícito.
 
+## Tabela `api_usage` (custo, rate limit e budget)
+
+Uma linha por chamada externa — LLM, WhatsApp e qualquer terceiro. Peça ao `db-schema-designer` no arquétipo de tenant do projeto:
+
+```sql
+create table public.api_usage (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  provider text not null check (provider in ('openai','anthropic','google','zapi','meta_cloud')),
+  model text,
+  input_tokens int,
+  output_tokens int,
+  messages_sent int,
+  cost_usd numeric(10,6) not null default 0,
+  latency_ms int,
+  status text not null default 'success' check (status in ('success','error','timeout')),
+  error_code text,
+  created_at timestamptz not null default now()
+);
+create index api_usage_company_id_created_at_idx on public.api_usage(company_id, created_at desc);
+-- RLS no arquétipo do tenancy-profile
+```
+
+Log de uso (chamado em `tryChain`, inclusive em erro):
+
+```ts
+async function logUsage(
+  ctx: AuthCtx, model: ModelId, usage: { input: number; output: number },
+  status: "success" | "error" | "timeout", latency_ms: number, error_code?: string,
+) {
+  const meta = MODELS[model];
+  await adminClient().from("api_usage").insert({
+    company_id: ctx.company_id,
+    user_id: ctx.user_id,
+    provider: meta.provider,
+    model,
+    input_tokens: usage.input,
+    output_tokens: usage.output,
+    cost_usd: (usage.input / 1000) * meta.in + (usage.output / 1000) * meta.out,
+    latency_ms,
+    status,
+    error_code,
+  });
+}
+```
+
 ## Rate limit + budget
 
-Use `api_usage` (tabela definida no agent `integrador-apis`) para:
+Com `api_usage`:
 
 ```ts
 async function rateLimited(company_id: string): Promise<boolean> {

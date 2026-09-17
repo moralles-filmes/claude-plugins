@@ -65,7 +65,7 @@ Claude:
 ## Onde ele NÃO te ajuda
 
 - **Refatoração** (extrair função, renomear): use o code-review nativo do Claude Code
-- **Performance**: este plugin não otimiza, só limpa (use `cost-optimizer` do `saas-shield-br`)
+- **Performance**: este plugin não otimiza, só limpa (use o plugin `turbo`; para reduzir a conta de Supabase/Vercel, `cost-optimizer` do `saas-shield-br`)
 - **Type safety**: não conserta tipos errados, só remove código
 - **Bugs específicos**: este plugin acha *padrões* não-funcionais; bugs concretos pedem o skill `engineering:debug`
 - **Segurança/RLS/secrets**: use o plugin `saas-shield-br` (mesmo marketplace)

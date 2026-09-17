@@ -10,7 +10,7 @@ Ações:
 
 1. Verifique se o projeto tem `supabase/migrations/` ou `supabase/functions/` antes de prosseguir. Se não tiver, responda: "Este não parece ser um projeto Supabase. Use `/code-health:audit` para auditoria genérica."
 
-2. Invoque o subagent `supabase-auditor` via Task tool:
+2. Invoque o subagent `supabase-auditor` via Agent tool:
 
 ```
 Tarefa: Audit cruzado de schema Supabase vs código.

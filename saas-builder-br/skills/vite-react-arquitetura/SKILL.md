@@ -211,6 +211,101 @@ test-results
 *.sw?
 ```
 
+### `src/lib/supabase/client.ts` — único cliente do app
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "./types";
+import { env } from "@/lib/env";
+
+export const supabase = createClient<Database>(
+  env.VITE_SUPABASE_URL,
+  env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
+```
+
+**Regra**: nenhum outro arquivo cria cliente Supabase. `createClient(` fora deste arquivo → recuse e importe `supabase` daqui.
+
+### `src/lib/env.ts` — env validado com Zod
+
+```ts
+import { z } from "zod";
+
+const schema = z.object({
+  VITE_SUPABASE_URL: z.string().url(),
+  VITE_SUPABASE_ANON_KEY: z.string().min(20),
+  VITE_APP_NAME: z.string().default("App"),
+});
+
+export const env = schema.parse(import.meta.env);
+```
+
+Toda variável de frontend tem prefixo `VITE_`. **Nunca** `VITE_SUPABASE_SERVICE_ROLE_KEY` ou similar — service role só vive em Edge Function.
+
+### `src/app/providers.tsx`
+
+```tsx
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { queryClient } from "@/lib/query/client";
+import { AuthProvider } from "@/features/auth/auth-provider";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        {children}
+      </AuthProvider>
+      {import.meta.env.DEV && <ReactQueryDevtools />}
+    </QueryClientProvider>
+  );
+}
+```
+
+`queryClient` e query keys: skill `tanstack-query-supabase`.
+
+### `src/app/router.tsx` — rotas lazy + guard de auth/tenant
+
+```tsx
+import { createBrowserRouter, redirect } from "react-router-dom";
+import { supabase } from "@/lib/supabase/client";
+
+async function requireAuth() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw redirect("/login");
+  // Arquétipo A (tenant no JWT). Em membership/RBAC, resolva o tenant ativo conforme o tenancy-profile.
+  const company_id = (session.user.app_metadata as Record<string, unknown>)?.company_id;
+  if (!company_id) throw redirect("/onboarding"); // ainda não tem tenant
+  return { user_id: session.user.id, company_id };
+}
+
+export const router = createBrowserRouter([
+  {
+    path: "/login",
+    lazy: () => import("@/features/auth/pages/login.page"),
+  },
+  {
+    path: "/",
+    loader: requireAuth,
+    element: <AppShell />,
+    children: [
+      { index: true, lazy: () => import("@/features/dashboard/pages/dashboard.page") },
+      { path: "messages", lazy: () => import("@/features/messages/pages/messages.page") },
+      // ...
+    ],
+  },
+]);
+```
+
+`lazy:` faz code splitting por rota — bundle inicial menor.
+
 ## Bootstrap em 5 comandos
 
 ```bash

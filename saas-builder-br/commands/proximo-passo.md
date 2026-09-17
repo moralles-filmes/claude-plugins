@@ -10,7 +10,7 @@ Ações:
    - Responda: "Nenhum projeto SaaS iniciado. Use `/novo-saas <conceito>` para começar."
    - Termine.
 
-2. Se existir, invoque o subagent `arquiteto-chefe` via Task tool:
+2. Se existir, invoque o subagent `arquiteto-chefe` via Agent tool:
 
 ```
 Tarefa: Avaliar estado atual do projeto e identificar próximo passo.
@@ -20,6 +20,7 @@ Ações:
 2. Identifique a fase atual e o que está completo/pendente
 3. Decida o próximo passo:
    - Se há gate de segurança pendente → dispare o agent do shield (rls-auditor / tenant-isolation-auditor / secret-hunter)
+   - Se a fase é code_health ou security_audit → leia .saas-audit/REPORT.md e FINDINGS.md; sem REPORT novo, peça ao usuário para rodar /saas-audit-br:audit --audit-only
    - Se a fase atual tem entregável incompleto → invoque o agent dono da fase
    - Se a fase está done → pergunte ao usuário se pode avançar para a próxima
 

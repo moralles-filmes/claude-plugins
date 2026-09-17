@@ -18,7 +18,7 @@ Resultado prático: você descreve a ideia em linguagem natural (`/novo-saas <co
                        │  Roteia por fase     │
                        │  Dispara gates       │
                        └──────────┬───────────┘
-                                  │ Task tool
+                                  │ Agent tool
         ┌─────────────┬───────────┼───────────┬─────────────┐
         ▼             ▼           ▼           ▼             ▼
  ┌──────────────┐ ┌────────┐ ┌─────────┐ ┌────────┐ ┌──────────┐
@@ -39,9 +39,9 @@ GATES AUTOMÁTICOS:
   Após Fase 2 (schema)         → rls-auditor              [saas-shield-br]
   Após Fase 3 (backend)        → tenant-isolation-auditor       [saas-shield-br]
   Após Fase 5 (integrations)   → secret-hunter            [saas-shield-br]
-  Fase 6 (code_health)         → functional-auditor       [code-health]
-                                  + dead-code-scanner     [code-health]
-  Fase 7 (security_audit)      → 4 shield agents consolidados
+  Fase 6 (code_health)         → /saas-audit-br:audit --audit-only  [saas-audit-br]
+                                  (code-health + saas-shield-br + processo/dados/IA)
+  Fase 7 (security_audit)      → confirmação no REPORT após correções  [saas-audit-br]
   Antes da Fase 8 (deploy)     → vercel-deploy-guard      [saas-shield-br]
 ```
 
@@ -59,14 +59,14 @@ GATES AUTOMÁTICOS:
 | `design-ux` | 4 — frontend | Tailwind tokens, Radix primitives, dark mode, a11y WCAG 2.1 AA |
 | `integrador-apis` | 5 — integrations | LLMs (OpenAI/Anthropic/Gemini) + WhatsApp (Z-API + Cloud API) |
 | `qa-testes` | qualquer | Vitest + Playwright + suite de RLS rodada pelo client SDK |
-| `devops-ci` | 7 — deploy | vercel.json, GitHub Actions, secrets categorizados, rollback |
+| `devops-ci` | 8 — deploy | vercel.json, GitHub Actions, secrets categorizados, rollback |
 
 ### 5 skills (templates reutilizáveis)
 
 | Skill | O que cobre |
 |---|---|
-| `vite-react-arquitetura` | Estrutura de pastas canônica + bootstrap em 5 comandos |
-| `tanstack-query-supabase` | Query/mutation/optimistic com `company_id` na key |
+| `vite-react-arquitetura` | Estrutura de pastas canônica, arquivos críticos (client, env, providers, router) + bootstrap em 5 comandos |
+| `tanstack-query-supabase` | QueryClient, query keys com tenant, `useSession`, query/mutation/optimistic |
 | `whatsapp-zapi-integracao` | Z-API + Cloud API Meta — schema, webhooks, HMAC, idempotência |
 | `llm-multi-provider` | Roteador OpenAI/Anthropic/Gemini com fallback + tracking de custo |
 | `responsive-mobile-first` | Checklist Tailwind por tela: drawer mobile, tabela→card, safe-area |
@@ -102,20 +102,20 @@ Você: ok, pode avançar pra Fase 2
 
 ## Integração com plugins externos
 
-Este plugin **assume que `saas-shield-br` E `code-health` estão instalados**. O arquiteto-chefe chama explicitamente:
+Este plugin **assume que `saas-shield-br`, `code-health` e `saas-audit-br` estão instalados**. O arquiteto-chefe usa:
 
 | Gate | Quando | Plugin | Agent / Command |
 |---|---|---|---|
 | Pós-schema | Toda nova migration | saas-shield-br | `rls-auditor` |
 | Pós-backend | Edge Functions criadas | saas-shield-br | `tenant-isolation-auditor` |
 | Pós-integrações | Antes de commit final | saas-shield-br | `secret-hunter` |
-| Fase 6 — Code health | Frontend completo | code-health | `/code-health:audit` + `/code-health:cleanup` |
-| Fase 7 — Security | Antes do deploy | saas-shield-br | 4 agents consolidados |
+| Fase 6 — Auditoria | Frontend + integrações completos | saas-audit-br | `/saas-audit-br:audit --audit-only` (você roda) |
+| Fase 7 — Confirmação | Após as correções | saas-audit-br | `REPORT.md` sem P0/P1 em aberto |
 | Pré-deploy | Antes do primeiro deploy | saas-shield-br | `vercel-deploy-guard` (skill) |
 
-**Por que essa divisão**: cada plugin tem foco. `saas-shield-br` cuida de **segurança** (RLS, secrets, multi-tenant). `code-health` cuida de **qualidade funcional** (botão sem handler, rota quebrada, mock em produção, stub esquecido). `saas-builder-br` **constrói** e **orquestra** os outros dois nos momentos certos.
+**Por que essa divisão**: cada plugin tem foco. `saas-shield-br` cuida de **segurança** (RLS, secrets, multi-tenant). `code-health` cuida de **qualidade funcional** (botão sem handler, rota quebrada, mock em produção, stub esquecido). `saas-audit-br` **orquestra a auditoria completa** (os dois anteriores + processo, dados e IA, deduplicados por causa raiz). `saas-builder-br` **constrói** e dispara os gates pontuais; a auditoria completa fica num lugar só, sem lista duplicada de auditores.
 
-Se um gate de segurança ou de code-health falhar, a fase volta para o subagent responsável corrigir. Você não consegue avançar até passar.
+Se um gate ou a auditoria encontrar bloqueante (P0/P1), a fase volta para o subagent responsável corrigir. Você não consegue avançar até passar.
 
 ### Findings de code-health não bloqueiam tudo
 

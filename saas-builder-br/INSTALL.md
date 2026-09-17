@@ -113,8 +113,8 @@ rm ~/.claude/commands/{novo-saas,proximo-passo,quem-faz}.md
 ### "Agent X not found"
 Confirme que o arquivo existe em `~/.claude/agents/X.md` (Opção B/C) ou que `claude plugin list` mostra o plugin habilitado (Opção A).
 
-### "Subagent não recebe a Task"
-Verifique se o `arquiteto-chefe` está usando `Task` tool no `tools:` do frontmatter — sem `Task` ele não consegue delegar.
+### "Subagent não recebe a tarefa"
+Verifique se o `arquiteto-chefe` tem `Agent` no `tools:` do frontmatter — sem `Agent` ele não consegue delegar.
 
 ### "Não acha .claude/saas-state.json"
 Esperado no primeiro uso. Use `/novo-saas <conceito>` que ele cria.

@@ -6,7 +6,7 @@ Você vai chamar o subagent `arquiteto-chefe` apenas para ROTEAMENTO — sem exe
 
 **Tarefa a rotear**: $ARGUMENTS
 
-Invoque o subagent `arquiteto-chefe` via Task tool com este prompt:
+Invoque o subagent `arquiteto-chefe` via Agent tool com este prompt:
 
 ```
 Tarefa: Identificar subagent responsável (sem executar).

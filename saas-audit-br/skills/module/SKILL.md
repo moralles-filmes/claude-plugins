@@ -1,8 +1,7 @@
 ---
 name: module
-description: Auditoria e correção focada em um único módulo de SaaS, reutilizando saas-shield-br e code-health e seguindo o fluxo audit→P0-P3→fix→test sem refatorar o sistema inteiro.
+description: 'Auditoria e correção focada em um único módulo de SaaS, reutilizando saas-shield-br e code-health e seguindo o fluxo audit→P0-P3→fix→test sem refatorar o sistema inteiro. Use quando o usuário pedir para auditar um módulo específico, ou quando o ai-router-br retornar `audit_required: true`. Sem modo informado o padrão é `--fix`; se o usuário só pediu para auditar/ver, passe `--audit-only`. Auditoria do sistema inteiro é a skill manual `/saas-audit-br:audit`.'
 argument-hint: "<módulo> [--audit-only | --fix | --full | --resume | --status]"
-disable-model-invocation: true
 ---
 
 # SaaS Audit — por módulo

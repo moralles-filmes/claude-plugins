@@ -1,6 +1,6 @@
 ---
 name: functional-audit
-description: Auditoria funcional completa do projeto JS/TS/React/Next.js — encontra botões fantasma (sem handler ou só com console.log), rotas quebradas, dados mockados em produção, stubs/funções não implementadas, código comentado, TODOs antigos e tudo que está "decorativo" mas não funcional. Use quando o usuário pedir "encontre bugs", "ache botões que não funcionam", "remova dados fake", "mocked data", "stubs", "rotas quebradas", "find non-functional", "tudo que não está funcional", "quero que o sistema esteja pronto para operação real". Modo padrão: report-first com severidade (BLOCKER/HIGH/MEDIUM/LOW) e fix item-a-item após aprovação.
+description: 'Auditoria funcional completa do projeto JS/TS/React/Next.js — encontra botões fantasma (sem handler ou só com console.log), rotas quebradas, dados mockados em produção, stubs/funções não implementadas, código comentado, TODOs antigos e tudo que está "decorativo" mas não funcional. Use quando o usuário pedir "encontre bugs", "ache botões que não funcionam", "remova dados fake", "mocked data", "stubs", "rotas quebradas", "find non-functional", "tudo que não está funcional", "quero que o sistema esteja pronto para operação real". Modo padrão: report-first com severidade (BLOCKER/HIGH/MEDIUM/LOW) e fix item-a-item após aprovação.'
 ---
 
 # Functional Audit

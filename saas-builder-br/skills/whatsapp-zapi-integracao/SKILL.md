@@ -102,7 +102,92 @@ create table public.wa_webhook_events (
 
 ## Fluxo de envio (Z-API)
 
-`supabase/functions/wa-send/index.ts` (já visto no agent `integrador-apis` — referencie lá para o esqueleto auth+retry).
+`supabase/functions/wa-send-zapi/index.ts` — `authenticate`/`adminClient` são os helpers de `_shared/` do `backend-supabase`; `fetchWithTimeout`/`HttpError` são o padrão genérico do `integrador-apis` (`_shared/http.ts`); `api_usage` está definida na skill `llm-multi-provider`.
+
+```ts
+serve(async (req) => {
+  const ctx = await authenticate(req);
+  const { to, message, client_msg_id } = await req.json();
+  if (!client_msg_id) return json({ error: "client_msg_id_required" }, 400);
+  const admin = adminClient();
+
+  // 1. Idempotência: já enviado → devolve o registro anterior
+  const { data: existing } = await admin
+    .from("wa_messages")
+    .select("id")
+    .eq("company_id", ctx.company_id)
+    .eq("client_msg_id", client_msg_id)
+    .maybeSingle();
+  if (existing) return json({ id: existing.id, deduped: true }, 200);
+
+  // 2. Credenciais Z-API do tenant (cada empresa traz a própria instância)
+  const { data: cfg } = await admin
+    .from("wa_configs")
+    .select("zapi_instance_id, zapi_token, zapi_client_token")
+    .eq("company_id", ctx.company_id)
+    .eq("provider", "zapi")
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!cfg) return json({ error: "wa_not_configured" }, 400);
+
+  // 3. Thread (wa_messages.thread_id é NOT NULL)
+  const { data: thread } = await admin
+    .from("wa_threads")
+    .upsert(
+      { company_id: ctx.company_id, contact_phone: to, last_message_at: new Date().toISOString() },
+      { onConflict: "company_id,contact_phone" },
+    )
+    .select("id")
+    .single();
+
+  // 4. Envio — UMA tentativa. Z-API não tem chave de idempotência: se o timeout ocorrer depois de o
+  //    provedor aceitar, um retry automático reenviaria a mensagem. Em 5xx/429 o client pode repetir
+  //    com o mesmo client_msg_id.
+  const url = `https://api.z-api.io/instances/${cfg.zapi_instance_id}/token/${cfg.zapi_token}/send-text`;
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Client-Token": cfg.zapi_client_token },
+      body: JSON.stringify({ phone: to, message }),
+    });
+  } catch (e) {
+    const isHttp = e instanceof HttpError;
+    await admin.from("api_usage").insert({
+      company_id: ctx.company_id, user_id: ctx.user_id, provider: "zapi",
+      status: isHttp ? "error" : "timeout", error_code: isHttp ? String(e.status) : "timeout", messages_sent: 0,
+    });
+    return json({ error: "zapi_unavailable" }, 502);
+  }
+  const data = await res.json();
+
+  if (!res.ok) {
+    await admin.from("api_usage").insert({
+      company_id: ctx.company_id, user_id: ctx.user_id, provider: "zapi",
+      status: "error", error_code: String(res.status), messages_sent: 0,
+    });
+    return json({ error: "zapi_error", detail: data }, 502);
+  }
+
+  // 5. Persiste a mensagem
+  const { data: saved } = await admin.from("wa_messages").insert({
+    company_id: ctx.company_id,
+    thread_id: thread!.id,
+    client_msg_id,
+    provider_msg_id: data.messageId ?? data.id,
+    direction: "out",
+    body: message,
+    status: "sent",
+    sent_at: new Date().toISOString(),
+  }).select("id").single();
+
+  // Z-API cobra mensalidade, não por mensagem
+  await admin.from("api_usage").insert({
+    company_id: ctx.company_id, user_id: ctx.user_id, provider: "zapi", messages_sent: 1, cost_usd: 0,
+  });
+  return json({ id: saved!.id }, 200);
+});
+```
 
 Pontos específicos do Z-API:
 

@@ -1,6 +1,6 @@
 ---
 name: module-scope
-description: Protocolo interno para descobrir o escopo real de um módulo antes de auditá-lo: UI, API, banco, RLS, jobs, webhooks, integrações e dependências compartilhadas.
+description: 'Protocolo interno para descobrir o escopo real de um módulo antes de auditá-lo: UI, API, banco, RLS, jobs, webhooks, integrações e dependências compartilhadas.'
 user-invocable: false
 ---
 

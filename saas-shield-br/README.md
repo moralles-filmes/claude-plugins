@@ -28,7 +28,7 @@ A skill **`tenant-model`** é a fonte única da verdade (spec do profile + detec
 | `secret-scanner` | Segurança | Detecta secrets vazados — `service_role` no cliente, `.env` commitado, keys hardcoded, `VITE_`/`NEXT_PUBLIC_` abuse |
 | `supabase-migrator` | Backend | Gera migrations seguras no **arquétipo do projeto** — timestamp, idempotência, FORCE RLS, policies |
 | `edge-function-guard` | Backend | Revisa Edge Functions — JWT, CORS, error leakage, rate limiting, auth header |
-| `cost-optimizer` | Performance | Reduz custo Supabase/Vercel — índices RLS-aware, STABLE caching, N+1, realtime, bundle |
+| `cost-optimizer` | Custo | Reduz a conta Supabase/Vercel — egress, invocações, Realtime, storage, bandwidth, build. Lentidão/performance fica com o plugin `turbo` |
 | `schema-diff` | DevOps | Drift entre migrations locais ↔ remoto |
 | `vercel-deploy-guard` | DevOps | Pré-deploy — env vars, headers (CSP/HSTS), source maps, bundle limit |
 | `pt-br-translator` | UX | Revisa UI strings PT-BR — gênero, formalidade, idiomáticos, formato BR |
@@ -97,7 +97,7 @@ claude plugin install saas-shield-br
 
 ## Versionamento
 
-Versão atual: **2.0.0** — ver [CHANGELOG.md](./CHANGELOG.md). A v2 é convention-driven e **breaking** vs. a v1 (agente `tenant-leak-hunter` fundido em `tenant-isolation-auditor`, contrato de saída novo, não assume mais `company_id`).
+Versão atual: **2.1.0** — ver [CHANGELOG.md](./CHANGELOG.md). A v2 é convention-driven e **breaking** vs. a v1 (agente `tenant-leak-hunter` fundido em `tenant-isolation-auditor`, contrato de saída novo, não assume mais `company_id`).
 
 ## Licença
 

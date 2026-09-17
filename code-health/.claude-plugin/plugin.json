@@ -1,6 +1,6 @@
 {
   "name": "code-health",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js + Supabase-aware. Encontra dead code, arquivos órfãos, botões fantasma, rotas quebradas, dados mockados, stubs, e (em projetos Supabase) typos em .from(), invokes quebrados, dead tables/functions, Realtime sem cleanup. Modo padrão: report → aprovar → fix com checkpoint git.",
   "author": {
     "name": "Moralles Filmes",

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [2.1.0] — 2026-09-17
+
+### Alterado
+- **`cost-optimizer` passa a cuidar só da fatura** (egress, invocações, Realtime, storage, bandwidth, build minutes). Saíram os gatilhos e o diagnóstico de performance ("queries lentas", "otimização de performance", EXPLAIN, índices/RLS lenta, N+1), que duplicavam as skills `db-perf` e `frontend-perf` do plugin `turbo` (e não tinham o ajuste `(SELECT fn())` para RLS). A skill agora encaminha lentidão ao `turbo`.
+- `cost-optimizer` deixa de assumir `company_id`: usa `<TC>` resolvido pela skill `tenant-model`, como o resto da v2.
+
 ## [2.0.0] — 2026-07-22
 
 ### Convention-driven (breaking)

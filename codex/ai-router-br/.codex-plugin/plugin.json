@@ -1,6 +1,6 @@
 {
   "name": "ai-router-br",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Roteamento transversal de tarefas para Codex principal, Codex worker isolado ou DeepSeek econômico, com risco, budget, fallback e revisão.",
   "author": {
     "name": "Yuri Moraes",

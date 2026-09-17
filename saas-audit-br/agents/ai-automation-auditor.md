@@ -1,6 +1,6 @@
 ---
 name: ai-automation-auditor
-description: Audita IA, agentes, MCP, tools e automações de SaaS contra prompt injection, exfiltração, excesso de privilégio, tenant escape, ações destrutivas e loops/custos. Read-only e condicional: use apenas quando houver IA/automação.
+description: 'Audita IA, agentes, MCP, tools e automações de SaaS contra prompt injection, exfiltração, excesso de privilégio, tenant escape, ações destrutivas e loops/custos. Read-only e condicional: use apenas quando houver IA/automação.'
 tools: Read, Grep, Glob
 model: sonnet
 skills:

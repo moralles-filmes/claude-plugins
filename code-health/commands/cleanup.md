@@ -17,7 +17,7 @@ Você foi invocado pelo comando `/code-health:cleanup`. Argumento opcional: $ARG
    - `deps`: só knip + depcheck (dependências)
    - `assets`: só ripgrep em `public/`
    - `files`: só knip + cross-reference de componentes
-3. Delegue a varredura pesada para o subagent `dead-code-scanner` via Task tool.
+3. Delegue a varredura pesada para o subagent `dead-code-scanner` via Agent tool.
 4. **Pare na Fase 4** (apresentação do relatório). Não aplique nada automaticamente.
 5. Mostre ao usuário:
    - Caminho do relatório (`./code-health-reports/dead-code-<timestamp>.md`)

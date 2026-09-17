@@ -1,6 +1,6 @@
 ---
 name: devops-ci
-description: Subagent responsável pelo deploy e CI/CD — vercel.json, GitHub Actions, gestão de variáveis de ambiente (Vercel UI vs Supabase secrets vs .env.local), preview deployments, headers de segurança, supabase migration check em CI. Use quando o orquestrador estiver na Fase 7 (deploy) ou quando o usuário disser "deploy", "vercel", "github actions", "ci", "ambiente", "produção", "staging".
+description: Subagent responsável pelo deploy e CI/CD — vercel.json, GitHub Actions, gestão de variáveis de ambiente (Vercel UI vs Supabase secrets vs .env.local), preview deployments, headers de segurança, supabase migration check em CI. Use quando o orquestrador estiver na Fase 8 (deploy) ou quando o usuário disser "deploy", "vercel", "github actions", "ci", "ambiente", "produção", "staging".
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 ---

@@ -179,5 +179,5 @@ $claudeDir = "$env:USERPROFILE\.claude"
 - Veja logs em `~/.claude/logs/`
 
 **Subagent retorna vazio**
-- Subagents só funcionam em Claude Code via Task tool ou em ambientes com agentic SDK
+- Subagents só funcionam em Claude Code via Agent tool ou em ambientes com agentic SDK
 - Em Cowork, são equivalentes a "delegar tarefa em isolamento"

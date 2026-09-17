@@ -13,6 +13,91 @@ description: Padrões TanStack Query v5 + Supabase para SaaS multi-tenant — qu
 4. **Erros 401/403/404 não retentam** — RLS bloqueou, não vai melhorar.
 5. **`select:` para projeção** — evita re-render quando só uma parte mudou.
 
+> `company_id` nos exemplos é a coluna de tenant do arquétipo A. Use a coluna do `.claude/tenancy-profile.yml` do projeto.
+
+## Setup base
+
+### `src/lib/query/client.ts` — QueryClient com defaults de SaaS
+
+```ts
+import { QueryClient } from "@tanstack/react-query";
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,           // 1min: evita refetch agressivo
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false, // padrão SaaS: não refetch ao trocar de aba
+      retry: (failureCount, error) => {
+        // não retenta 401/403/404 (RLS bloqueou)
+        if (error && typeof error === "object" && "status" in error) {
+          const s = (error as { status: number }).status;
+          if (s === 401 || s === 403 || s === 404) return false;
+        }
+        return failureCount < 2;
+      },
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
+```
+
+### `src/lib/query/keys.ts` — factory hierárquica com tenant
+
+```ts
+// Invalida em qualquer nível
+export const qk = {
+  all: ["app"] as const,
+  tenant: (companyId: string) => [...qk.all, "tenant", companyId] as const,
+
+  // por feature
+  invoices: {
+    all: (companyId: string) => [...qk.tenant(companyId), "invoices"] as const,
+    list: (companyId: string, filters: Record<string, unknown>) =>
+      [...qk.invoices.all(companyId), "list", filters] as const,
+    detail: (companyId: string, id: string) =>
+      [...qk.invoices.all(companyId), "detail", id] as const,
+  },
+
+  messages: {
+    all: (companyId: string) => [...qk.tenant(companyId), "messages"] as const,
+    thread: (companyId: string, threadId: string) =>
+      [...qk.messages.all(companyId), "thread", threadId] as const,
+  },
+};
+```
+
+Tenant na key separa o cache se o usuário trocar de tenant.
+
+### `src/features/auth/use-session.ts` — sessão + tenant
+
+```ts
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase/client";
+
+export function useSession() {
+  return useQuery({
+    queryKey: ["session"],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return null;
+      const company_id = (session.user.app_metadata as Record<string, unknown>)?.company_id as string | undefined;
+      if (!company_id) throw new Error("user_without_tenant");
+      return {
+        user: session.user,
+        company_id,
+        access_token: session.access_token,
+      };
+    },
+    staleTime: Infinity, // refetch só quando o auth event dispara
+  });
+}
+```
+
+No `AuthProvider`, escute `supabase.auth.onAuthStateChange` e invalide `["session"]`.
+
 ## Hook de query padrão
 
 ```ts

@@ -6,7 +6,7 @@ Você vai chamar o subagent `arquiteto-chefe` com o conceito que o usuário forn
 
 **Conceito recebido**: $ARGUMENTS
 
-Sua única ação: invoque o subagent `arquiteto-chefe` via Task tool com este prompt:
+Sua única ação: invoque o subagent `arquiteto-chefe` via Agent tool com este prompt:
 
 ```
 Tarefa: Iniciar Fase 1 (concept) para um novo SaaS.

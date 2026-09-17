@@ -19,7 +19,7 @@ Você foi invocado pelo comando `/code-health:audit`. Argumento opcional: $ARGUM
    - `stubs`: só stub-functions
    - `handlers`: só empty-handlers
    - `todos`: só TODOs/FIXMEs com idade
-3. Delegue a varredura para o subagent `functional-auditor` via Task tool.
+3. Delegue a varredura para o subagent `functional-auditor` via Agent tool.
 4. **Pare na Fase 4** (relatório). Não corrija nada automaticamente.
 5. Mostre o veredito de prontidão e pergunte se deve começar pelos BLOCKERs.
 

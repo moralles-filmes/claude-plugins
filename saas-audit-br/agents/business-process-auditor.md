@@ -1,6 +1,6 @@
 ---
 name: business-process-auditor
-description: Audita riscos de processo e integridade de negócio que escapam de scanners tradicionais: pagamentos, estados, idempotência, concorrência, workflows, abuso, custo e falhas de integrações. Read-only.
+description: 'Audita riscos de processo e integridade de negócio que escapam de scanners tradicionais: pagamentos, estados, idempotência, concorrência, workflows, abuso, custo e falhas de integrações. Read-only.'
 tools: Read, Grep, Glob
 model: sonnet
 skills:

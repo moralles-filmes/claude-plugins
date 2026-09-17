@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-09-17
+
+- `module` pode ser acionada pelo modelo (saiu `disable-model-invocation`). O `ai-router-br` manda auditar o módulo quando retorna `audit_required: true`, mas com a skill manual o Claude não conseguia chamá-la e caía sempre na revisão própria. A descrição diz quando usar e quando passar `--audit-only`.
+- `audit` (sistema inteiro), `resume` e `status` continuam manuais.
+- O `saas-builder-br` 1.2.0 passa a usar `/saas-audit-br:audit` nas Fases 6 e 7 em vez de manter lista própria de auditores.
+
 ## 1.0.0
 
 - Auditoria completa `audit`.

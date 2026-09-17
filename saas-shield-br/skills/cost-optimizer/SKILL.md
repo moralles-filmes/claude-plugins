@@ -1,206 +1,113 @@
 ---
 name: cost-optimizer
-description: Reduz custo Supabase + Vercel — diagnostica queries lentas, índices faltantes para RLS (`company_id`), funções `VOLATILE` que deviam ser `STABLE`, N+1 patterns no client, realtime channels caros, bundle bloat, ISR mal configurado. Use quando o usuário pedir "otimiza isso", "isso tá caro", "queries lentas", "reduzir custo Supabase", "EXPLAIN ANALYZE", "otimização de performance", "minha aplicação tá lenta", ou ao revisar custos de infra.
+description: Reduz a CONTA de Supabase + Vercel — egress do banco, invocações de Edge Function/Functions, mensagens e conexões Realtime, storage, bandwidth e build minutes. Use quando o usuário pedir "tá caro o Supabase", "a conta da Vercel subiu", "reduzir custo de infra", "estourou o limite do plano", "egress alto", "muitas invocações", ou ao revisar custos de infra. NÃO cobre lentidão (queries lentas, EXPLAIN, índices, RLS lenta, re-render, bundle como tempo de carga) — isso é do plugin `turbo` (skills `db-perf` e `frontend-perf`).
 ---
 
 # cost-optimizer
 
-Você é um especialista em reduzir custos de infraestrutura para SaaS Supabase + Vercel + React/Vite. Foca em otimizações concretas que cortam $/mês — não em micro-otimizações irrelevantes.
+Você reduz o **custo em dinheiro** de SaaS em Supabase + Vercel + React/Vite. Foca em cortes concretos de $/mês, com impacto estimado — não em micro-otimizações.
 
-## Quando ativa
+## Fronteira com o `turbo`
 
-- "Tá caro o Supabase"
-- "Otimiza essas queries"
-- "Lenta minha aplicação"
-- "Reduzir custo de infra"
-- "EXPLAIN ANALYZE"
+Performance é do plugin **`turbo`**: `db-perf` (query lenta, EXPLAIN, índices, RLS lenta, N+1, paginação, pooling) e `frontend-perf` (travamento, re-render, INP, memory leak, bundle). Muitas correções reduzem custo **e** latência; quando o sintoma principal for lentidão, encaminhe para o `turbo` em vez de repetir o diagnóstico aqui.
 
-## Filosofia
+Esta skill olha a **fatura**: o que está sendo cobrado, quanto, e qual ação corta mais dinheiro por esforço.
 
-> Em SaaS multi-tenant Supabase, **70% do custo desnecessário vem de 3 coisas**: (1) índices ausentes em `company_id`, (2) função resolver `VOLATILE` em vez de `STABLE`, (3) `SELECT *` no client carregando colunas grandes. Resolva isso primeiro.
+Convenção de tenant: `<TC>` é a coluna de tenant do projeto, resolvida pela skill `tenant-model` (`.claude/tenancy-profile.yml`). Não assuma `company_id`.
 
-## Diagnóstico em 6 áreas
+## Passo 1 — de onde vem a conta
 
-### Área 1 — RLS performance (Supabase)
+Antes de propor mudança, identifique a linha da fatura que domina:
 
-**Sintoma**: queries que faziam <100ms começam a tomar segundos quando tabela cresce.
+- **Supabase** (Usage da organização/projeto): egress, tamanho do banco, invocações de Edge Function, mensagens e pico de conexões Realtime, storage, MAU.
+- **Vercel** (Usage): invocações e duração de Functions, bandwidth/data transfer, build minutes, otimização de imagem.
 
-**Causa comum**: RLS chama `get_current_company_id()` para cada linha. Se a função é `VOLATILE`, planner não cacheia. E se não tem índice em `company_id`, é full scan.
+Se você não tem acesso aos painéis, peça os números do período ao usuário. Sem saber qual linha domina, não priorize.
 
-**Diagnóstico**:
-```sql
--- Função com STABLE?
-SELECT proname, provolatile
-FROM pg_proc
-WHERE proname IN ('get_current_company_id', 'get_current_company_id_strict');
--- provolatile deve ser 's' (stable) ou 'i' (immutable). 'v' = volatile = problema.
+## Área 1 — Egress do banco
 
--- Tabela com índice?
-SELECT indexname, indexdef
-FROM pg_indexes
-WHERE tablename = '<tabela>'
-  AND indexdef LIKE '%company_id%';
-```
+**Sintoma**: egress alto, respostas grandes.
 
-**Fix**:
-```sql
--- 1. Tornar resolver STABLE
-CREATE OR REPLACE FUNCTION public.get_current_company_id()
-RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$ … $$;
+**Causas comuns**:
+- `select('*')` trazendo colunas pesadas (`notes` text, `metadata` jsonb, blobs).
+- Listas sem paginação.
+- N requests por tela (N+1) multiplicando o tráfego.
+- Refetch sem cache (TanStack Query com `staleTime: 0` refaz tudo a cada montagem).
 
--- 2. Índice em company_id
-CREATE INDEX IF NOT EXISTS idx_<tab>_company_id ON public.<tab> (company_id);
-
--- 3. Se há filtro adicional comum, índice composto
-CREATE INDEX IF NOT EXISTS idx_<tab>_company_status ON public.<tab> (company_id, status);
-```
-
-**Validação**:
-```sql
-SET role authenticated;
-SET request.jwt.claims = '{"sub":"<uuid_real>"}';
-EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.<tabela> LIMIT 100;
-RESET role;
-```
-Procure: `Index Scan` (bom) vs `Seq Scan` (ruim).
-
-### Área 2 — N+1 no client (React)
-
-**Sintoma**: rede do browser mostra 50+ requests Supabase para renderizar uma lista.
-
-**Causa**: cada linha faz `useEffect` próprio buscando dados relacionados.
-
+**Correções**:
 ```tsx
-// ❌ N+1
-{invoices.map(inv => <InvoiceRow id={inv.id} />)}
-
-// InvoiceRow.tsx
-useEffect(() => {
-  supabase.from('customers').select('*').eq('id', customerId).single()
-  // 1 request por linha!
-}, [customerId])
-```
-
-**Fix**: JOIN no Supabase
-```tsx
-// ✅ 1 request com JOIN
-const { data } = await supabase
-  .from('invoices')
-  .select('*, customer:customers(id, name, email)')
-  .order('created_at', { ascending: false })
-```
-
-Ou React Query com `dataloader` pattern (batch).
-
-### Área 3 — `SELECT *` em tabelas com colunas pesadas
-
-**Sintoma**: response > 1MB, tempo de transferência alto.
-
-**Causa**: `select('*')` traz colunas como `notes` (text grande), `metadata` (jsonb), `pdf_blob` (bytea).
-
-**Fix**: Specifique colunas
-```tsx
-// ❌
+// ❌ traz todas as colunas e todas as linhas
 .from('invoices').select('*')
 
-// ✅
-.from('invoices').select('id, number, status, total_cents, created_at')
+// ✅ só o que a tela usa, paginado
+.from('invoices').select('id, number, status, total_cents, created_at').range(0, 49)
 ```
+- Paginação keyset para listas grandes e N+1 → select aninhado/RPC: diagnóstico e padrão em `turbo:db-perf`.
+- `staleTime` por tipo de dado no client (skill `tanstack-query-supabase` do `saas-builder-br`, se instalada).
 
-### Área 4 — Realtime caro
+## Área 2 — Realtime (mensagens e conexões)
 
-**Sintoma**: contador de "Realtime channel" alto no dashboard Supabase.
+**Sintoma**: contador de mensagens ou pico de conexões Realtime alto.
 
-**Causas**:
-- Cada componente cria seu próprio channel (vs usar 1 channel compartilhado via context)
-- `INSERT, UPDATE, DELETE` quando só precisa de UPDATE
-- Sem `filter: 'company_id=eq.<id>'` — recebe events de todos tenants
+**Causas comuns**:
+- Um channel por componente em vez de um compartilhado.
+- `event: '*'` quando só precisa de `UPDATE`.
+- Assinatura sem filtro de tenant (recebe — e é cobrado por — eventos que não usa).
+- Channel sem `removeChannel` no cleanup (conexões acumulam a cada navegação).
 
-**Fix**:
 ```ts
-// ❌
-.on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, …)
-
-// ✅
-.on('postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'invoices',
-      filter: `company_id=eq.${companyId}`,
-    },
-    …)
-```
-
-E centralize em um Provider/hook compartilhado:
-```ts
-// useInvoicesRealtime.ts — UM channel para a app inteira
-const channel = supabase.channel('invoices')
-  .on('postgres_changes', {…}, queryClient.invalidateQueries(['invoices']))
+// ✅ um channel compartilhado, evento específico, filtrado por tenant
+const channel = supabase
+  .channel(`invoices-${tenantId}`)
+  .on(
+    'postgres_changes',
+    { event: 'UPDATE', schema: 'public', table: 'invoices', filter: `<TC>=eq.${tenantId}` },
+    () => queryClient.invalidateQueries({ queryKey: ['invoices', tenantId] }),
+  )
   .subscribe()
+
+// no cleanup do useEffect / provider
+supabase.removeChannel(channel)
 ```
 
-### Área 5 — Bundle Vite caro (Vercel)
+A RLS continua sendo a fronteira de segurança; o filtro aqui é para custo.
 
-**Sintoma**: Vercel build fica grande, CDN cobra mais, app lenta para carregar.
+## Área 3 — Invocações de Edge Function / Vercel Functions
 
-**Diagnóstico**:
-```bash
-# Adicione ao vite.config.ts:
-import { visualizer } from 'rollup-plugin-visualizer'
+**Sintoma**: invocações ou duração acima do esperado.
 
-build: {
-  rollupOptions: {
-    plugins: [visualizer({ filename: 'dist/stats.html' })]
-  }
-}
-```
+**Causas comuns**:
+- Chamada por tecla (autocomplete sem debounce).
+- Polling curto.
+- Função chamada para dado que poderia vir de cache ou CDN.
+- Função esperando API externa lenta dentro da request (duração cobrada).
 
-Veja `dist/stats.html` após build. Procure:
-- `lodash` inteiro vs imports específicos (`lodash-es` + tree-shaking)
-- `moment` (substitua por `date-fns` ou `dayjs`)
-- Múltiplas versões da mesma lib (yarn dedupe / npm dedupe)
-- SVGs gigantes em base64 inline (mover para `/public/`)
+**Correções**:
+- Debounce/throttle no client.
+- Trocar polling por Realtime ou webhook.
+- `Cache-Control` com `s-maxage`/`stale-while-revalidate` em respostas cacheáveis.
+- Cache de respostas determinísticas (ex.: LLM com temperatura 0 — skill `llm-multi-provider` do `saas-builder-br`).
+- Trabalho demorado vai para fila/cron; a request só enfileira e responde.
 
-**Fixes comuns**:
-```ts
-// ❌
-import _ from 'lodash'
+## Área 4 — Bandwidth e build (Vercel)
 
-// ✅
-import debounce from 'lodash-es/debounce'
-// ou — melhor — sem lodash:
-const debounce = (fn, ms) => { /* … */ }
-```
+- **Bandwidth**: assets com hash sem cache imutável; imagens sem dimensionamento/formato moderno; SVG e base64 inline gigantes. Corrija cache, compressão (brotli) e imagens.
+- **Build minutes**: rebuild completo a cada push em branch irrelevante (use Ignored Build Step), sem cache de dependências, previews onde ninguém olha.
+- Bundle grande também custa bandwidth; para o diagnóstico do bundle (analyzer, code splitting, libs pesadas) use `turbo:frontend-perf`.
 
-### Área 6 — Edge Function fria + bundle
+## Área 5 — Storage e crescimento do banco
 
-**Sintoma**: Edge function leva 2s no primeiro request.
-
-**Causas**:
-- Imports pesados (Stripe SDK inteiro, AWS SDK)
-- Cold start
-- Bundle não otimizado
-
-**Fixes**:
-- Use `import { Stripe } from 'npm:stripe@13'` com `?dts` para tipos sem código extra
-- Imports lazy:
-  ```ts
-  if (req.url.includes('/admin')) {
-    const { adminHandler } = await import('./admin.ts')
-    return adminHandler(req)
-  }
-  ```
-- Tabela de "warm-up" via cron (cron.org → ping a cada 5min)
+- Tabelas de log/eventos sem retenção (`webhook_events`, `api_usage`, auditoria) → política de retenção, particionamento ou purge agendado.
+- Arquivos órfãos no Storage (upload sem referência no banco) → job de limpeza.
+- Índices não usados ocupam disco e encarecem escrita → confirmar uso antes de remover (critério em `turbo:db-perf`).
 
 ## Custos típicos a vigiar
+
+Valores de referência — confira a tabela de preços vigente do Supabase e da Vercel antes de estimar economia.
 
 | Recurso | Limite gratuito Supabase | Custo após | Otimização |
 |---|---|---|---|
 | DB egress | 5 GB/mês | $0.09/GB | Specifique colunas, paginação, ETag |
-| DB rows | "ilimitado" mas IO conta | — | Índices + FORCE RLS bem otimizado |
 | Edge Functions invocations | 500k/mês | $2/M | Cache de respostas, debounce no client |
 | Realtime msgs | 2M/mês | $2.50/M | Filtros, channels compartilhados |
 | Vercel build minutes | 100/mês free | $0.40/min | Cache, evitar rebuild full |
@@ -213,7 +120,7 @@ Sempre estruture:
 ```
 💰 RELATÓRIO DE CUSTO — <projeto>
 
-🔍 Diagnóstico
+🔍 Diagnóstico (linha da fatura → causa)
   - <achado #1> → impacto estimado: $X/mês
   - <achado #2> → impacto estimado: $Y/mês
 
@@ -226,10 +133,12 @@ Sempre estruture:
   <SQL ou diff por ação>
 
 📊 Custo projetado depois: $<atual> → $<otimizado> (-<%>)
+
+↪️ Encaminhado ao turbo: <itens que são de performance, se houver>
 ```
 
 ## Eficiência da skill
 
-- Não rode `EXPLAIN ANALYZE` mentalmente — peça ao usuário rodar e colar output
-- Carregue só áreas relevantes (se ele só pergunta de RLS, não fale de bundle)
-- Numere ações por ROI, não por categoria
+- Não invente números de consumo — peça os valores do painel.
+- Carregue só as áreas da linha da fatura que domina.
+- Numere ações por ROI (dinheiro economizado / esforço), não por categoria.

@@ -1,6 +1,6 @@
 ---
 name: data-resilience-auditor
-description: Audita resiliência e ciclo de vida de dados: uploads/storage, exclusões, retenção, backups/restore, migrations, logs/audit trail e riscos técnicos de privacidade/LGPD. Read-only.
+description: 'Audita resiliência e ciclo de vida de dados: uploads/storage, exclusões, retenção, backups/restore, migrations, logs/audit trail e riscos técnicos de privacidade/LGPD. Read-only.'
 tools: Read, Grep, Glob
 model: sonnet
 skills:

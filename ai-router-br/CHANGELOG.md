@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 — 2026-09-17
+Auditoria de módulo acionável pelo router.
+
+### Corrigido
+- Etapa 4 da skill `route`: com `audit_required: true`, o Claude invoca a skill `saas-audit-br:module` com `<módulo> --fix`. Antes a skill mandava usar `/saas-audit-br:module`, que era manual (`disable-model-invocation`) e não podia ser chamada pelo modelo — a auditoria externa nunca rodava. Requer `saas-audit-br` 1.1.0.
+
 ## 1.2.0 — 2026-09-17
 Mostra no chat quem executou cada tarefa.
 

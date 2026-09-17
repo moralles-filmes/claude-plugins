@@ -11,7 +11,7 @@
                     {
                         "name":  "saas-shield-br",
                         "source":  "./saas-shield-br",
-                        "description":  "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets), custo e PT-BR. 12 skills, 6 subagents, 5 commands, hooks."
+                        "description":  "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets), custo de infra (performance fica com o turbo) e PT-BR. 12 skills, 6 subagents, 5 commands, hooks."
                     },
                     {
                         "name":  "code-health",
@@ -21,7 +21,7 @@
                     {
                         "name":  "saas-builder-br",
                         "source":  "./saas-builder-br",
-                        "description":  "Orquestrador central + 8 subagents especializados para construir SaaS multi-tenant em Vite + React + TypeScript / Supabase / Vercel. Pipeline de 8 fases (concept → schema → backend → frontend → integrations → code_health → security_audit → deploy) com gates automáticos plugados em saas-shield-br (segurança) e code-health (qualidade funcional). Inclui 5 skills (vite-react-arquitetura, tanstack-query-supabase, whatsapp-zapi-integracao, llm-multi-provider, responsive-mobile-first) e 3 commands (/novo-saas, /proximo-passo, /quem-faz)."
+                        "description":  "Orquestrador central + 8 subagents especializados para construir SaaS multi-tenant em Vite + React + TypeScript / Supabase / Vercel. Pipeline de 8 fases (concept → schema → backend → frontend → integrations → code_health → security_audit → deploy) com gates pontuais do saas-shield-br (segurança) e auditoria completa delegada ao saas-audit-br (code-health + shield + processo/dados/IA). Inclui 5 skills (vite-react-arquitetura, tanstack-query-supabase, whatsapp-zapi-integracao, llm-multi-provider, responsive-mobile-first) e 3 commands (/novo-saas, /proximo-passo, /quem-faz)."
                     },
                     {
                         "name":  "turbo",
