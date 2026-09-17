@@ -1,6 +1,6 @@
 ---
 description: Auditoria funcional do projeto — encontra phantom buttons, broken routes, dados mockados, stubs, empty handlers, TODOs antigos. Gera relatório com severidade (BLOCKER/HIGH/MEDIUM/LOW) e veredito de prontidão para produção.
-argument-hint: [scope: full|buttons|routes|mocks|stubs|handlers|todos]
+argument-hint: "[scope: full|buttons|routes|mocks|stubs|handlers|todos]"
 allowed-tools: Bash, Read, Glob, Grep, Write, Edit, Task
 ---
 

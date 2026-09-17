@@ -15,6 +15,8 @@
  *   5. Cada command .md tem frontmatter com `description:`
  *   6. Cada hook script .mjs passa em `node --check`
  *   7. Hooks.json (se existir) é JSON válido
+ *   8. O frontmatter de skills, agents e commands é YAML válido (`: ` e ` #` só entre
+ *      aspas, aspas fechadas) — se não parseia, o Claude Code ignora todos os campos
  *
  * Saída:
  *   - exit 0 → tudo OK
@@ -92,6 +94,156 @@ function parseFrontmatter(content) {
     currentListKey = null
   }
   return fm
+}
+
+// ─── Sintaxe YAML do frontmatter ─────────────────────────────────────
+// O Claude Code descarta o frontmatter inteiro quando ele não parseia como YAML:
+// o agente perde description, tools e skills sem aviso. O parseFrontmatter acima é
+// tolerante demais para perceber, então aqui aceitamos só o subconjunto usado nos
+// plugins (`chave: escalar`, listas `- item`, `[a, b]`, blocos `|`/`>` e mapas
+// aninhados) e tratamos o resto como erro. A correção é quase sempre pôr o valor
+// entre aspas simples.
+
+const NO_PARSE = 'o YAML não parseia e o Claude Code ignora o frontmatter inteiro'
+
+function quotedEnd(s, i) {
+  const q = s[i]
+  for (let j = i + 1; j < s.length; j++) {
+    if (q === '"' && s[j] === '\\') { j++; continue }
+    if (s[j] === q) {
+      if (q === "'" && s[j + 1] === "'") { j++; continue }
+      return j + 1
+    }
+  }
+  return -1
+}
+
+function doubleQuotedProblem(inner) {
+  const re = /\\(?:x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|[0abt\tnvfre "/\\N_LP])|\\(.?)/g
+  for (const m of inner.matchAll(re)) {
+    if (m[1] !== undefined) return `escape inválido \`\\${m[1]}\` entre aspas duplas; ${NO_PARSE}. Use aspas simples`
+  }
+  return null
+}
+
+function plainProblem(v) {
+  if (/:(\s|$)/.test(v)) return `contém \`: \` sem aspas; ${NO_PARSE}. Coloque o valor entre aspas simples`
+  if (/\s#/.test(v)) return 'contém ` #` sem aspas; o YAML trata o resto como comentário e corta o valor. Coloque o valor entre aspas simples'
+  return null
+}
+
+function flowSequenceProblem(v) {
+  let i = 1
+  for (;;) {
+    while (v[i] === ' ') i++
+    if (i >= v.length) return `lista \`[...]\` sem \`]\` na mesma linha; ${NO_PARSE}`
+    if (v[i] === ']') break
+    if (v[i] === "'" || v[i] === '"') {
+      const end = quotedEnd(v, i)
+      if (end < 0) return `aspas não fechadas dentro da lista \`[...]\`; ${NO_PARSE}`
+      if (v[i] === '"') {
+        const p = doubleQuotedProblem(v.slice(i + 1, end - 1))
+        if (p) return p
+      }
+      i = end
+    } else {
+      let j = i
+      while (j < v.length && v[j] !== ',' && v[j] !== ']') j++
+      const item = v.slice(i, j).trim()
+      if (!item) return `item vazio na lista \`[...]\`; ${NO_PARSE}`
+      if (/^[&*!%@`|>#{[]/.test(item) || /^[-?:](\s|$)/.test(item) || /[{}[]/.test(item)) {
+        return `item \`${item}\` usa caractere reservado do YAML. Coloque-o entre aspas simples`
+      }
+      if (/:(\s|$)/.test(item)) {
+        return `item \`${item}\` contém \`: \` sem aspas; dentro de \`[...]\` o YAML lê isso como mapa, não como texto. Coloque o valor entre aspas simples`
+      }
+      const p = plainProblem(item)
+      if (p) return `item \`${item}\` ${p}`
+      i = j
+    }
+    while (v[i] === ' ') i++
+    if (v[i] === ',') { i++; continue }
+    if (v[i] === ']') break
+    return `esperado \`,\` ou \`]\` na lista \`[...]\`, encontrado \`${v[i] ?? 'fim da linha'}\`; ${NO_PARSE}`
+  }
+  const rest = v.slice(i + 1)
+  if (rest.trim() && !/^\s+#/.test(rest)) return `texto depois de \`]\` (\`${rest.trim()}\`); ${NO_PARSE}`
+  return null
+}
+
+function yamlValueProblem(v) {
+  if (v[0] === "'" || v[0] === '"') {
+    const end = quotedEnd(v, 0)
+    if (end < 0) return `aspas não fechadas na mesma linha; ${NO_PARSE}`
+    const rest = v.slice(end)
+    if (rest.trim() && !/^\s+#/.test(rest)) return `texto depois das aspas (\`${rest.trim()}\`); ${NO_PARSE}. Ponha o valor inteiro entre aspas`
+    return v[0] === '"' ? doubleQuotedProblem(v.slice(1, end - 1)) : null
+  }
+  if (v[0] === '[') return flowSequenceProblem(v)
+  if (v[0] === '#') return 'começa com `#`; o YAML lê como comentário e o valor fica vazio. Coloque o valor entre aspas simples'
+  if (/^[&*!%@`|>{},\]]/.test(v) || /^[-?:](\s|$)/.test(v)) {
+    return `começa com '${v[0]}', reservado no YAML (não parseia ou muda o tipo do valor). Coloque o valor entre aspas simples`
+  }
+  return plainProblem(v)
+}
+
+function frontmatterYamlProblems(content) {
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (!m) return []
+  const problems = []
+  const seen = new Set()
+  let openKey = null   // chave de topo sem valor: as linhas indentadas/`- item` seguintes pertencem a ela
+  let blockCol = -1    // >= 0 dentro de um bloco `|`/`>`: linhas mais indentadas que a chave são texto livre
+  m[1].split(/\r?\n/).forEach((line, idx) => {
+    const at = msg => problems.push(`linha ${idx + 2}: ${msg}`)
+    const indent = line.match(/^[ \t]*/)[0]
+    if (blockCol >= 0) {
+      if (line.trim() === '' || indent.length > blockCol) return
+      blockCol = -1
+    }
+    if (line.trim() === '' || line.trimStart().startsWith('#')) return
+    if (indent.includes('\t')) return at(`tab na indentação (o YAML só aceita espaços); ${NO_PARSE}`)
+
+    let body = line.slice(indent.length)
+    const isItem = /^-(\s|$)/.test(body)
+    if (isItem) {
+      if (!openKey) return at(`item \`-\` sem uma chave de lista logo acima; ${NO_PARSE}`)
+      body = body.slice(1).trim()
+      if (!body) return
+    } else if (indent && !openKey) {
+      return at('linha indentada depois de um valor; o valor foi quebrado em várias linhas? Junte numa linha só (ou use aspas ou `|`)')
+    }
+
+    const kv = body.match(/^([A-Za-z_][\w.-]*):(\s.*)?$/)
+    if (!kv) {
+      if (isItem) {
+        const p = yamlValueProblem(body)
+        return p ? at(`item da lista \`${openKey}\` ${p}`) : undefined
+      }
+      return at(indent
+        ? `linha não reconhecida dentro de \`${openKey}\``
+        : `linha não reconhecida, esperado \`chave: valor\` (valor quebrado em várias linhas ou falta espaço depois de \`:\`?); ${NO_PARSE}`)
+    }
+
+    const key = kv[1]
+    const value = (kv[2] || '').trim()
+    if (!indent && !isItem) {
+      if (seen.has(key)) at(`chave \`${key}\` repetida; parsers divergem (erro ou vale a última)`)
+      seen.add(key)
+      openKey = value === '' ? key : null
+    }
+    if (value === '') return
+    if (/^[|>][1-9+-]*(\s+#.*)?$/.test(value)) { blockCol = line.indexOf(`${key}:`); return }
+    const p = yamlValueProblem(value)
+    if (p) at(`\`${key}\` ${p}`)
+  })
+  return problems
+}
+
+function checkFrontmatterYaml(path, content) {
+  for (const p of frontmatterYamlProblems(content)) {
+    err(`${rel(path)}: frontmatter YAML — ${p}`)
+  }
 }
 
 function validateJson(path, requiredFields = []) {
@@ -181,6 +333,7 @@ for (const dir of pluginDirs) {
       err(`${rel(skillPath)}: sem frontmatter YAML (---)`)
       continue
     }
+    checkFrontmatterYaml(skillPath, content)
     if (!fm.name) err(`${rel(skillPath)}: frontmatter sem \`name\``)
     if (!fm.description) err(`${rel(skillPath)}: frontmatter sem \`description\``)
     if (fm.name && fm.name !== skill) {
@@ -208,6 +361,7 @@ for (const dir of pluginDirs) {
       err(`${rel(path)}: sem frontmatter YAML`)
       continue
     }
+    checkFrontmatterYaml(path, content)
     if (!fm.name) err(`${rel(path)}: frontmatter sem \`name\``)
     if (!fm.description) err(`${rel(path)}: frontmatter sem \`description\``)
 
@@ -270,6 +424,7 @@ for (const dir of pluginDirs) {
       err(`${rel(path)}: sem frontmatter YAML`)
       continue
     }
+    checkFrontmatterYaml(path, content)
     if (!fm.description) err(`${rel(path)}: frontmatter sem \`description\``)
     if (/\bTask tool\b/i.test(content)) {
       warn(`${rel(path)}: cita "Task tool" (legado) — use "Agent tool"`)
@@ -343,7 +498,10 @@ if (existsSync(codexMpPath)) {
       if (!m.interface?.defaultPrompt && !m.interface?.default_prompt) err(`${rel(manifestPath)}: interface.defaultPrompt ausente`)
       const skillsDir = join(pluginRoot, 'skills')
       for (const s of existsSync(skillsDir) ? readdirSync(skillsDir, { withFileTypes: true }).filter(d => d.isDirectory()) : []) {
-        const fm = existsSync(join(skillsDir, s.name, 'SKILL.md')) ? parseFrontmatter(readFileSync(join(skillsDir, s.name, 'SKILL.md'), 'utf-8')) : null
+        const skillMd = join(skillsDir, s.name, 'SKILL.md')
+        const skillContent = existsSync(skillMd) ? readFileSync(skillMd, 'utf-8') : null
+        const fm = skillContent ? parseFrontmatter(skillContent) : null
+        if (skillContent) checkFrontmatterYaml(skillMd, skillContent)
         if (!fm?.name || !fm?.description) err(`${p.source.path}/skills/${s.name}/SKILL.md: frontmatter precisa de name e description`)
         if (fm && fm['disable-model-invocation'] && fm['disable-model-invocation'] !== 'false') err(`${p.source.path}/skills/${s.name}: disable-model-invocation deve ser false no Codex`)
       }
