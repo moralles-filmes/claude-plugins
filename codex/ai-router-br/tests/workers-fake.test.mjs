@@ -103,10 +103,19 @@ test('discardIgnoredFiles never deletes through a link',(t)=>{
   const outside=fs.mkdtempSync(path.join(os.tmpdir(),'router-outside-'));
   fs.writeFileSync(path.join(outside,'precious.log'),'keep');
   const d=repo({'a.txt':'x\n','.gitignore':'*.log\n'});
+  fs.writeFileSync(path.join(d,'own.log'),'drop');
   try {
     try { fs.symlinkSync(outside,path.join(d,'link'),'junction'); } catch { t.skip('links not permitted here'); return; }
-    assert.throws(()=>discardIgnoredFiles(d),/ignored_files_not_removed/);
+    // Git for Windows lists ignored files through a junction and the deletion has to be refused; POSIX git
+    // never descends into a symlink, so there is nothing behind it to refuse. Either way the file outside
+    // survives, nothing behind the link is reported as discarded and the worktree's own ignored file goes.
+    let discarded=null;
+    try { discarded=discardIgnoredFiles(d); }
+    catch (e) { assert.equal(e.message,'ignored_files_not_removed'); assert.equal(e.code,'scope_violation'); }
     assert.equal(fs.readFileSync(path.join(outside,'precious.log'),'utf8'),'keep');
+    assert.deepEqual(fs.readdirSync(outside),['precious.log']);
+    assert.equal(fs.existsSync(path.join(d,'own.log')),false);
+    if (discarded) assert.deepEqual(discarded.filter(p=>p.startsWith('link/')),[]);
   } finally { try{ fs.unlinkSync(path.join(d,'link')); }catch{} rm(d); rm(outside); }
 });
 test('codex worker: a visible test that writes to the main repo fails as scope_violation without fallback',async()=>{
