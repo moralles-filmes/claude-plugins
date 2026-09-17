@@ -20,6 +20,15 @@ O `setup-claude.ps1`/`setup-claude.sh` do marketplace faz tudo isso.
 ## Uso
 Abra qualquer projeto no Codex e peça normalmente; para trabalho substancial a skill `$ai-router` classifica e, no primeiro uso, cria `.ai-router/` (ignorado localmente pelo Git) e o bloco curto em `CLAUDE.md`/`AGENTS.md`.
 
+Quando o router classifica ou despacha uma tarefa, o Codex copia na resposta a linha `summary_line` do CLI, por exemplo:
+
+```text
+🔀 Router · TIER 2 → DeepSeek (deepseek-flash) · sucesso · US$0,0004 · 1,8 s
+🔀 Router · TIER 1 → Codex (gpt-5.6-sol) · sucesso · sem custo de API · 2,1 min
+```
+
+O Codex não tem hook equivalente ao do Claude Code, então a linha depende do agente seguir a skill. O histórico fica em `.ai-router/COSTS.jsonl`.
+
 ## Validação
 ```bash
 npm test

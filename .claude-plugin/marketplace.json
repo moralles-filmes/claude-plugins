@@ -36,7 +36,7 @@
                     {
                         "name":  "ai-router-br",
                         "source":  "./ai-router-br",
-                        "description":  "Roteamento seguro de tarefas por risco/custo: Claude principal, Codex worker via login ChatGPT e DeepSeek worker via API. Auto-inicializa .ai-router/ no primeiro uso de cada projeto, isola workers em worktrees, aplica allowlist/budget/fallback só por indisponibilidade e exige revisão antes de integrar. Versão nativa Codex em codex/ai-router-br. 6 skills, 1 subagent, 1 hook."
+                        "description":  "Roteamento seguro de tarefas por risco/custo: Claude principal, Codex worker via login ChatGPT e DeepSeek worker via API. Auto-inicializa .ai-router/ no primeiro uso de cada projeto, isola workers em worktrees, aplica allowlist/budget/fallback só por indisponibilidade e exige revisão antes de integrar. Mostra no chat quem executou cada tarefa (executor, modelo, custo). Versão nativa Codex em codex/ai-router-br. 6 skills, 1 subagent, 2 hooks."
                     }
                 ]
 }

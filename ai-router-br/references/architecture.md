@@ -42,6 +42,13 @@ Nunca inicializa o diretório home, a raiz do disco, `~/.claude`, `~/.codex`, pa
 - **Claude Code:** hook `SessionStart` do plugin injeta duas linhas de contexto indicando a skill `ai-router-br:route` para pedidos substanciais; depois da primeira inicialização o bloco em `CLAUDE.md` mantém a regra no projeto.
 - **Codex:** a skill `$ai-router` tem descrição de invocação implícita; o setup também sincroniza o mesmo bloco curto em `~/.codex/AGENTS.md` (global) e o primeiro uso adiciona o bloco ao `AGENTS.md` do projeto.
 
+## Quem executou: linha no chat
+
+`dry-run`, `classify` e `dispatch` imprimem `summary_line` como **primeira** chave do JSON, por exemplo `🔀 Router · TIER 2 → DeepSeek (deepseek-flash) · sucesso · US$0,0004 · 1,8 s`. A linha é montada só com campos fixos, códigos e números (executor, modelo, tier, status, `error_code`, custo, duração). Nunca inclui texto do worker, prompt, caminho ou mensagem de erro. O modelo do DeepSeek vem do config do plugin. O do Codex worker vem da chave `model` de topo em `$CODEX_HOME/config.toml` (ou `~/.codex/config.toml`) e é omitido com `ignore_user_config: true`.
+
+- **Claude Code:** um hook `PostToolUse` (`Bash|PowerShell`, filtrado por `if` para comandos com `ai-router.mjs`) roda `scripts/router-notice.mjs`, que devolve a linha como `systemMessage`, mostrada ao usuário sem depender do modelo. O hook nunca bloqueia e fica calado para outros comandos e dentro de workers.
+- **Claude Code e Codex:** as skills mandam o agente principal copiar o `summary_line` literalmente na resposta.
+
 ## Isolamento
 
 External workers só executam quando o git está limpo. `git worktree add --detach` cria uma cópia temporária fora do projeto. O worker nunca faz commit/push (HEAD é verificado) e o router nunca aplica o patch automaticamente na árvore principal.

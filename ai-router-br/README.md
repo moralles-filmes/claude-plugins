@@ -5,6 +5,7 @@ Plugin transversal para roteamento seguro entre **Claude principal**, **Codex wo
 ## Componentes
 - 6 skills Claude (`route` automática; `dry-run`, `status`, `use-codex`, `use-deepseek`, `main-only` manuais);
 - hook `SessionStart` curto para o router ser acionado sem ser citado;
+- hook `PostToolUse` que mostra no chat quem executou cada tarefa (executor, modelo, status, custo);
 - auto-inicialização idempotente de `.ai-router/` no primeiro uso em cada projeto;
 - classificador contextual TIER 0–3;
 - TASK PACKAGE enxuto;
@@ -19,6 +20,16 @@ Plugin transversal para roteamento seguro entre **Claude principal**, **Codex wo
 ## Uso normal
 
 Depois de instalado, abra qualquer projeto e peça normalmente. Para trabalho substancial o Claude aciona `ai-router-br:route`, que na primeira vez cria `.ai-router/` (ignorado localmente pelo Git) e o bloco curto em `CLAUDE.md`/`AGENTS.md`, e segue com a classificação.
+
+Sempre que o router classifica ou despacha uma tarefa, aparece no chat uma linha como:
+
+```text
+🔀 Router · TIER 2 → DeepSeek (deepseek-flash) · sucesso · US$0,0004 · 1,8 s
+🔀 Router · TIER 1 → Codex (gpt-5.6-sol) indisponível → DeepSeek (deepseek-flash) · sucesso · US$0,0003 · 1,7 s
+🔀 Router · TIER 0 → agente principal
+```
+
+Ela vem do hook `PostToolUse` do plugin e também é copiada pelo Claude na resposta. Sem essa linha, quem fez a tarefa foi o próprio Claude. O histórico fica em `.ai-router/COSTS.jsonl`.
 
 ## CLI
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0 — 2026-09-17
+Mostra no chat quem executou cada tarefa.
+
+### Adicionado
+- `summary_line` como primeira chave do JSON de `dry-run`/`classify`/`dispatch` e dos erros do CLI: tier, executor, modelo (DeepSeek pelo config do plugin; Codex pela chave `model` de topo do `config.toml` do usuário), status, fallback, custo e duração. Montada só com campos fixos, códigos e números.
+- Hook `PostToolUse` (Claude Code, `Bash|PowerShell` filtrado por `if` para `ai-router.mjs`) que mostra a linha ao usuário como `systemMessage`, sem depender do modelo. Nunca bloqueia; fica calado para outros comandos e dentro de workers.
+- Skills (Claude e Codex) mandam o agente principal copiar o `summary_line` literalmente na resposta.
+
 ## 1.1.0 — 2026-09-16
 Instalação no marketplace `morallesfilms-local`, com auditoria do pacote 1.0.0.
 
