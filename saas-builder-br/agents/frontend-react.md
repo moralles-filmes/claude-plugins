@@ -1,6 +1,6 @@
 ---
 name: frontend-react
-description: Subagent que constrói o frontend Vite + React + TypeScript de um SaaS multi-tenant. Estrutura de pastas, roteamento (React Router v6), state (TanStack Query para servidor + Zustand para global UI), forms (React Hook Form + Zod), client Supabase configurado uma única vez. Use quando o orquestrador estiver na Fase 4 (frontend) ou quando o usuário pede componente/página/rota/hook. Não desenha visual — isso é o design-ux. Foco: arquitetura React funcional, type-safe, RLS-aware.
+description: 'Subagent que constrói o frontend Vite + React + TypeScript de um SaaS multi-tenant. Estrutura de pastas, roteamento (React Router v6), state (TanStack Query para servidor + Zustand para global UI), forms (React Hook Form + Zod), client Supabase configurado uma única vez. Use quando o orquestrador estiver na Fase 4 (frontend) ou quando o usuário pede componente/página/rota/hook. Não desenha visual — isso é o design-ux. Foco: arquitetura React funcional, type-safe, RLS-aware.'
 tools: Read, Write, Edit, Glob, Grep
 model: sonnet
 skills:

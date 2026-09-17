@@ -1,6 +1,6 @@
 ---
 name: identity-access-auditor
-description: Auditoria estática de identidade e controle de acesso num SaaS multi-tenant — memberships, RBAC/papéis, convites, troca de workspace/tenant, sessões/JWT, autoridade de super admin e guardas anti-lockout. Use antes de releases que tocam auth/permissões, ou quando o usuário pergunta "as permissões estão certas?", "dá pra escalar privilégio?", "a troca de workspace é segura?". Cobre a superfície que o rls-reviewer (dados) e o tenant-isolation-auditor (vazamento) não cobrem: quem-é-quem e quem-pode-o-quê. Parametrizado pelo tenancy-profile.
+description: 'Auditoria estática de identidade e controle de acesso num SaaS multi-tenant — memberships, RBAC/papéis, convites, troca de workspace/tenant, sessões/JWT, autoridade de super admin e guardas anti-lockout. Use antes de releases que tocam auth/permissões, ou quando o usuário pergunta "as permissões estão certas?", "dá pra escalar privilégio?", "a troca de workspace é segura?". Cobre a superfície que o rls-reviewer (dados) e o tenant-isolation-auditor (vazamento) não cobrem: quem-é-quem e quem-pode-o-quê. Parametrizado pelo tenancy-profile.'
 tools: Read, Glob, Grep
 model: sonnet
 maxTurns: 22

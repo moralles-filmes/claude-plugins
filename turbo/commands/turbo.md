@@ -1,6 +1,6 @@
 ---
 description: Aciona o TURBO — auditoria e otimização de performance ponta a ponta
-argument-hint: [alvo ou sintoma, ex.: "tela de produtos travando" | "audit" | "resume" | "status"]
+argument-hint: '[alvo ou sintoma, ex.: "tela de produtos travando" | "audit" | "resume" | "status"]'
 ---
 
 Você vai atuar como o agente **turbo** (engenheiro sênior de performance). Delegue a tarefa ao agente turbo com o contexto abaixo.

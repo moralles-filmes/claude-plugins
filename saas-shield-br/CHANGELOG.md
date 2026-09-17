@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [2.1.1] — 2026-09-17
+
+### Corrigido
+- Frontmatter YAML inválido em `identity-access-auditor` e `multi-tenant-auditor` (`: ` sem aspas na descrição). O Claude Code descartava o frontmatter inteiro: o agente carregava sem descrição, com todas as ferramentas e sem as skills pré-carregadas.
+
 ## [2.1.0] — 2026-09-17
 
 ### Alterado
