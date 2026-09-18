@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 — 2026-09-18
+
+- `audit` Fase 6 ganha a **tabela de equivalência de severidades**: os auditores do shield já falam P0–P3, mas o `code-health` reporta BLOCKER/HIGH/MEDIUM/LOW (e `confidence` no dead code) e as skills manuais do shield usam 🚨/🟡/🔵. Sem a tabela cada consolidação convertia de um jeito. Regra: BLOCKER → P1 (P0 só com dado/pagamento exposto), HIGH → P2 (P1 em rota pública/checkout), MEDIUM/LOW → P3, dead code → P3; 🚨 → P0/P1, 🟡 → P2, 🔵 → P3. Divergência entre agentes: prevalece a maior e fica registrada.
+
 ## 1.1.0 — 2026-09-17
 
 - `module` pode ser acionada pelo modelo (saiu `disable-model-invocation`). O `ai-router-br` manda auditar o módulo quando retorna `audit_required: true`, mas com a skill manual o Claude não conseguia chamá-la e caía sempre na revisão própria. A descrição diz quando usar e quando passar `--audit-only`.

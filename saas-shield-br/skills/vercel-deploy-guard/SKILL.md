@@ -54,10 +54,10 @@ Você valida configuração Vercel antes de deploy ir pra produção. Foca em: s
 
 ### Build & Bundle (4)
 
-- [ ] Source maps **off** em prod?
+- [ ] Source maps **não publicadas** em prod?
   ```ts
   // vite.config.ts
-  build: { sourcemap: false }  // ou 'hidden' se quer mandar pro Sentry
+  build: { sourcemap: mode === 'production' ? 'hidden' : true }  // 'hidden' gera mas não linka (Sentry); false não gera
   ```
 - [ ] Bundle gzipped < 250 KB inicial? (rolup-plugin-visualizer)
 - [ ] Code-split por rota (`React.lazy` + `Suspense`)?
@@ -74,32 +74,38 @@ Você valida configuração Vercel antes de deploy ir pra produção. Foca em: s
 ### Redirects & Rewrites (2)
 
 - [ ] `vercel.json` tem redirect 301 de domínio antigo para novo (se aplicável)?
-- [ ] SPA fallback configurado? (Vite/React)
+- [ ] SPA fallback configurado sem engolir `/api/*` e `/assets/*`? (Vite/React)
   ```json
   {
-    "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+    "rewrites": [{ "source": "/((?!api|assets|.*\\..*).*)", "destination": "/index.html" }]
   }
   ```
 
 ## Configuração modelo `vercel.json`
 
+Esta é a configuração **canônica** dos plugins morallesfilms — o agente `devops-ci` do saas-builder-br gera exatamente este arquivo. Se um dos dois mudar, mude o outro.
+
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "bun run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "installCommand": "bun install --frozen-lockfile",
+  "trailingSlash": false,
 
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(self)" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" }
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
       ]
     },
     {
@@ -117,14 +123,12 @@ Você valida configuração Vercel antes de deploy ir pra produção. Foca em: s
   ],
 
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-
-  "regions": ["gru1"]
+    { "source": "/((?!api|assets|.*\\..*).*)", "destination": "/index.html" }
+  ]
 }
 ```
 
-> `regions: ["gru1"]` = São Paulo. Se majority dos seus users são BR, edge functions em GRU reduzem latência.
+> Usa `npm`? Se o projeto for `bun`/`pnpm`, troque só `buildCommand` (e `installCommand`, se precisar). Stripe no front? Acrescente `https://js.stripe.com` a `script-src`/`frame-src` e `https://api.stripe.com` a `connect-src` (ver montagem de CSP abaixo). Usuários majoritariamente no Brasil com Vercel Functions? Adicione `"regions": ["gru1"]` (São Paulo).
 
 ## CSP — montagem para SaaS Supabase + Stripe + React
 
@@ -164,13 +168,13 @@ Content-Security-Policy:
 
 ```bash
 # Validar build local
-bun run build && du -sh dist/
+npm run build && du -sh dist/
 
 # Preview do bundle
-bun run preview
+npm run preview
 
 # Audit deps
-bun audit
+npm audit
 
 # Headers reais (após deploy)
 curl -I https://<seu-dominio>.com/

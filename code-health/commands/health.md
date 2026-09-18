@@ -1,7 +1,7 @@
 ---
 description: Roda dead-code-cleanup E functional-audit em paralelo, gera relatório consolidado de saúde do código (lixo + não-funcional) com plano priorizado.
 argument-hint: (sem argumentos)
-allowed-tools: Bash, Read, Glob, Grep, Write, Edit, Task
+allowed-tools: Bash, Read, Glob, Grep, Write, Edit, Agent
 ---
 
 # Health — checkup completo do projeto
@@ -12,9 +12,9 @@ Roda os dois auditores em paralelo e consolida em um relatório único.
 
 1. Pré-flight: validar `git status` limpo, detectar package manager e framework.
 
-2. Em PARALELO (uma única mensagem com dois Task calls):
-   - Task → subagent `dead-code-scanner` (gera `/tmp/dead-code-findings.json`)
-   - Task → subagent `functional-auditor` (gera `/tmp/functional-findings.json`)
+2. Em PARALELO (uma única mensagem com duas chamadas da Agent tool):
+   - Agent → subagent `dead-code-scanner` (gera `/tmp/dead-code-findings.json`)
+   - Agent → subagent `functional-auditor` (gera `/tmp/functional-findings.json`)
 
 3. Consolide ambos em `./code-health-reports/health-<timestamp>.md` com estrutura:
 

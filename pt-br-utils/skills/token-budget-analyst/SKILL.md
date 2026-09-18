@@ -45,9 +45,9 @@ Você é um auditor de eficiência de uso de Claude. Identifica desperdício de 
 - MCP tools com schemas grandes (ex: clickup com 50 campos)
 
 **Fix**:
-- Para MCPs com 30+ tools, use **tool filtering** (`enabledTools` no settings)
+- Servidores MCP que não usa nesta sessão/projeto: desligue (`/mcp` ou `claude mcp remove`) — cada tool deles entra no prompt
 - Em skills custom, mantenha tool descriptions <500 chars
-- Use ToolSearch / lazy-loading se disponível
+- O Claude Code já adia (lazy-load) o schema de muitas tools via ToolSearch; isso não cobre descrições de skills/agentes
 
 ### 3. File Read budget
 
@@ -83,7 +83,7 @@ Você é um auditor de eficiência de uso de Claude. Identifica desperdício de 
 **Como configurar (API)**:
 ```ts
 const response = await anthropic.messages.create({
-  model: 'claude-opus-4-7',  // ou claude-sonnet-4-6 / claude-haiku-4-5 conforme custo
+  model: 'claude-sonnet-5',  // IDs e preços vigentes: skill `claude-api` ou docs.claude.com/en/docs/about-claude/models
   system: [
     {
       type: 'text',
@@ -95,13 +95,13 @@ const response = await anthropic.messages.create({
 })
 ```
 
-**Em Claude Code**: cache é automático para system prompt e skills. Mas você pode marcar arquivos grandes lidos como "estáveis" para o session manter cache.
+**Em Claude Code**: o cache de prompt é automático (system prompt, tools, skills carregadas e o histórico já enviado). Não existe um jeito de "marcar arquivo como estável" — o que preserva o cache é manter o **prefixo** da conversa intacto: não trocar system prompt/skills/MCPs no meio da sessão (invalida tudo dali em diante), não reler o mesmo arquivo, e usar sub-agents para trabalho volumoso.
 
 ### 6. Sub-agent isolation
 
 **Sintoma**: contexto principal cresce a cada tarefa porque assistente faz tudo nele.
 
-**Fix**: para tarefas grandes (auditoria de repo, busca multi-arquivo, refator amplo), delegue a **sub-agent** (Task/Agent tool). Sub-agent:
+**Fix**: para tarefas grandes (auditoria de repo, busca multi-arquivo, refator amplo), delegue a **sub-agent** (Agent tool). Sub-agent:
 - Recebe prompt isolado
 - Tem seu próprio contexto
 - Devolve só o resultado
@@ -134,10 +134,13 @@ Tokens por turno (diagnóstico):
 
 Total por turno: <X+Y+Z>k
 
-Custo Opus 4.7 ($15/$75 input/output por M tokens):
+Custo (preços vigentes: skill `claude-api` ou docs.claude.com — não fixe números aqui):
+  custo_input = tokens_input × preço_input/M
+  cache: escrita custa ~1,25× o input; leitura ~0,1× o input
+  Exemplo com P = preço de input por M tokens:
   - 100K input/turno × 50 turnos/dia × 22 dias = 110M tokens/mês
-  - Sem cache: $1,650/mês (input only)
-  - Com cache 80% (system + skills): $330/mês
+  - Sem cache: 110 × P
+  - Com 80% de cache hit (leitura a 0,1×): 22 × P + 88 × 0,1 × P ≈ 31 × P  (-72%)
 ```
 
 ## Relatório de auditoria
@@ -188,4 +191,4 @@ Custo Opus 4.7 ($15/$75 input/output por M tokens):
 - **Verbosity ≠ qualidade.** Skills bem escritas são curtas. Detalhes vão para reference carregada sob demanda.
 - **Sub-agents são gratuitos para o contexto principal.** Use sempre que possível.
 - **Cache é dinheiro.** System prompt estável + cache_control = 70-90% de desconto.
-- **Mensure, não adivinhe.** Peça ao usuário rodar `claude session info` ou checar headers do response (`anthropic-cache-creation-input-tokens`, `anthropic-cache-read-input-tokens`).
+- **Mensure, não adivinhe.** No Claude Code, peça ao usuário rodar `/cost` (gasto da sessão) e `/context` (o que ocupa a janela). Na API, leia `usage.input_tokens`, `usage.cache_creation_input_tokens` e `usage.cache_read_input_tokens` no corpo da resposta.

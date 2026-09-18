@@ -1,0 +1,19 @@
+{
+  "name": "pt-br-utils",
+  "version": "1.0.0",
+  "description": "Utilidades de workflow para devs brasileiros, fora do escopo de segurança do saas-shield-br: revisão de strings de UI em português brasileiro (pt-br-translator — gênero, formalidade, idiomáticos, formato BR de data/número/moeda, glossário) e auditoria de consumo de tokens/contexto em sessões e apps Claude (token-budget-analyst). 2 skills, sem agentes nem hooks.",
+  "author": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "pt-br",
+    "i18n",
+    "ux-writing",
+    "tokens",
+    "prompt-caching",
+    "claude-code"
+  ]
+}

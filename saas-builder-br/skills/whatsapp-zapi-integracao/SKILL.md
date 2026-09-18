@@ -5,6 +5,8 @@ description: Playbook completo de integração WhatsApp via Z-API e/ou Cloud API
 
 # WhatsApp para SaaS multi-tenant — Z-API + Cloud API
 
+> `company_id` nos exemplos é a coluna de tenant do arquétipo A. Use a coluna do `.claude/tenancy-profile.yml` do projeto (skill `tenant-model`). As Edge Functions seguem o template canônico do `edge-function-guard` (`Deno.serve` + `jsr:@supabase/supabase-js@2`).
+
 ## Decisão: Z-API ou Cloud API Meta?
 
 | Critério | Z-API | Cloud API (Meta) |
@@ -43,7 +45,7 @@ create table public.wa_configs (
   updated_at timestamptz not null default now(),
   unique (company_id) -- 1 config por empresa por enquanto
 );
--- (RLS no padrão MarginPro — só admins do tenant podem ver tokens)
+-- (RLS no arquétipo do tenancy-profile — e policy extra: só admins do tenant podem ler os tokens)
 
 -- Threads (conversas)
 create table public.wa_threads (
@@ -105,7 +107,7 @@ create table public.wa_webhook_events (
 `supabase/functions/wa-send-zapi/index.ts` — `authenticate`/`adminClient` são os helpers de `_shared/` do `backend-supabase`; `fetchWithTimeout`/`HttpError` são o padrão genérico do `integrador-apis` (`_shared/http.ts`); `api_usage` está definida na skill `llm-multi-provider`.
 
 ```ts
-serve(async (req) => {
+Deno.serve(async (req) => {
   const ctx = await authenticate(req);
   const { to, message, client_msg_id } = await req.json();
   if (!client_msg_id) return json({ error: "client_msg_id_required" }, 400);
@@ -243,7 +245,7 @@ async function pickMessageType(thread_id: string, body: string) {
 Z-API envia POST sem assinatura por padrão. Configure um **token secreto** no painel (header `X-Webhook-Token`) e valide:
 
 ```ts
-serve(async (req) => {
+Deno.serve(async (req) => {
   const tokenHeader = req.headers.get("x-webhook-token");
   if (tokenHeader !== Deno.env.get("ZAPI_WEBHOOK_TOKEN")) {
     return new Response("invalid", { status: 401 });

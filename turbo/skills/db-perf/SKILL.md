@@ -1,6 +1,6 @@
 ---
 name: db-perf
-description: Diagnóstico e correção de performance de banco de dados Postgres/Supabase — queries lentas, N+1, índices, planos de execução, RLS multi-tenant lento, paginação, connection pooling, cache. Use sempre que o sintoma envolver API demorando, timeout, tela esperando dados, query lenta, ou sistemas multi-tenant com RLS (padrão MarginPro) apresentando lentidão.
+description: Diagnóstico e correção de performance de banco de dados Postgres/Supabase — queries lentas, N+1, índices, planos de execução, RLS multi-tenant lento, paginação, connection pooling, cache. Use sempre que o sintoma envolver API demorando, timeout, tela esperando dados, query lenta, ou sistemas multi-tenant com RLS apresentando lentidão (qualquer arquétipo de tenant).
 ---
 
 # Database Performance — Postgres / Supabase
@@ -48,9 +48,9 @@ O que procurar, em ordem:
 - Higiene: índice não usado custa em cada escrita. Auditar com `pg_stat_user_indexes` (idx_scan = 0 há meses → candidato a remoção — confirmar que não serve a constraint/relatório raro antes).
 - Criar índice em produção: sempre `CREATE INDEX CONCURRENTLY` (fora de transaction block).
 
-## Passo 4: RLS multi-tenant (padrão MarginPro)
+## Passo 4: RLS multi-tenant
 
-RLS mal escrita é o assassino silencioso de multi-tenant. As três armadilhas, em ordem de impacto:
+RLS mal escrita é o assassino silencioso de multi-tenant. Os exemplos usam `company_id`/`get_current_company_id()` (arquétipo A do `.claude/tenancy-profile.yml` do saas-shield-br); troque pela coluna e pelo resolver do projeto (`unit_id`/`is_unit_member()`, etc.). As três armadilhas, em ordem de impacto:
 
 **1. Função avaliada por linha.** Policy como `USING (company_id = get_current_company_id())` pode ser executada uma vez POR LINHA examinada. A correção é embrulhar em subselect para virar InitPlan (avaliada uma vez):
 

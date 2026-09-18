@@ -46,7 +46,8 @@ const criticalPatterns = [
   { name: 'Stripe webhook secret', re: /whsec_[A-Za-z0-9]{32,}/ },
   { name: 'AWS Access Key', re: /AKIA[0-9A-Z]{16}/ },
   { name: 'Anthropic API key', re: /sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{90,}/ },
-  { name: 'OpenAI API key', re: /sk-(?:proj-)?[A-Za-z0-9_-]{40,}/ },
+  // (?!ant-) evita duplicar o match da chave Anthropic acima
+  { name: 'OpenAI API key', re: /\bsk-(?!ant-)(?:proj-)?[A-Za-z0-9_-]{40,}/ },
   { name: 'GitHub PAT', re: /(ghp|gho|ghs)_[A-Za-z0-9]{36}/ },
   { name: 'Slack token', re: /xox[baprs]-[A-Za-z0-9-]{10,48}/ },
   { name: 'Private key block', re: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },

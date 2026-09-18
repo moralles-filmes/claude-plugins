@@ -1,5 +1,5 @@
 ---
-description: Gera nova migration Supabase no padrão MarginPro — invoca skill supabase-migrator
+description: Gera nova migration Supabase no arquétipo de tenant do projeto (tenancy-profile) — invoca skill supabase-migrator
 argument-hint: "<descrição da mudança em PT-BR>"
 ---
 
@@ -16,7 +16,7 @@ Crie uma nova migration Supabase.
    - Relacionamentos (FKs)?
    - Soft delete necessário?
 
-3. **Gere o SQL completo** seguindo o padrão (4 camadas + índice + comentários PT-BR).
+3. **Gere o SQL completo** no arquétipo do projeto (resolva `.claude/tenancy-profile.yml` via skill `tenant-model` primeiro): coluna de tenant + resolver + caminho de escrita + RLS, índice e comentários PT-BR.
 
 4. **Auto-valide** mentalmente contra o checklist de 24 itens do `rls-reviewer`.
 

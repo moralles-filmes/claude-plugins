@@ -1,6 +1,6 @@
 ---
 name: multi-tenant-auditor
-description: 'Auditoria profunda de isolamento multi-tenant em SaaS Supabase, parametrizada pelo modelo de tenant do projeto (não assume company_id). Use quando o usuário pedir "auditar isolamento", "audita esse SaaS", "vaza dados entre tenants?", "checar todas as tabelas", "audit multi-tenant". Diferente do `rls-reviewer` (um arquivo), esta skill varre o REPO INTEIRO: tabelas órfãs, JOINs perigosos, edge functions/route handlers/RPCs com service_role, views sem security_invoker, e clientes que enviam a coluna de tenant no payload. É a base de conhecimento do agente tenant-isolation-auditor.'
+description: 'Base de conhecimento (método em 7 passos) de auditoria de isolamento multi-tenant em SaaS Supabase, parametrizada pelo modelo de tenant do projeto (não assume company_id). Diferente do `rls-reviewer` (um arquivo), cobre o REPO INTEIRO: tabelas órfãs, JOINs perigosos, edge functions/route handlers/RPCs com service_role, views sem security_invoker, e clientes que enviam a coluna de tenant no payload. Pré-carregada via `skills:` pelo agente `tenant-isolation-auditor` — pedidos do usuário como "audita esse SaaS" ou "vaza dados entre tenants?" devem ir para esse agente (ou `/audit-tenant`), não para esta skill diretamente.'
 ---
 
 # multi-tenant-auditor

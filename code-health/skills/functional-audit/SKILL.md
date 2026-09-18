@@ -236,9 +236,9 @@ Você (skill): [aplica Edit]
               ✅ Item 1/12 resolvido. Próximo?
 ```
 
-#### Fixes que VOCÊ pode fazer sem perguntar (modo turbo)
+#### Fixes que VOCÊ pode fazer sem perguntar (modo automático)
 
-Apenas se o usuário disser explicitamente "modo turbo" ou "auto-fix os óbvios":
+Apenas se o usuário disser explicitamente "modo automático" ou "auto-fix os óbvios" (não use "turbo" — é o nome do plugin de performance):
 
 - Adicionar `disabled` + comentário em phantom buttons que só logam
 - Trocar `catch {}` por `catch (e) { console.error('TODO: handle', e) }`
@@ -255,8 +255,8 @@ Veja `references/pattern-library.md` para a biblioteca completa. Resumo dos mais
 # Phantom buttons (clique vazio ou só log)
 rg -U --multiline '<(button|Button|a|Link)[^>]*onClick=\{(\(\)\s*=>\s*\{?\s*(console\.[a-z]+\([^)]*\))?\s*\}?)\}' --glob '*.{tsx,jsx}'
 
-# Botões sem handler nenhum (e sem type="submit" em form)
-rg -U '<button(?![^>]*onClick)(?![^>]*type=["\']submit["\'])[^>]*>' --glob '*.{tsx,jsx}'
+# Botões sem handler nenhum (e sem type="submit" em form) — -P porque lookahead exige PCRE2
+rg -P -U '<button(?![^>]*onClick)(?![^>]*type=["\']submit["\'])[^>]*>' --glob '*.{tsx,jsx}'
 
 # Mocked data (lorem ipsum)
 rg -i 'lorem ipsum|dolor sit amet' --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules'

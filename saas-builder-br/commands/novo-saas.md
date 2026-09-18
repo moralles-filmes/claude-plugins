@@ -17,7 +17,7 @@ Stack assumida (se o usuário não disser o contrário):
 - Vite + React + TypeScript + Tailwind
 - Supabase (DB + Auth + Edge Functions + Storage)
 - Vercel deploy
-- Multi-tenant: company_id + RLS no padrão MarginPro
+- Multi-tenant: arquétipo definido no .claude/tenancy-profile.yml (skill tenant-model do saas-shield-br); se não existir, o arquiteto-saas propõe um (A company_id/JWT é o default para SaaS B2B simples) e o db-schema-designer gera o profile
 - Idioma UI: PT-BR
 
 Ações esperadas:

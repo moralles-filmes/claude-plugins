@@ -105,14 +105,23 @@ Use as listas:
 ## Detector 4 — eslint para imports/variáveis
 
 ```bash
-timeout 60 npx --yes eslint@latest \
-  --no-eslintrc \
-  --parser '@typescript-eslint/parser' \
-  --plugin '@typescript-eslint' \
-  --rule '{"@typescript-eslint/no-unused-vars": ["error", {"argsIgnorePattern": "^_"}]}' \
-  --format json \
-  --ext .ts,.tsx,.js,.jsx \
-  'src/' 'app/' 'pages/' 'components/' 'lib/' 'hooks/' 'utils/' 2>/dev/null > /tmp/eslint.json || true
+# Se o projeto já tem ESLint configurado (flat config ou .eslintrc), use a config dele:
+if ls eslint.config.* .eslintrc* 2>/dev/null | grep -q .; then
+  timeout 60 npx eslint --format json \
+    --rule '{"@typescript-eslint/no-unused-vars": ["error", {"argsIgnorePattern": "^_"}]}' \
+    . 2>/dev/null > /tmp/eslint.json || true
+else
+  # Sem config: ESLint 8 fixo. As flags --no-eslintrc/--parser/--plugin/--ext foram REMOVIDAS no ESLint 9
+  # (flat config), então eslint@latest quebra aqui.
+  timeout 60 npx --yes -p eslint@8 -p @typescript-eslint/parser@7 -p @typescript-eslint/eslint-plugin@7 \
+    eslint --no-eslintrc \
+    --parser '@typescript-eslint/parser' \
+    --plugin '@typescript-eslint' \
+    --rule '{"@typescript-eslint/no-unused-vars": ["error", {"argsIgnorePattern": "^_"}]}' \
+    --format json \
+    --ext .ts,.tsx,.js,.jsx \
+    'src/' 'app/' 'pages/' 'components/' 'lib/' 'hooks/' 'utils/' 2>/dev/null > /tmp/eslint.json || true
+fi
 ```
 
 Parse e converta cada erro em finding com:

@@ -153,6 +153,19 @@ Classificação:
 - P2 — médio;
 - P3 — hardening/baixo.
 
+Os agentes de origem usam escalas diferentes. Converta na consolidação (a escala P0–P3 aqui é a do `agent-result-contract` do saas-shield-br, então os auditores do shield entram sem conversão):
+
+| Origem | Escala do agente | Vira |
+|---|---|---|
+| `saas-shield-br` (todos os auditores) | P0 / P1 / P2 / P3 | igual |
+| skills do shield em modo manual (`rls-reviewer`, `edge-function-guard`, `vercel-deploy-guard`, `schema-diff`) | 🚨 bloqueante / 🟡 atenção / 🔵 info | 🚨 → P0 se vazamento cross-tenant ou secret real, senão P1 · 🟡 → P2 · 🔵 → P3 |
+| `code-health:functional-auditor` | BLOCKER / HIGH / MEDIUM / LOW | BLOCKER → P1 (P0 só se expõe dado/pagamento) · HIGH → P2 (P1 se em rota pública/checkout) · MEDIUM → P3 · LOW → P3 opcional |
+| `code-health:supabase-auditor` | BLOCKER / HIGH / MEDIUM / LOW | mesma regra acima |
+| `code-health:dead-code-scanner` | confidence high / medium / low | P3 (não é vulnerabilidade); sobe para P2 só se o dead code esconde secret ou rota ativa |
+| `business-process-auditor`, `data-resilience-auditor`, `ai-automation-auditor` | P0–P3 (contrato do shield) | igual |
+
+Quando dois agentes reportam a mesma causa raiz com severidades diferentes, prevalece a maior — e registre a divergência no finding.
+
 Cada finding precisa:
 - ID estável `AUD-###`;
 - severidade;

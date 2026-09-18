@@ -293,7 +293,7 @@ if (process.env.NEXT_PUBLIC_NEW_FLOW === 'true') {
 - **Sempre marque qual é "rápida e segura" (quebra-galho) vs qual é "certa" (mais trabalho)**
 - **Sempre estime esforço** ("~3 min" vs "~1 dia")
 - **Sempre liste pré-requisitos** ("precisa do Stripe configurado")
-- **Nunca aplique a opção sem confirmação** exceto em modo turbo explícito
+- **Nunca aplique a opção sem confirmação** exceto em "modo automático" explícito (ver SKILL.md)
 
 ## Verificação após cada fix
 

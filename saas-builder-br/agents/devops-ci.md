@@ -29,6 +29,8 @@ Você é o `devops-ci`. Você cuida de **levar o SaaS para produção com segura
 
 # `vercel.json` padrão
 
+Fonte canônica: skill `vercel-deploy-guard` do saas-shield-br (seção "Configuração modelo"). O bloco abaixo é uma cópia — se alterar um, altere o outro. O guard é quem valida no gate da Fase 8.
+
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -142,6 +144,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
       - run: supabase stop
 
+  # Mesma checagem que a skill `schema-diff` (saas-shield-br) faz interativamente — aqui automatizada por PR
   migration-check:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'

@@ -1,11 +1,15 @@
 ---
 name: schema-diff
-description: Detecta drift entre migrations locais e schema remoto Supabase — tabelas em produção sem migration correspondente, tabelas órfãs sem RLS, sem trigger force_company_id, sem índice em company_id, sem FORCE RLS, ou policies divergentes. Use quando o usuário pedir "tem drift?", "o que mudou no banco?", "migration faltando?", "schema diff", "comparar local com remoto", "drift detection", ou antes de rodar `supabase db push`.
+description: Detecta drift entre migrations locais e schema remoto Supabase — tabelas em produção sem migration correspondente, tabelas órfãs sem RLS, sem trigger de tenant, sem índice na coluna de tenant, sem FORCE RLS, ou policies divergentes. Parametrizado pelo tenancy-profile do projeto. Use quando o usuário pedir "tem drift?", "o que mudou no banco?", "migration faltando?", "schema diff", "comparar local com remoto", "drift detection", ou antes de rodar `supabase db push`.
 ---
 
 # schema-diff
 
 Você compara o schema **declarado em migrations locais** vs o **schema real no Supabase remoto** e identifica drift acionável. Drift em multi-tenant é especialmente perigoso: uma tabela criada manualmente no Studio pode estar **sem RLS**.
+
+## Convenção de tenant
+
+Resolva primeiro o `.claude/tenancy-profile.yml` (skill `tenant-model`). Abaixo, `<TC>` é a coluna de tenant do arquétipo (`company_id`, `unit_id`, `organization_id`, …), `R` é o resolver (`get_current_company_id()`, `is_member_of(unit_id)`, …) e `WP` é o predicado de policy. Os exemplos de saída usam nomes do arquétipo A apenas como ilustração.
 
 ## Quando ativa
 
@@ -39,13 +43,13 @@ Para cada CREATE TABLE em schema-remote.sql:
   - Se SIM → comparar definição
 ```
 
-### Passo 3 — Para cada tabela com `company_id` no remoto, validar
+### Passo 3 — Para cada tabela com `<TC>` no remoto, validar
 
 - [ ] Tem RLS habilitado? (`pg_tables.rowsecurity = true`)
 - [ ] Tem `FORCE RLS`? (`pg_class.relforcerowsecurity = true`)
-- [ ] Tem trigger `*_force_company_id`?
-- [ ] Tem policies SELECT/INSERT/UPDATE/DELETE?
-- [ ] Tem índice em `company_id`?
+- [ ] Tem o mecanismo de preenchimento de tenant do arquétipo (trigger `*_force_<TC>` nos arquétipos A/B; nos demais, o que o tenancy-profile declarar)?
+- [ ] Tem policies SELECT/INSERT/UPDATE/DELETE usando `WP`?
+- [ ] Tem índice em `<TC>` (ou índice composto começando por `<TC>`)?
 
 Para cada item ausente → bloqueante.
 
@@ -53,12 +57,12 @@ Para cada item ausente → bloqueante.
 
 Liste policies remotas vs locais. Diferenças comuns:
 - Policy local tem `WITH CHECK`, remota não (alguém editou no Studio)
-- Policy remota usa `auth.uid()` direto, local usa `get_current_company_id()`
+- Policy remota usa `auth.uid()` direto, local usa o resolver `R` (ex.: `get_current_company_id()`)
 - Policy remota tem `USING (true)` (alguém debugando esqueceu)
 
 ### Passo 5 — Comparar funções `SECURITY DEFINER`
 
-Especialmente `get_current_company_id`. Se a remota difere da local — pergunte qual é a fonte da verdade. Geralmente é a local (migrations).
+Especialmente o resolver `R` (ex.: `get_current_company_id`, `is_member_of`). Se a remota difere da local — pergunte qual é a fonte da verdade. Geralmente é a local (migrations).
 
 ## Saída
 
@@ -85,13 +89,13 @@ Comparando: supabase/migrations/ vs schema-remote.sql
         ou alguém editou no Studio — confirmar qual é a verdade
 
   3. public.subscriptions
-     └ Existe no remoto, sem trigger force_company_id
+     └ Existe no remoto, sem trigger force_<TC> (ex.: force_company_id)
      🔧 Fix: criar migration adicionando trigger
 
 ═══════════════════════════════════════════
 🟡 ATENÇÃO (<N>)
 
-  - Função get_current_company_id no remoto é VOLATILE (local é STABLE)
+  - Resolver R (ex.: get_current_company_id) no remoto é VOLATILE (local é STABLE)
     → impacto em performance — rodar `supabase db push`
 
 ═══════════════════════════════════════════
