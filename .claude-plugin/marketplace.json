@@ -11,7 +11,12 @@
                     {
                         "name":  "saas-shield-br",
                         "source":  "./saas-shield-br",
-                        "description":  "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets), custo de infra (performance fica com o turbo) e PT-BR. 12 skills, 6 subagents, 5 commands, hooks."
+                        "description":  "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets) e custo de infra (performance fica com o turbo). 10 skills, 6 subagents, 5 commands, hooks. Revisão PT-BR e token budget ficam no pt-br-utils."
+                    },
+                    {
+                        "name":  "pt-br-utils",
+                        "source":  "./pt-br-utils",
+                        "description":  "Utilidades de workflow para devs brasileiros: revisão de strings de UI em PT-BR (pt-br-translator) e auditoria de consumo de tokens/contexto do Claude (token-budget-analyst). Extraído do saas-shield-br 2.2.0. 2 skills."
                     },
                     {
                         "name":  "code-health",

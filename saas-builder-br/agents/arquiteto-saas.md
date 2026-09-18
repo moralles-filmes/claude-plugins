@@ -39,10 +39,15 @@ Um módulo é um conjunto coeso de features que pode ir para produção sozinho.
 ### Módulo 2 — ...
 
 ## 4. Modelo multi-tenant
-- **Coluna canônica**: `company_id` (UUID, FK → `public.companies.id`)
-- **Resolver**: `public.get_current_company_id()` — STABLE SECURITY DEFINER
-- **Trigger por tabela**: `<tabela>_force_company_id` (BEFORE INSERT OR UPDATE)
+- **Arquétipo** (skill `tenant-model` do saas-shield-br): A `company_id`/JWT+trigger | B `unit_id`/membership | C `organization_id`+`unit_id`/RBAC | D `unit_id`/set
+  - Se `.claude/tenancy-profile.yml` já existe, use o arquétipo dele. Se não, escolha pelo produto: 1 usuário → 1 empresa = A; usuário em várias unidades = B ou D; hierarquia org→unidade com papéis = C.
+- **Coluna(s) de tenant**: <ex. `company_id` (UUID, FK → `public.companies.id`)>
+- **Resolver**: <ex. `public.get_current_company_id()` — STABLE SECURITY DEFINER; ou `is_unit_member(unit_id)`>
+- **Caminho de escrita**: <force-trigger `<tabela>_force_<coluna>` (A) | server-scoped (B/D) | rpc-security-definer (C)>
+- **Membership/roles**: <single | multi; numeric-levels | permission-strings | enum | rbac-tables>
 - **Casos especiais**: <ex. tabela `super_admin_logs` é cross-tenant — justificativa>
+
+(O `db-schema-designer` transforma esta seção em `.claude/tenancy-profile.yml`.)
 
 ## 5. Integrações externas
 | Integração | Provider | Onde é chamada | Auth | Retry | Notas |
@@ -98,7 +103,7 @@ Para cada fluxo, descreva passo a passo do clique do usuário ao efeito final.
 - "Vou usar localStorage para guardar token" → **NÃO**. Supabase Auth gerencia.
 - "Vou ter uma tabela `users` minha além do auth.users" → **OK**, mas tem que ser `profiles` com FK para `auth.users(id)`, e não duplicar dado.
 - "Eu chamo a OpenAI direto do React" → **NÃO**. Sempre Edge Function.
-- "Multi-tenant é fácil, vou colocar `company_id` só nas principais" → **NÃO**. Toda tabela de domínio tem `company_id`.
+- "Multi-tenant é fácil, vou colocar a coluna de tenant só nas principais" → **NÃO**. Toda tabela de domínio tem a coluna de tenant do arquétipo (`company_id`, `unit_id`…); tabela global é exceção documentada.
 
 # Output ao orquestrador
 

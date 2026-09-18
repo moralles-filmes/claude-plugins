@@ -53,7 +53,7 @@ GATES AUTOMÁTICOS:
 |---|---|---|
 | **`arquiteto-chefe`** | todas | Orquestra fases, mantém `.claude/saas-state.json`, dispara gates |
 | `arquiteto-saas` | 1 — concept | Conceito → spec funcional em `.claude/spec/projeto.md` |
-| `db-schema-designer` | 2 — schema | Tabelas Postgres no padrão MarginPro (company_id + FORCE RLS + triggers) |
+| `db-schema-designer` | 2 — schema | Tabelas Postgres no arquétipo do `.claude/tenancy-profile.yml` (coluna de tenant + FORCE RLS + caminho de escrita + policies) |
 | `backend-supabase` | 3 — backend | Edge Functions Deno, fluxos de Auth, Storage, Realtime |
 | `frontend-react` | 4 — frontend | Vite + React + TS scaffold (router, query, store, forms) |
 | `design-ux` | 4 — frontend | Tailwind tokens, Radix primitives, dark mode, a11y WCAG 2.1 AA |
@@ -128,8 +128,8 @@ Se um gate ou a auditoria encontrar bloqueante (P0/P1), a fase volta para o suba
 Cada agent tem seus próprios princípios documentados, mas alguns valem para todos:
 
 - **Frontend nunca chama API externa.** Sempre via Edge Function.
-- **Toda tabela tem `company_id`.** RLS + FORCE RLS + trigger force.
-- **`company_id` vem do JWT (`app_metadata`).** Nunca do body.
+- **Toda tabela de domínio tem a coluna de tenant do arquétipo** (`company_id`, `unit_id`, `organization_id`+`unit_id`…) + FORCE RLS + o caminho de escrita do profile (trigger force no arquétipo A).
+- **O tenant vem do JWT ou da membership (resolver do `tenancy-profile`).** Nunca do body.
 - **Chave de API só em Supabase secrets.** Frontend só vê `VITE_*`.
 - **Webhook valida assinatura + dedupe.** Sempre.
 - **Mobile-first.** Toda tela funciona em 320px antes de pensar em desktop.
@@ -143,7 +143,8 @@ Frontend:    Vite + React + TypeScript + Tailwind + React Router v6
              + TanStack Query v5 + React Hook Form + Zod + Zustand
              + Radix UI + lucide-react + cva
 Backend:     Supabase (Postgres + Auth + Edge Functions Deno + Storage + Realtime)
-Multi-tenant: company_id + FORCE RLS + trigger force_company_id
+Multi-tenant: arquétipo do .claude/tenancy-profile.yml (A company_id/JWT+trigger, B unit_id/membership,
+             C org+unit/RBAC, D unit_id/set) — skill tenant-model do saas-shield-br
 Tests:       Vitest + Testing Library + MSW + Playwright
 Deploy:      Vercel (frontend) + Supabase (DB + edge)
 CI:          GitHub Actions

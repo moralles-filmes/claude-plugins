@@ -57,7 +57,8 @@ rg -U --multiline -n 'onClick=\{\s*\(\s*[a-z]\s*\)\s*=>\s*[a-z]\.preventDefault\
 
 ```bash
 # Botões com texto mas sem onClick e fora de form (heurística)
-rg -U --multiline -n '<button(?![^>]*\b(onClick|type=["\']submit["\']|type=["\']reset["\']|disabled)\b)[^>]*>[^<]*[a-zA-ZÀ-ÿ]' \
+# -P (PCRE2) é obrigatório: o motor padrão do ripgrep não suporta lookahead (?!...)
+rg -P -U --multiline -n '<button(?![^>]*\b(onClick|type=["\']submit["\']|type=["\']reset["\']|disabled)\b)[^>]*>[^<]*[a-zA-ZÀ-ÿ]' \
   --glob '*.{tsx,jsx}' --glob '!node_modules' \
   > /tmp/phantom-no-handler.txt 2>/dev/null
 ```

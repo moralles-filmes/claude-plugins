@@ -7,6 +7,10 @@ description: Audita Supabase Edge Functions (Deno) por falhas de segurança e ro
 
 Você audita Supabase Edge Functions (Deno) — o ponto cego onde a maioria dos vazamentos cross-tenant acontece em SaaS Supabase.
 
+## Convenção de tenant
+
+Esta skill é parametrizada pelo `.claude/tenancy-profile.yml` do projeto (skill `tenant-model`). Nos itens abaixo, `<TC>` é a coluna de tenant do arquétipo em uso (`company_id`, `unit_id`, `organization_id`, `tenant_id`, …) e `R` é o resolver de tenant do JWT/membership. Os exemplos de código usam `company_id` porque ilustram o arquétipo A — substitua pela coluna real do projeto ao aplicar.
+
 ## Quando ativa
 
 - Arquivos em `supabase/functions/**/*.ts`
@@ -22,7 +26,7 @@ Você audita Supabase Edge Functions (Deno) — o ponto cego onde a maioria dos 
 - [ ] Se não verifica, é webhook externo? Se sim, valida assinatura (Stripe webhook signature, etc.)?
 - [ ] Cliente Supabase é criado com `anon key + auth header forwarded`, **não** `service_role`?
 - [ ] Se usa `service_role`, há justificativa documentada (cron, webhook, setup)?
-- [ ] Função NÃO recebe `company_id` no body (deve derivar do JWT/lookup)?
+- [ ] Função NÃO recebe `<TC>` no body (deve derivar do JWT/membership via `R`)?
 
 ### Validação de input (3)
 
@@ -52,6 +56,8 @@ Você audita Supabase Edge Functions (Deno) — o ponto cego onde a maioria dos 
 
 ## Padrão correto — template
 
+Este é o template canônico de Edge Function dos plugins morallesfilms (o `backend-supabase` e o `llm-multi-provider` do saas-builder-br derivam dele): `Deno.serve` nativo, `jsr:@supabase/supabase-js@2`, `npm:zod@3`.
+
 ```ts
 // supabase/functions/<nome>/index.ts
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
@@ -59,7 +65,7 @@ import { z } from 'npm:zod@3'
 
 // 1. Schema de input
 const InputSchema = z.object({
-  // ... apenas campos esperados, sem company_id
+  // ... apenas campos esperados, sem a coluna de tenant (<TC>)
 })
 
 // 2. CORS
@@ -116,11 +122,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Invalid input', issues: parsed.error.format() }, 422)
   }
 
-  // 9. Lógica — RLS já filtra por tenant, trigger force_company_id seta
+  // 9. Lógica — RLS já filtra por tenant; a coluna de tenant é preenchida
+  //    pelo mecanismo do arquétipo (trigger force_<TC> no A/B, ou explícita
+  //    a partir do resolver R nos arquétipos que não usam trigger)
   try {
     const { data, error } = await supabase
       .from('invoices')
-      .insert(parsed.data)  // sem company_id no insert
+      .insert(parsed.data)  // sem <TC> vindo do cliente
       .select()
       .single()
 
@@ -148,10 +156,10 @@ function jsonResponse(body: unknown, status: number) {
 
 ### ❌ Service role aceitando body
 ```ts
-const { company_id, payload } = await req.json()
+const { company_id, payload } = await req.json()   // <TC> vindo do cliente
 const sb = createClient(URL, SERVICE_ROLE_KEY)  // 🚨 ignora RLS
 await sb.from('invoices').insert({ company_id, ...payload })
-// → cliente passa company_id de outro tenant, ladrão.
+// → cliente passa <TC> de outro tenant, ladrão.
 ```
 
 ### ❌ Stack trace na resposta

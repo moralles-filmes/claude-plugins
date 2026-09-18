@@ -154,7 +154,7 @@ claude plugin uninstall saas-shield-br
 ### Skills soltas (Windows)
 ```powershell
 $claudeDir = "$env:USERPROFILE\.claude"
-@('rls-reviewer','multi-tenant-auditor','secret-scanner','supabase-migrator','edge-function-guard','cost-optimizer','schema-diff','vercel-deploy-guard','pt-br-translator','token-budget-analyst') | ForEach-Object {
+@('tenant-model','agent-result-contract','rls-reviewer','multi-tenant-auditor','secret-scanner','supabase-migrator','edge-function-guard','cost-optimizer','schema-diff','vercel-deploy-guard') | ForEach-Object {
   Remove-Item -Recurse -Force "$claudeDir\skills\$_" -ErrorAction SilentlyContinue
 }
 @('rls-auditor','tenant-isolation-auditor','identity-access-auditor','integration-reliability-auditor','secret-hunter','migration-validator') | ForEach-Object {

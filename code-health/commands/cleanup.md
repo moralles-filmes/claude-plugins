@@ -1,7 +1,7 @@
 ---
 description: Roda varredura completa de dead code (arquivos órfãos, imports/exports não usados, deps não usadas, assets esquecidos) e gera relatório com plano de limpeza segura. Aplicação só após aprovação explícita.
 argument-hint: "[scope: full|imports|deps|assets|files]"
-allowed-tools: Bash, Read, Glob, Grep, Write, Edit, Task
+allowed-tools: Bash, Read, Glob, Grep, Write, Edit, Agent
 ---
 
 # Cleanup — varredura de dead code

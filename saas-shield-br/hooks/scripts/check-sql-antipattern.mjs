@@ -61,13 +61,19 @@ if (/ENABLE\s+ROW\s+LEVEL\s+SECURITY/i.test(content) &&
 }
 
 // Warnings (não bloqueiam, só avisam)
+// Convention-driven: a coluna de tenant depende do arquétipo do projeto
+// (.claude/tenancy-profile.yml). Cobrimos os nomes mais comuns; a checagem
+// de trigger/policy específica fica com o rls-reviewer, que lê o profile.
+const TENANT_COLS = /\b(company_id|unit_id|organization_id|org_id|tenant_id|account_id|workspace_id)\b/i
 const warnings = []
-if (/CREATE\s+TABLE[\s\S]+?company_id/i.test(content)) {
+const createTableMatch = content.match(/CREATE\s+TABLE[\s\S]+?\)\s*;/i)
+const tenantCol = createTableMatch?.[0].match(TENANT_COLS)?.[1]
+if (tenantCol) {
   if (!/FORCE\s+ROW\s+LEVEL\s+SECURITY/i.test(content)) {
-    warnings.push('🟡 CREATE TABLE com company_id sem FORCE ROW LEVEL SECURITY no mesmo arquivo')
+    warnings.push(`🟡 CREATE TABLE com ${tenantCol} sem FORCE ROW LEVEL SECURITY no mesmo arquivo`)
   }
-  if (!/force_company_id/i.test(content)) {
-    warnings.push('🟡 CREATE TABLE com company_id sem trigger force_company_id no mesmo arquivo')
+  if (!/CREATE\s+POLICY/i.test(content)) {
+    warnings.push(`🟡 CREATE TABLE com ${tenantCol} sem nenhuma CREATE POLICY no mesmo arquivo`)
   }
 }
 

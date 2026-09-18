@@ -15,49 +15,54 @@ description: Padrão de roteador multi-provider para LLMs (OpenAI, Anthropic, Ge
 6. **Limite por tenant** (rate limit + budget mensal).
 7. **Timeout em toda chamada** — 30s, 60s em streaming (`AbortController`).
 
-> `company_id` nos exemplos é a coluna de tenant do arquétipo A. Use a coluna do `.claude/tenancy-profile.yml` do projeto.
+> `company_id` nos exemplos é a coluna de tenant do arquétipo A. Use a coluna do `.claude/tenancy-profile.yml` do projeto. As Edge Functions seguem o template canônico do `edge-function-guard` (saas-shield-br): `Deno.serve` + `jsr:@supabase/supabase-js@2`.
 
-## Modelos atuais (atualize quando lançarem novos)
+## Catálogo de modelos (formato — NÃO copie os valores sem conferir)
+
+Esta skill **não** é a fonte da verdade de IDs nem de preços: eles mudam a cada poucos meses e um catálogo estático aqui envelhece silenciosamente (e `logUsage` passa a calcular custo errado). No dia da implementação:
+
+- **Anthropic**: IDs, preços e cache de prompt → skill `claude-api` (se instalada) ou https://docs.claude.com/en/docs/about-claude/models
+- **OpenAI** → https://platform.openai.com/docs/models · **Google** → https://ai.google.dev/gemini-api/docs/models
+
+Formato do arquivo (preços em USD por 1k tokens; os números abaixo são **ilustrativos**, só para o tipo compilar):
 
 ```ts
 // supabase/functions/_shared/llm-models.ts
+// ⚠️ Atualize IDs e preços na data do deploy e registre a data aqui: catálogo conferido em ____-__-__
 export const MODELS = {
-  // OpenAI
-  "gpt-4o":            { provider: "openai",    in: 0.0025,   out: 0.01,   ctx: 128_000, streaming: true },
-  "gpt-4o-mini":       { provider: "openai",    in: 0.00015,  out: 0.0006, ctx: 128_000, streaming: true },
-  "o3-mini":           { provider: "openai",    in: 0.0011,   out: 0.0044, ctx: 200_000, streaming: true, reasoning: true },
+  // OpenAI — exemplo
+  "gpt-4o-mini":               { provider: "openai",    in: 0.00015, out: 0.0006, ctx: 128_000,   streaming: true },
+  "gpt-4o":                    { provider: "openai",    in: 0.0025,  out: 0.01,   ctx: 128_000,   streaming: true },
 
-  // Anthropic
-  "claude-opus-4-6":   { provider: "anthropic", in: 0.015,    out: 0.075,  ctx: 200_000, streaming: true },
-  "claude-sonnet-4-6": { provider: "anthropic", in: 0.003,    out: 0.015,  ctx: 200_000, streaming: true },
-  "claude-haiku-4-5":  { provider: "anthropic", in: 0.0008,   out: 0.004,  ctx: 200_000, streaming: true },
+  // Anthropic — família Claude 5 (IDs vigentes em 2026-09; confira preço na skill claude-api)
+  "claude-haiku-4-5-20251001": { provider: "anthropic", in: 0.0008,  out: 0.004,  ctx: 200_000,   streaming: true },
+  "claude-sonnet-5":           { provider: "anthropic", in: 0.003,   out: 0.015,  ctx: 200_000,   streaming: true },
+  "claude-opus-5":             { provider: "anthropic", in: 0.015,   out: 0.075,  ctx: 200_000,   streaming: true, reasoning: true },
 
-  // Google
-  "gemini-2.0-flash":  { provider: "google",    in: 0.000075, out: 0.0003, ctx: 1_000_000, streaming: true },
-  "gemini-2.0-pro":    { provider: "google",    in: 0.00125,  out: 0.005,  ctx: 2_000_000, streaming: true },
+  // Google — exemplo
+  "gemini-2.0-flash":          { provider: "google",    in: 0.000075, out: 0.0003, ctx: 1_000_000, streaming: true },
 } as const;
 
 export type ModelId = keyof typeof MODELS;
 ```
 
-**Nota**: preços em USD por 1k tokens. Verifique mensalmente — providers mudam.
+Teste obrigatório: um `MODELS.test.ts` que falha se a data de conferência tiver mais de 90 dias — assim o catálogo não envelhece sem ninguém notar.
 
 ## Tier de qualidade (para fallback inteligente)
 
 ```ts
-// Tarefa → ordem de fallback (1º é preferido)
+// Tarefa → ordem de fallback (1º é preferido). Ajuste junto com o catálogo.
 export const FALLBACK_CHAINS = {
-  cheap_fast: ["gemini-2.0-flash", "gpt-4o-mini", "claude-haiku-4-5"] as const,
-  balanced:   ["claude-haiku-4-5", "gpt-4o-mini", "gemini-2.0-flash"] as const,
-  smart:      ["claude-sonnet-4-6", "gpt-4o", "gemini-2.0-pro"] as const,
-  reasoning:  ["o3-mini", "claude-opus-4-6"] as const,
+  cheap_fast: ["gemini-2.0-flash", "gpt-4o-mini", "claude-haiku-4-5-20251001"] as const,
+  balanced:   ["claude-haiku-4-5-20251001", "gpt-4o-mini", "gemini-2.0-flash"] as const,
+  smart:      ["claude-sonnet-5", "gpt-4o"] as const,
+  reasoning:  ["claude-opus-5"] as const,
 };
 ```
 
 ## Edge Function — `llm/index.ts`
 
 ```ts
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { authenticate } from "../_shared/auth.ts";
 import { adminClient } from "../_shared/admin.ts";
 import { MODELS, FALLBACK_CHAINS, type ModelId } from "../_shared/llm-models.ts";
@@ -73,7 +78,7 @@ interface LlmRequest {
   cache_key?: string; // se setado e temperature=0, usa cache
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return cors(req);
   if (req.method !== "POST") return json({ error: "method" }, 405);
 
@@ -273,7 +278,7 @@ Use quando o usuário precisa ver tokens chegando (chat). Na Edge Function:
 
 ```ts
 // supabase/functions/llm-stream/index.ts
-serve(async (req) => {
+Deno.serve(async (req) => {
   const ctx = await authenticate(req);
   const { prompt } = await req.json();
 

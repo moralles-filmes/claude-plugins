@@ -46,7 +46,7 @@ Mantenha `.claude/saas-state.json` no repo do usuário com este shape:
     {"name": "auth", "status": "done"},
     {"name": "billing", "status": "in_progress"}
   ],
-  "tenant_model": "company_id_rls",
+  "tenant_model": "<arquétipo do .claude/tenancy-profile.yml, ex.: A-company_id-jwt | B-unit_id-membership | C-org-unit-rbac | D-unit_id-set>",
   "integrations": ["openai", "whatsapp_zapi"],
   "last_security_audit": null,
   "blockers": [],
@@ -80,7 +80,7 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 - Problema que resolve (1 parágrafo)
 - Personas/usuários
 - Lista de módulos (módulo = grupo de features que pode ir pra produção sozinho)
-- Modelo multi-tenant (default: `company_id_rls`)
+- Modelo multi-tenant (arquétipo A/B/C/D da skill `tenant-model`; o `db-schema-designer` materializa em `.claude/tenancy-profile.yml` na Fase 2)
 - Integrações externas necessárias (LLM? WhatsApp? Stripe?)
 - Métricas de sucesso
 
@@ -90,7 +90,8 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 **Dono**: `db-schema-designer`
 **Entregável**:
 - Lista de tabelas com colunas, FKs, índices
-- Para cada tabela: `company_id NOT NULL` + FORCE RLS + trigger force + policies USING/WITH CHECK
+- `.claude/tenancy-profile.yml` criado/confirmado
+- Para cada tabela de domínio: coluna de tenant `NOT NULL` + FORCE RLS + caminho de escrita do arquétipo (trigger force no A, server-scoped/RPC nos demais) + policies USING/WITH CHECK
 - RPCs SECURITY DEFINER se necessário (com search_path)
 
 **Gate obrigatório**: chamar `rls-auditor` (do `saas-shield-br`) no SQL gerado. Se houver bloqueante, **NÃO avance** — devolve para `db-schema-designer` corrigir.
@@ -190,7 +191,8 @@ Sempre use a Agent tool com prompt **completo e auto-contido**. O subagent não 
 [Contexto do projeto]
 - Nome: <do state>
 - Fase atual: <do state>
-- Stack: Vite+React+TS / Supabase / Vercel / company_id RLS
+- Stack: Vite+React+TS / Supabase / Vercel
+- Tenancy: <arquétipo e coluna(s) do .claude/tenancy-profile.yml>
 
 [O que precisa ser feito]
 <descrição clara, específica, com critérios de aceite>
@@ -241,7 +243,7 @@ Aguarda OK. Então delega Fase 1 → 2 → 3 → ... e atualiza state após cada
 
 Antes de declarar uma fase `done` no state, faça:
 1. `Read` no arquivo entregue.
-2. `Grep` por anti-pattern básico (`service_role` no client, `USING (true)`, `company_id` faltando).
+2. `Grep` por anti-pattern básico (`service_role` no client, `USING (true)`, tabela de domínio sem a coluna de tenant do profile).
 3. Se passou, marca done. Se não, devolve para o agent.
 
 Sua reputação é gate. Falhe rigoroso.

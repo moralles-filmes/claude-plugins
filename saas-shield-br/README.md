@@ -17,7 +17,7 @@ A skill **`tenant-model`** é a fonte única da verdade (spec do profile + detec
 
 ## O que está dentro
 
-### 12 Skills
+### 10 Skills
 
 | Skill | Categoria | O que faz |
 |---|---|---|
@@ -30,9 +30,9 @@ A skill **`tenant-model`** é a fonte única da verdade (spec do profile + detec
 | `edge-function-guard` | Backend | Revisa Edge Functions — JWT, CORS, error leakage, rate limiting, auth header |
 | `cost-optimizer` | Custo | Reduz a conta Supabase/Vercel — egress, invocações, Realtime, storage, bandwidth, build. Lentidão/performance fica com o plugin `turbo` |
 | `schema-diff` | DevOps | Drift entre migrations locais ↔ remoto |
-| `vercel-deploy-guard` | DevOps | Pré-deploy — env vars, headers (CSP/HSTS), source maps, bundle limit |
-| `pt-br-translator` | UX | Revisa UI strings PT-BR — gênero, formalidade, idiomáticos, formato BR |
-| `token-budget-analyst` | Workflow | Otimiza prompts/contexto Claude |
+| `vercel-deploy-guard` | DevOps | Pré-deploy — env vars, headers (CSP/HSTS), source maps, bundle limit. Fonte canônica do `vercel.json` que o `devops-ci` (saas-builder-br) gera |
+
+> `pt-br-translator` (revisão de strings PT-BR) e `token-budget-analyst` (custo de tokens) mudaram para o plugin **`pt-br-utils`** na v2.2.0.
 
 ### 6 Subagents auditores
 
@@ -97,7 +97,7 @@ claude plugin install saas-shield-br
 
 ## Versionamento
 
-Versão atual: **2.1.1** — ver [CHANGELOG.md](./CHANGELOG.md). A v2 é convention-driven e **breaking** vs. a v1 (agente `tenant-leak-hunter` fundido em `tenant-isolation-auditor`, contrato de saída novo, não assume mais `company_id`).
+Versão atual: **2.2.0** — ver [CHANGELOG.md](./CHANGELOG.md). A v2 é convention-driven e **breaking** vs. a v1 (agente `tenant-leak-hunter` fundido em `tenant-isolation-auditor`, contrato de saída novo, não assume mais `company_id`).
 
 ## Licença
 

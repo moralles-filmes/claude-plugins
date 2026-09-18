@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [2.2.0] — 2026-09-18
+
+### Removido (breaking para quem invocava por nome)
+- `pt-br-translator` e `token-budget-analyst` saíram deste plugin: não têm nada a ver com segurança/custo de SaaS e inflavam a lista de skills. Vivem agora no plugin **`pt-br-utils`** (mesmo marketplace). Instale-o se usava alguma das duas.
+- `saas-shield-br/.claude-plugin/marketplace.json` (sobra de quando o plugin era o próprio marketplace). O `claude plugin validate saas-shield-br` validava esse arquivo em vez do `plugin.json`.
+
+### Corrigido
+- **Convention-driven de fato**: `edge-function-guard`, `schema-diff`, `/new-migration` e o hook `check-sql-antipattern.mjs` ainda falavam em `company_id`/`force_company_id`/"padrão MarginPro". Agora usam `<TC>`/`R`/`WP` da skill `tenant-model`; o hook reconhece `company_id|unit_id|organization_id|org_id|tenant_id|account_id|workspace_id` e avisa sobre falta de FORCE RLS/`CREATE POLICY` em vez de exigir trigger `force_company_id` (que só existe no arquétipo A).
+- Hook pré-commit: a regex de chave OpenAI (`sk-…`) batia também nas chaves Anthropic (`sk-ant-…`), duplicando o achado. Agora exclui `sk-ant-`.
+- `vercel-deploy-guard`: a configuração modelo de `vercel.json` divergia da que o `devops-ci` (saas-builder-br) gera (bun × npm, rewrite `/(.*)` que engolia `/api` e `/assets`, sem CSP, `regions` fixo). Unificada; esta skill é a fonte canônica e o builder copia.
+- `edge-function-guard`: template marcado como canônico (`Deno.serve` + `jsr:@supabase/supabase-js@2`); `backend-supabase`, `llm-multi-provider` e `whatsapp-zapi-integracao` do builder passaram a segui-lo.
+
+### Alterado
+- `multi-tenant-auditor` deixa de anunciar gatilhos de usuário ("audita esse SaaS", "vaza dados entre tenants?") que competiam com o agente `tenant-isolation-auditor`. É base de conhecimento pré-carregada via `skills:`; a descrição encaminha os pedidos ao agente/`/audit-tenant`.
+
 ## [2.1.1] — 2026-09-17
 
 ### Corrigido

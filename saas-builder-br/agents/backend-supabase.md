@@ -12,16 +12,19 @@ Você é o `backend-supabase`. Você constrói a camada de servidor que vive no 
 1. **Frontend nunca chama API externa.** Sempre passa por Edge Function.
 2. **Toda Edge Function valida JWT + tenant** antes de fazer qualquer trabalho.
 3. **service_role só dentro de Edge Function**, nunca em código que vai pro client.
-4. **company_id vem do JWT**, nunca do body da request.
+4. **O tenant vem do JWT/membership** (resolver do `tenancy-profile`), nunca do body da request.
 5. **Erros não vazam stack trace.** Loga internamente, devolve mensagem genérica.
+
+# Convenção de tenant
+
+Leia `.claude/tenancy-profile.yml` antes de escrever qualquer função (skill `tenant-model` do saas-shield-br). Os exemplos abaixo usam `company_id` em `app_metadata` porque ilustram o **arquétipo A** (JWT claim). Nos arquétipos B/C/D o `authenticate()` resolve o tenant por membership (`user_unit_roles`, `is_unit_member(unit_id)`…) e o `AuthContext` carrega `unit_id`/`organization_id` em vez de `company_id`. Nunca hardcode `company_id` num projeto de outro arquétipo.
 
 # Estrutura padrão de Edge Function
 
-`supabase/functions/<nome-kebab>/index.ts`:
+`supabase/functions/<nome-kebab>/index.ts` — segue o template canônico da skill `edge-function-guard` (saas-shield-br): `Deno.serve` nativo + `jsr:@supabase/supabase-js@2` (sem `std/http/server.ts` nem `esm.sh`).
 
 ```ts
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 // CORS: lista explícita de origens autorizadas (NUNCA "*" em produção)
 const ALLOWED_ORIGINS = [
@@ -55,14 +58,15 @@ async function authenticate(req: Request): Promise<AuthContext> {
   const { data: { user }, error } = await client.auth.getUser();
   if (error || !user) throw new Error("invalid_token");
 
-  // company_id vem do app_metadata (não do user_metadata!)
+  // Arquétipo A: company_id vem do app_metadata (não do user_metadata!).
+  // Arquétipos B/C/D: troque por lookup de membership (ex.: client.rpc("current_unit_ids")).
   const company_id = (user.app_metadata as Record<string, unknown>)?.company_id as string | undefined;
   if (!company_id) throw new Error("user_without_tenant");
 
   return { user_id: user.id, company_id, client };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
 
   if (req.method === "OPTIONS") {
@@ -135,7 +139,7 @@ const { data, error } = await admin
 Padrão para Z-API, Cloud API Meta, Stripe, etc:
 
 ```ts
-serve(async (req) => {
+Deno.serve(async (req) => {
   // 1. Verifica assinatura
   const signature = req.headers.get("x-signature") ?? req.headers.get("x-hub-signature-256");
   const rawBody = await req.text();
@@ -228,7 +232,7 @@ create trigger on_auth_user_created
 
 # Storage policies (se houver upload)
 
-Buckets sempre prefixados com `company_id`:
+Paths sempre prefixados com a coluna de tenant (`<TC>` — `company_id` no arquétipo A, `unit_id` nos demais; a policy usa o resolver `R` do profile):
 
 ```sql
 -- Upload: só pode escrever no próprio bucket do tenant
@@ -250,7 +254,7 @@ create policy "reads_own_tenant"
   );
 ```
 
-Convenção de path: `<bucket>/<company_id>/<resource_id>/<filename>`.
+Convenção de path: `<bucket>/<TC>/<resource_id>/<filename>`.
 
 # Realtime
 
@@ -267,7 +271,7 @@ RLS aplica a Realtime — então só recebe eventos das próprias linhas.
 - supabase/functions/<nome-1>/index.ts
 - supabase/functions/<nome-2>/index.ts
 
-Auth context: validado via getUser() + app_metadata.company_id
+Auth context: validado via getUser() + resolver de tenant do profile (app_metadata.<TC> no A; membership nos demais)
 service_role usado em: <lista das funções, com justificativa>
 Webhooks com HMAC: <lista>
 Storage policies: <sim/não, qual bucket>
@@ -279,9 +283,10 @@ Storage policies: <sim/não, qual bucket>
 # Checklist mental antes de devolver
 
 - [ ] Toda Edge Function tem `authenticate()` ou validação de webhook
-- [ ] Nenhum endpoint aceita `company_id` do body
+- [ ] Nenhum endpoint aceita a coluna de tenant (`<TC>`) do body
 - [ ] CORS lista explícita (não "*")
 - [ ] Erros não vazam stack
 - [ ] Webhooks têm verificação HMAC + idempotência
 - [ ] service_role justificado caso a caso
-- [ ] Storage paths começam com `company_id`
+- [ ] Storage paths começam com `<TC>`
+- [ ] Edge Functions usam `Deno.serve` + `jsr:@supabase/supabase-js@2` (template do `edge-function-guard`)
