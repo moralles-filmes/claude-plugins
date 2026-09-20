@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 — 2026-09-19
+Workers externos voltam a receber trabalho. Nenhum dispatch tinha acontecido desde a instalação.
+
+### Corrigido
+- Gate `small` em `lib/classifier.mjs` devolvia ao principal quase toda tarefa: `files.length <= small_task_max_files` passava com 0 arquivos (`0 <= 1`) e a skill mandava classificar por `--objective "<resumo curto>"`, sempre abaixo de `small_task_max_chars`. Sobrava só o regex `BROAD`, que não cobre o vocabulário de `CHEAP`/`MECH`. Os tiers 2 e 3, únicos em que o DeepSeek é executor primário, eram os mais capturados.
+- `small` agora exige tier 3, escopo de arquivos declarado (`files.length >= 1`) e ausência de `CHEAP`.
+- Tokens curtos das regexes de risco casavam por substring e forçavam TIER 0 com `audit_required` falso: `role` em "cont**role**", `drop` em "**drop**down", `secret` em "**secret**aria", `fix` em "**fix**tures", `api` em "r**api**dez", `test` em "**test**emunho". Todos ancorados em `\b`.
+- `produção` sozinha deixou de ser domínio crítico (vocabulário de negócio); só conta como ambiente quando qualificada, ou como `production`/`prod` em inglês.
+
+### Alterado
+- Skill `ai-router`: TASK PACKAGE com `allowed_files` escrito **antes** da classificação; removida a válvula "delegue só com ganho real".
+- Skill `ai-router-dry-run`: avisa que sem `allowed_files` o veredito não reflete o do fluxo real.
+
 ## 1.2.1 — 2026-09-17
 Sem mudança funcional no Codex; versão alinhada à correção da skill `route` do Claude Code (auditoria de módulo via `saas-audit-br:module`).
 
