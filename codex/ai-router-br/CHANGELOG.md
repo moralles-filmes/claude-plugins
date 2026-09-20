@@ -6,6 +6,8 @@ Workers externos voltam a receber trabalho. Nenhum dispatch tinha acontecido des
 ### Corrigido
 - Gate `small` em `lib/classifier.mjs` devolvia ao principal quase toda tarefa: `files.length <= small_task_max_files` passava com 0 arquivos (`0 <= 1`) e a skill mandava classificar por `--objective "<resumo curto>"`, sempre abaixo de `small_task_max_chars`. Sobrava só o regex `BROAD`, que não cobre o vocabulário de `CHEAP`/`MECH`. Os tiers 2 e 3, únicos em que o DeepSeek é executor primário, eram os mais capturados.
 - `small` agora exige tier 3, escopo de arquivos declarado (`files.length >= 1`) e ausência de `CHEAP`.
+- Tokens curtos das regexes de risco casavam por substring e forçavam TIER 0 com `audit_required` falso: `role` em "cont**role**", `drop` em "**drop**down", `secret` em "**secret**aria", `fix` em "**fix**tures", `api` em "r**api**dez", `test` em "**test**emunho". Todos ancorados em `\b`.
+- `produção` sozinha deixou de ser domínio crítico (vocabulário de negócio); só conta como ambiente quando qualificada, ou como `production`/`prod` em inglês.
 
 ### Alterado
 - Skill `ai-router`: TASK PACKAGE com `allowed_files` escrito **antes** da classificação; removida a válvula "delegue só com ganho real".
