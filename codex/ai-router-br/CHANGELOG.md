@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.1 — 2026-09-19
+O gate de risco enxerga PT-BR. Espelho da correção de 1.3.0: lá o problema era casar demais, aqui era não casar nada.
+
+### Adicionado
+- `CRITICAL_DOMAIN` reconhece `permissão/permissões`, `autenticação`, `segredo`, `chave secreta`, `chave de api`, `senha`, `jwt`, `criptografia`, `controle de acesso`, `conceder/revogar/negar acesso` e `service_role` (que `\brole\b` não pegava porque `_` é caractere de palavra).
+- `CRITICAL_ACTION` ganha `grant`, `revoke`, `bypass`, `disable`, `enable`, `rotacionar`, `conceder`, `revogar`, `configurar`, `desabilitar`, `habilitar`, `usar` — sem eles o risco parava em 3 mesmo com o domínio reconhecido.
+
+### Notas
+- `pagamento`, `faturamento`, `cobrança`, `autorização` e `acesso` solto ficam de fora de propósito: vocabulário corrente de ERP, escalá-los repetiria o caso "produção" corrigido em 1.3.0.
+
 ## 1.3.0 — 2026-09-19
 Workers externos voltam a receber trabalho. Nenhum dispatch tinha acontecido desde a instalação.
 

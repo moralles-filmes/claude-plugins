@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.1 — 2026-09-19
+O gate de risco enxerga PT-BR. Espelho da correção de 1.3.0: lá o problema era casar demais, aqui era não casar nada.
+
+### Adicionado
+- `CRITICAL_DOMAIN` reconhece os equivalentes PT-BR dos domínios sensíveis: `permissão/permissões`, `autenticação`, `segredo`, `chave secreta`, `chave de api`, `senha`, `jwt`, `criptografia`, `controle de acesso` e `conceder/revogar/negar acesso`. Também `service_role`, que `\brole\b` não pegava porque `_` é caractere de palavra. Sem isso o gate ficava cego justamente na língua em que os objetivos são escritos, e tarefa sensível podia ser despachada a um worker externo sem auditoria.
+- `CRITICAL_ACTION` ganha os verbos que faltavam: `grant`, `revoke`, `bypass`, `disable`, `enable`, `rotacionar`, `conceder`, `revogar`, `configurar`, `desabilitar`, `habilitar`, `usar`. Sem eles o risco parava em 3 mesmo com o domínio reconhecido — "rotacionar chave secreta" e "usar service_role" não alcançavam o TIER 0. Verbo crítico só pontua junto com domínio crítico, então pode ser generoso.
+
+### Notas
+- Ficam **de fora de propósito** `pagamento`, `faturamento`, `cobrança`, `autorização` e `acesso` solto: são vocabulário corrente de ERP ("ordem de pagamento", "autorização de compra", "melhorar o acesso à tela") e escalá-los repetiria o caso "produção" corrigido em 1.3.0. O sentido de controle de acesso já é coberto por `permissão`/RBAC/`role` e pelas locuções. Os testes fixam as duas direções.
+
 ## 1.3.0 — 2026-09-19
 Workers externos voltam a receber trabalho. Nenhum dispatch tinha acontecido desde a instalação.
 
