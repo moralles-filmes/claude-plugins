@@ -26,7 +26,12 @@ export function classifyTask(task, config={}) {
   else tier=3;
   // Prohibitions are guardrails, not task scope: mentioning "do not alter RLS" must not promote risk.
   if(CRITICAL_DOMAIN.test(prohibited) && !CRITICAL_DOMAIN.test(scope)) reasons.push('domínio sensível aparece apenas como proibição/guardrail');
-  const small = tier!==0 && files.length<= (config?.router?.small_task_max_files??1) && objective.length <= (config?.router?.small_task_max_chars??500) && !BROAD.test(objective);
+  // "Pequena" exige escopo de arquivos declarado e pequeno, e só se aplica ao tier 3.
+  // Sem `allowed_files` o escopo é desconhecido: `files.length<=1` passava com 0 arquivos
+  // e devolvia ao principal justamente os tiers 2/3 que são do worker econômico.
+  const maxSmallFiles=config?.router?.small_task_max_files??1;
+  const maxSmallChars=config?.router?.small_task_max_chars??500;
+  const small = tier===3 && files.length>=1 && files.length<=maxSmallFiles && objective.length<=maxSmallChars && !BROAD.test(objective) && !CHEAP.test(objective);
   let executor=tier===0?'main':tier===1?'codex':'deepseek';
   let fallback=tier===1?'deepseek':tier>=2?'codex':null;
   if(small && config?.router?.small_task_direct!==false){executor='main';fallback=null;reasons.push('tarefa pequena: principal pode resolver diretamente');}

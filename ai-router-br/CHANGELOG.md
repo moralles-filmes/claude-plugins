@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 — 2026-09-19
+Workers externos voltam a receber trabalho. Nenhum dispatch tinha acontecido desde a instalação.
+
+### Corrigido
+- Gate `small` em `lib/classifier.mjs` devolvia ao principal quase toda tarefa. A condição `files.length <= small_task_max_files` passava com 0 arquivos (`0 <= 1`) e a skill mandava classificar por `--objective "<resumo curto>"`, sempre abaixo de `small_task_max_chars` — sobrava só o regex `BROAD` como defesa, e ele não cobre o vocabulário de `CHEAP`/`MECH` (`boilerplate`, `repetitiv`, `bulk`, renomeação em massa). Os tiers 2 e 3, únicos em que o DeepSeek é executor primário, eram os mais capturados: o DeepSeek nunca rodou nada.
+- `small` agora exige tier 3, escopo de arquivos declarado (`files.length >= 1`) e ausência de `CHEAP`. Tarefa trivial com escopo pequeno continua no principal; escopo desconhecido passa a ser delegado em vez de retido.
+
+### Alterado
+- Skill `route`: o TASK PACKAGE com `allowed_files` passa a ser escrito **antes** da classificação, porque é ele que dimensiona a tarefa. `--objective` sozinho vira checagem solta.
+- Skill `route` etapa 2: removida a válvula "delegue só com ganho real", que permitia reter no principal uma tarefa já classificada como `codex`/`deepseek`. Com veredito de worker, delegar não é opcional — só `status: blocked` ou ordem explícita do usuário mantêm a tarefa no principal.
+- Skill `dry-run`: avisa que sem `allowed_files` o veredito não reflete o que o `route` faria.
+
 ## 1.2.1 — 2026-09-17
 Auditoria de módulo acionável pelo router.
 

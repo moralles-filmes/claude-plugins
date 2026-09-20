@@ -10,3 +10,9 @@ test('small can stay main',()=>assert.equal(classifyTask({objective:'Ajustar tex
 test('natural module request is substantial',()=>{const r=classifyTask({objective:'Crie um módulo de fornecedores.'},{router:{small_task_direct:true,small_task_max_files:1,small_task_max_chars:500},risk:{critical_score:8}});assert.equal(r.tier,1);assert.equal(r.executor,'codex');});
 
 test('repo-wide inventory routes cheap worker',()=>{const r=classifyTask({objective:'Inventariar arquivos e catalogar código repetitivo.'},{router:{small_task_direct:true,small_task_max_files:1,small_task_max_chars:500},risk:{critical_score:8}});assert.equal(r.tier,2);assert.equal(r.executor,'deepseek');});
+
+const direct={router:{small_task_direct:true,small_task_max_files:1,small_task_max_chars:500},risk:{critical_score:8}};
+test('bulk rename without declared scope is not small',()=>{const r=classifyTask({objective:'Renomear variáveis e padronizar imports em todo o projeto'},direct);assert.equal(r.small,false);assert.equal(r.executor,'deepseek');});
+test('boilerplate is never small even with one file',()=>{const r=classifyTask({objective:'Gerar boilerplate de documentação repetitiva',allowed_files:['a.ts']},direct);assert.equal(r.small,false);assert.equal(r.executor,'deepseek');});
+test('coding task is never small',()=>{const r=classifyTask({objective:'Criar componente de listagem',allowed_files:['a.tsx']},direct);assert.equal(r.small,false);assert.equal(r.executor,'codex');});
+test('trivial task with declared scope still stays main',()=>{const r=classifyTask({objective:'Ajustar cor do botão',allowed_files:['a.tsx']},direct);assert.equal(r.small,true);assert.equal(r.executor,'main');});
