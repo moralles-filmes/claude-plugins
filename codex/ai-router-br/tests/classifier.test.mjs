@@ -27,3 +27,11 @@ test('fixtures does not match the fix token',()=>{const r=classifyTask({objectiv
 // ...e o que é sensível de verdade continua em TIER 0.
 for(const [what,objective] of [['role','Criar controle de acesso por role'],['secret','Alterar secret do ambiente de produção'],['drop','Drop da tabela de pedidos'],['rls','Alterar autenticação e RLS']])
   test(`"${what}" still escalates`,()=>assert.equal(classifyTask({objective},cfg).tier,0));
+
+// Domínio sensível escrito em PT-BR também escala: o gate era cego na língua dos objetivos.
+for(const [what,objective] of [['senha','Alterar validação de senha no login'],['permissões','Criar tela de permissões do usuário'],['autenticação','Corrigir autenticação do JWT'],['service_role','Usar service_role na edge function'],['chave secreta','Rotacionar chave secreta da integração'],['revogar acesso','Revogar acesso do usuário']])
+  test(`PT "${what}" escalates`,()=>assert.equal(classifyTask({objective},cfg).tier,0));
+
+// ...mas vocabulário corrente de ERP não é domínio sensível.
+for(const [what,objective] of [['pagamento','Criar ordem de pagamento ao fornecedor'],['autorização de compra','Criar autorização de compra'],['faturamento','Gerar relatório de faturamento mensal'],['resenha','Revisar resenha do produto'],['acesso à tela','Melhorar o acesso à tela de estoque'],['causar','Causar refresh da lista']])
+  test(`"${what}" is business vocabulary`,()=>{const r=classifyTask({objective},cfg);assert.equal(r.risk_score,0);assert.notEqual(r.tier,0);});

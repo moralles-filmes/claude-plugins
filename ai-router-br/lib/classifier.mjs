@@ -5,8 +5,19 @@
 // "produção" sozinha é vocabulário de domínio (linha/ordem de produção); só conta
 // como ambiente quando qualificada.
 const PROD_ENV=String.raw`(?:\bproduction\b|\bprod\b|em produção|(?:ambiente|banco|base|servidor|dados)\s+de\s+produção)`;
-const CRITICAL_ACTION=/(\balter\w*|\bchange\w*|\bmodif\w*|\bimplement\w*|\bcreate\w*|\bdelete\w*|\bremove\w*|\bmigrat\w*|\bdeploy\w*|\brotate\b|\bfix(?:e[sd]|ing)?\b|\bwrite\b|\bupdate\w*|\bdrop(?:ar|s|ping|ped)?\b|\bpurge\b|\brestore\b|editar|alterar|implementar|criar|excluir|remover|migrar|corrigir|atualizar)/i;
-const CRITICAL_DOMAIN=new RegExp(String.raw`(\brls\b|\bauth(?:entication|orization|n|z)?\b|\brbac\b|multi[- ]?tenant|tenant isolation|membership|\bsecret(?:s|os?|as?)?\b|\bapi keys?\b|payment|billing|checkout|${PROD_ENV}|permission|\broles?\b|\blgpd\b|security|segurança)`,'i');
+// Verbo crítico só conta junto com domínio crítico, então pode ser generoso —
+// "usar" sozinho não escala nada. Sem os equivalentes PT ("rotacionar a chave",
+// "conceder permissão", "usar service_role") o risco parava em 3 e não alcançava
+// o TIER 0, mesmo com o domínio reconhecido.
+const CRITICAL_ACTION=/(\balter\w*|\bchange\w*|\bmodif\w*|\bimplement\w*|\bcreate\w*|\bdelete\w*|\bremove\w*|\bmigrat\w*|\bdeploy\w*|\brotate\b|\bgrant\w*|\brevoke\w*|\bbypass\w*|\bdisable\w*|\benable\w*|\bfix(?:e[sd]|ing)?\b|\bwrite\b|\bupdate\w*|\bdrop(?:ar|s|ping|ped)?\b|\bpurge\b|\brestore\b|editar|alterar|implementar|criar|excluir|remover|migrar|corrigir|atualizar|rotacionar|conceder|revogar|configurar|desabilitar|habilitar|\busar\b)/i;
+// Equivalentes PT-BR: sem eles o gate ficava cego justamente na língua em que os
+// objetivos são escritos, e tarefa sensível escapava do TIER 0. Ficam de fora de
+// propósito "pagamento", "faturamento", "cobrança" e "autorização" — vocabulário
+// corrente de ERP (ordem de pagamento, autorização de compra) que repetiria o
+// caso "produção". O sentido de acesso já é coberto por permissão/RBAC/role.
+// "acesso" sozinho fica de fora ("melhorar o acesso à tela"); só a locução conta.
+const CRITICAL_PT=String.raw`\bpermiss(?:ão|ões|ao|oes)\b|\bautentica\w*|\bsegredos?\b|chaves?\s+secretas?|chaves?\s+de\s+api|\bsenhas?\b|\bjwt\b|\bcriptograf\w*|controle\s+de\s+acesso|(?:conceder|revogar|dar|remover|negar)\s+(?:o\s+)?acesso`;
+const CRITICAL_DOMAIN=new RegExp(String.raw`(\brls\b|\bauth(?:entication|orization|n|z)?\b|\brbac\b|multi[- ]?tenant|tenant isolation|membership|\bsecret(?:s|os?|as?)?\b|\bapi keys?\b|payment|billing|checkout|${PROD_ENV}|permission|\broles?\b|service[_ ]?role|\blgpd\b|security|segurança|${CRITICAL_PT})`,'i');
 const DESTRUCTIVE=new RegExp(String.raw`(\bdrop(?:ar|s|ping|ped)?\b|\bpurge\b|\brestore\b|delete.*${PROD_ENV}|${PROD_ENV}.*exclu|rotate.*\bsecret|force push)`,'i');
 const CODING=/(\bimplement\w*|\bcreate\w*|\bbuild(?:s|ing)?\b|\brefactor\w*|\bde?bug(?:s|ar|ging|ged)?\b|\bfix(?:e[sd]|ing)?\b|\bcomponent\w*|\bapis?\b|\bcrud\b|\bfrontend\b|\bbackend\b|\bfeatures?\b|\btest(?:e|es|s|ar|ando|ing|ed)?\b|módulo|modulo|implementar|criar|corrigir|refatorar)/i;
 const CHEAP=/(inventory|inventari|grep|search files|localizar|boilerplate|fixture|mock|rename|bulk|documentation|documenta|summar|catalog|dead[- ]code exploration|repetitiv|lint simples)/i;
