@@ -40,6 +40,8 @@ O setup, de forma idempotente:
 6. valida os plugins, roda os testes essenciais e o doctor;
 7. verifica apenas se `DEEPSEEK_API_KEY` **existe** (nunca mostra o valor). Se faltar, configure-a localmente nas variáveis de ambiente do usuário ou no seu gerenciador de secrets — **nunca cole a chave em chat, Git, CLAUDE.md, AGENTS.md ou `.ai-router/`**. Sem ela tudo funciona com Claude + Codex.
 
+**Depois do setup, uma vez por máquina:** ligue a atualização automática do marketplace (`/plugin` → Marketplaces → `morallesfilms-local` → Enable auto-update). Sem isso a máquina fica na versão instalada até alguém atualizar à mão. Veja [Atualizar](#atualizar).
+
 Rode o mesmo comando no futuro para atualizar: ele faz só `git pull --ff-only` (e pula se houver mudanças locais), nunca usa comandos Git destrutivos e não mexe em secrets. Opções: `-CheckOnly` (só verifica, não altera nada), `-NoInstall`, `-NoPull`, `-SkipCodex`, `-SkipExtras`, `-SkipTests`, `-LocalMarketplace` (no `.sh`: `--check-only`, `--no-install`, ...).
 
 ## Usando em um projeto novo
@@ -123,13 +125,38 @@ Para instalar **todos** os plugins deste marketplace a partir do repo clonado: `
 
 ## Atualizar
 
-```bash
-cd ~/claude-plugins
-git pull
+Uma correção só chega a uma máquina depois de estar na `main` do GitHub **e** de a máquina atualizar. Cada máquina guarda a sua cópia instalada, então publicar não atualiza as outras sozinho.
 
-# Recarrega no Claude Code
-claude plugin update saas-shield-br
+**Caminho recomendado:** rode o setup de novo, em cada máquina. Ele atualiza marketplace, plugins do Claude Code e a edição Codex do `ai-router-br`:
+
+```powershell
+.\setup-claude.ps1          # Windows, na pasta do clone
 ```
+```bash
+./setup-claude.sh           # macOS / Linux
+```
+
+**Só o Claude Code, à mão:**
+
+```bash
+claude plugin marketplace update morallesfilms-local
+claude plugin update ai-router-br@morallesfilms-local   # repita para cada plugin, ou use install-all
+```
+
+Depois de atualizar, **reinicie o Claude Code**: uma sessão aberta continua com as skills e os agentes que carregou ao iniciar.
+
+> O `git pull` no clone local só importa quando o marketplace foi registrado pelo **caminho local** (`-LocalMarketplace` ou o setup manual acima): aí faça `git pull` antes do `marketplace update`. Quando foi registrado pelo GitHub (padrão do setup), a fonte é o repositório remoto e o clone não é lido.
+
+### Atualização automática (recomendado, uma vez por máquina)
+
+Marketplaces de terceiros, como este, vêm com atualização automática **desligada** por padrão. Só os oficiais da Anthropic atualizam sozinhos. Para cada máquina passar a buscar a `main` ao iniciar o Claude Code:
+
+1. No Claude Code, abra `/plugin`.
+2. Aba **Marketplaces** → `morallesfilms-local` → **Enable auto-update**.
+
+Não há comando de CLI para isso. O campo `autoUpdate: true` em `extraKnownMarketplaces` do `settings.json` aparece na documentação só no contexto de configurações gerenciadas, então o caminho confiável é a interface. Mesmo com a atualização automática ligada, a versão nova só vale **depois de reiniciar** o Claude Code. A edição Codex não é afetada por essa opção: para ela, continue rodando o setup.
+
+O que **não** viaja entre máquinas: a pasta `.ai-router/` de cada projeto (config, TASK PACKAGEs, resultados) fica fora do Git de propósito. Cada máquina tem a sua.
 
 ## Adicionar um plugin novo
 
