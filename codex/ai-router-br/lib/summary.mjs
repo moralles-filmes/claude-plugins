@@ -37,7 +37,11 @@ export function summaryLine(res,config,{codexModel:cm=codexModel}={}) {
   if (res?.status==='dry-run') {
     const parts=[`${head} ${label(res.executor,config,models)}${res.executor==='main'&&res.small?' (tarefa pequena)':''}`];
     if (res.fallback) parts.push(`fallback: ${label(res.fallback,config,models)}`);
-    return [...parts,'classificação'].join(' · ');
+    parts.push('classificação');
+    if (res.dispatch_error) parts.push(`dispatch será bloqueado (${code(res.dispatch_error)})`);
+    const n=Array.isArray(res.relevant_not_sent)?res.relevant_not_sent.length:0;
+    if (n) parts.push(n===1?'1 arquivo de contexto não vai ao worker':`${n} arquivos de contexto não vão ao worker`);
+    return parts.join(' · ');
   }
   if (res?.status==='main_required') return `${head} ${MAIN}`;
   if (res?.status==='blocked') return `${head} bloqueado (${code(res.error_code)||'blocked'}) · segue com o ${MAIN}`;
