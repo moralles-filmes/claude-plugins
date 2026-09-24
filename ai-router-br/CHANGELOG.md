@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.2 — 2026-09-24
+Problemas de escopo do TASK PACKAGE aparecem já no dry-run e com nome, em vez de um `invalid_path` genérico só no dispatch.
+
+### Corrigido
+- Curinga (`*`, `?`) em `allowed_files`/`relevant_files` caía em `normalizeRelative` e bloqueava o dispatch como `invalid_path`, sem dizer qual caminho nem por quê — e o dry-run, que não validava caminhos, tinha acabado de classificar a tarefa como delegável. Agora o bloqueio é `glob_not_supported:<campo>:<caminho>`. As duas listas continuam literais; só `forbidden_files` aceita padrão. Caso real: auditoria com `relevant_files: ["src/components/**/inventario*/**", ...]` classificada para o DeepSeek e bloqueada no dispatch.
+
+### Adicionado
+- Dry-run de tarefa delegável traz `dispatch_error`/`dispatch_error_detail` quando o dispatch vai ser bloqueado — por caminho (`glob_not_supported`, `invalid_path`, `path_traversal`) ou por comando de teste (`unsafe_test_command`, `forbidden_command`), com o caminho ou comando recusado no detalhe —, e `relevant_not_sent` com os `relevant_files` que o worker não vai receber (fora de `allowed_files` ou na denylist). O `summary_line` do dry-run diz os dois. O dispatch repete `relevant_not_sent` no resultado.
+- Sem isso a lacuna era silenciosa: o DeepSeek não tem tools e só vê o conteúdo enviado, então uma auditoria só de leitura com `allowed_files` = relatório e `forbidden_files` = `src/**` chegaria a ele sem nenhum arquivo de código e devolveria um relatório inventado. O que vai para a API **não mudou**; só passou a ficar visível.
+- A skill `route` diz quais formas de `tests` passam (`npm test -- <arquivo>`, `npm run <script>`, `pnpm run <script>`, `bun run <script>`, `node --test`, `node node_modules/typescript/bin/tsc` para typecheck sem script) e quais não (`npx`, atalho `pnpm build`, `pnpm exec`/`--filter`, `./node_modules/.bin/...`, texto livre — verificação manual vai em `acceptance`). Uma varredura dos TASK PACKAGEs locais achou 18 recusáveis em 5 projetos, todos por esses motivos e todos só descobertos no dispatch. A allowlist não foi afrouxada.
+
 ## 1.3.1 — 2026-09-19
 O gate de risco enxerga PT-BR. Espelho da correção de 1.3.0: lá o problema era casar demais, aqui era não casar nada.
 

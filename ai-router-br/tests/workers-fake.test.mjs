@@ -269,6 +269,48 @@ test('dispatch is blocked (not crashed) for dirty repo, tracked secret and unsaf
   }
   assert.equal(called,false); rm(g);
 });
+test('glob in relevant_files/allowed_files is named in dry-run and blocks dispatch before any worker',async()=>{
+  const d=repo(); let called=false;
+  const workers={codex:async()=>{called=true;return {status:'success'};},deepseek:async()=>{called=true;return {status:'success'};}};
+  for (const [key,bad] of [['relevant_files','src/**/inventario*/**'],['allowed_files','src/*.ts'],['relevant_files','src/a?.ts']]) {
+    const t=task({[key]:[bad]});
+    const dry=await route({root:d,task:t,config:baseConfig(),forceExecutor:'deepseek',dryRun:true,workers});
+    assert.equal(dry.status,'dry-run'); assert.equal(dry.dispatch_error,'glob_not_supported',bad); assert.ok(dry.dispatch_error_detail.includes(bad),bad);
+    const r=await route({root:d,task:t,config:baseConfig(),forceExecutor:'deepseek',workers});
+    assert.equal(r.status,'blocked',bad); assert.equal(r.error_code,'glob_not_supported',bad);
+  }
+  assert.equal(called,false); rm(d);
+});
+test('unsafe test command is named in dry-run and blocks dispatch; the allowed forms pass',async()=>{
+  const d=repo(); let called=false;
+  const workers={codex:async()=>{called=true;return {status:'success'};},deepseek:async()=>{called=true;return {status:'success'};}};
+  for (const bad of ['npx vitest run tests/x.test.ts','./node_modules/.bin/tsc --noEmit','manual smoke check via REST','pnpm build','pnpm --filter @scope/app exec vitest run']) {
+    const t=task({tests:['npm test',bad]});
+    const dry=await route({root:d,task:t,config:baseConfig(),forceExecutor:'deepseek',dryRun:true,workers});
+    assert.equal(dry.dispatch_error,'unsafe_test_command',bad); assert.ok(dry.dispatch_error_detail.endsWith(`: ${bad}`),bad);
+    const r=await route({root:d,task:t,config:baseConfig(),forceExecutor:'deepseek',workers});
+    assert.equal(r.status,'blocked',bad); assert.equal(r.error_code,'unsafe_test_command',bad);
+  }
+  // Same allowlist as templates/config.yml (the test baseConfig narrows it to node/npm/git).
+  const c=baseConfig(); c.execution.allowed_test_executables=['node','npm','pnpm','yarn','bun','git','tsc','vitest','jest'];
+  // Every form the route/ai-router skills recommend must keep passing, or the guidance is wrong.
+  for (const good of ['npm test -- tests/x.test.ts','npm run typecheck','npm run test:run -- src/a.test.ts','bun run test src/x.test.ts','node --test tests/','pnpm run build','pnpm run test -- --filter=@scope/app','node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json']) {
+    const dry=await route({root:d,task:task({tests:[good]}),config:c,forceExecutor:'deepseek',dryRun:true,workers});
+    assert.equal(dry.dispatch_error,undefined,good);
+  }
+  assert.equal(called,false); rm(d);
+});
+test('dry-run lists relevant_files that the worker will not receive (outside allowed_files or forbidden)',async()=>{
+  const d=repo();
+  const t=task({allowed_files:['docs/report.md'],relevant_files:['docs/report.md','src/a.ts','src/b.ts'],forbidden_files:['src/']});
+  const dry=await route({root:d,task:t,config:baseConfig(),forceExecutor:'deepseek',dryRun:true});
+  assert.deepEqual(dry.relevant_not_sent,['src/a.ts','src/b.ts']); assert.equal(dry.dispatch_error,undefined);
+  const ok=await route({root:d,task:task(),config:baseConfig(),forceExecutor:'deepseek',dryRun:true});
+  assert.equal(ok.relevant_not_sent,undefined);
+  const main=await route({root:d,task:{...t,objective:'Alterar autenticação e RLS em produção'},config:baseConfig(),dryRun:true});
+  assert.equal(main.executor,'main'); assert.equal(main.relevant_not_sent,undefined);
+  rm(d);
+});
 test('nested delegation from inside a worker is refused',async()=>{
   const d=repo();
   const r=await withEnv({AI_ROUTER_WORKER:'1'},()=>route({root:d,task:task(),config:baseConfig(),forceExecutor:'codex'}));

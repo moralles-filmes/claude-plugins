@@ -83,8 +83,19 @@ export function pathAllowed(p, allowed=[], forbidden=DEFAULT_FORBIDDEN) {
 /** Preflight for TASK PACKAGE scope: traversal/absolute/Windows-trick paths block the task before any worker runs. */
 export function validateTaskPaths(task={}) {
   for (const key of ['allowed_files','relevant_files']) {
-    for (const p of task?.[key]||[]) normalizeRelative(String(p).replace(/\/+$/,''));
+    for (const p of task?.[key]||[]) {
+      const s=String(p);
+      // These lists are literal paths (only forbidden_files takes patterns); name the glob instead of a bare invalid_path.
+      if (/[*?]/.test(s)) throw fail(`glob_not_supported:${key}:${s}`,'glob_not_supported');
+      normalizeRelative(s.replace(/\/+$/,''));
+    }
   }
+}
+/** relevant_files the workers will not send: only files inside allowed_files and outside the denylist reach the model. */
+export function relevantNotSent(task={},config={}) {
+  const forbidden=forbiddenPatterns(task,config);
+  // Invalid paths are reported by validateTaskPaths, not here.
+  return (task?.relevant_files||[]).map(String).filter(p=>{ try { return !pathAllowed(p,task.allowed_files,forbidden); } catch { return false; } });
 }
 export function splitCommand(input) {
   if (!input || META.test(input)) throw fail('unsafe_test_command','unsafe_test_command');

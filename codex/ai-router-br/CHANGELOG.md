@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.2 — 2026-09-24
+Problemas de escopo do TASK PACKAGE aparecem já no dry-run e com nome.
+
+### Corrigido
+- Curinga (`*`, `?`) em `allowed_files`/`relevant_files` bloqueia o dispatch como `glob_not_supported:<campo>:<caminho>` em vez de um `invalid_path` genérico. As duas listas continuam literais; só `forbidden_files` aceita padrão.
+
+### Adicionado
+- Dry-run de tarefa delegável traz `dispatch_error`/`dispatch_error_detail` quando o dispatch vai ser bloqueado por caminho ou por comando de teste (`unsafe_test_command`), com o caminho ou comando recusado, e `relevant_not_sent` (os `relevant_files` fora de `allowed_files` ou na denylist, que o worker não recebe); o `summary_line` diz os dois. O que vai para a API não mudou.
+- A skill `ai-router` diz quais formas de `tests` passam e quais não (`npx`, atalho `pnpm build`, `pnpm exec`/`--filter`, `./node_modules/.bin/...`, texto livre — verificação manual vai em `acceptance`). A allowlist não foi afrouxada.
+
 ## 1.3.1 — 2026-09-19
 O gate de risco enxerga PT-BR. Espelho da correção de 1.3.0: lá o problema era casar demais, aqui era não casar nada.
 
