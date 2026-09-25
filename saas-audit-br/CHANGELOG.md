@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 — 2026-09-25
+
+- `.saas-audit/` passa a ser adicionada ao `.git/info/exclude` antes da primeira gravação de cada sessão, inclusive ao retomar uma auditoria. O protocolo já dizia que a pasta era estado local, mas nada a escondia do git: `STATE.md` e os outros arquivos apareciam como não versionados e o `ai-router-br` recusava delegar ao Codex/DeepSeek (`dirty_worktree`). A regra é local, idempotente e não mexe no `.gitignore`. Para versionar um relatório a pedido do usuário, use `git add -f`; arquivos já versionados continuam versionados.
+
 ## 1.2.0 — 2026-09-18
 
 - `audit` Fase 6 ganha a **tabela de equivalência de severidades**: os auditores do shield já falam P0–P3, mas o `code-health` reporta BLOCKER/HIGH/MEDIUM/LOW (e `confidence` no dead code) e as skills manuais do shield usam 🚨/🟡/🔵. Sem a tabela cada consolidação convertia de um jeito. Regra: BLOCKER → P1 (P0 só com dado/pagamento exposto), HIGH → P2 (P1 em rota pública/checkout), MEDIUM/LOW → P3, dead code → P3; 🚨 → P0/P1, 🟡 → P2, 🔵 → P3. Divergência entre agentes: prevalece a maior e fica registrada.

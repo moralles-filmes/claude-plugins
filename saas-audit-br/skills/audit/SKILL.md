@@ -49,7 +49,7 @@ Antes de qualquer edição:
 2. `git status --short`;
 3. descubra branch e mudanças preexistentes;
 4. descubra manifests e scripts;
-5. crie/atualize `.saas-audit/STATE.md`;
+5. garanta a regra local de exclusão de `.saas-audit/` (`audit-state-protocol`, seção Git) e crie/atualize `.saas-audit/STATE.md`;
 6. NÃO edite código de produto.
 
 Se `CLAUDE.md`/`AGENTS.md` não existirem, apenas registre; crie-os somente após entender o sistema e apenas se isso fizer sentido no projeto.
