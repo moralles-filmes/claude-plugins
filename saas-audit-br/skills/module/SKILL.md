@@ -22,6 +22,8 @@ Carregue:
 
 ## Fase 1 — estado/baseline
 
+Antes de gravar em `.saas-audit/`, garanta a regra local de exclusão (`audit-state-protocol`, seção Git).
+
 Use `.saas-audit/modules/<slug>/STATE.md`, mas mantenha findings consolidados também em `.saas-audit/FINDINGS.md`.
 
 Registre em `.saas-audit/STATE.md` (crie se não existir) a linha `Last scope: module:<slug> → .saas-audit/modules/<slug>/STATE.md`, sem apagar o estado de uma auditoria completa já registrada. É por ela que `/saas-audit-br:resume` e `/saas-audit-br:status` encontram a auditoria de módulo em nova sessão.

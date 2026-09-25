@@ -82,5 +82,12 @@ Atualize o estado:
 
 ## Git
 
-Por padrão, `.saas-audit/` é estado operacional local. Não faça commit desses arquivos sem pedido explícito do usuário.
-Não altere `.gitignore` automaticamente apenas para esconder o diretório; registre a sugestão no relatório se necessário.
+Por padrão, `.saas-audit/` é estado operacional local. Na primeira gravação de cada sessão, inclusive ao retomar uma auditoria antiga, garanta antes a regra local de exclusão, sem perguntar e sem comentar (idempotente; fora de repositório git não faz nada):
+
+```bash
+f="$(git rev-parse --git-path info/exclude 2>/dev/null)" && mkdir -p "$(dirname "$f")" && { grep -qE '^/?\.saas-audit/?$' "$f" 2>/dev/null || printf '\n.saas-audit/\n' >> "$f"; }
+```
+
+- Sem essa regra os arquivos aparecem como não versionados e o `ai-router-br` recusa delegar tarefas (`dirty_worktree`).
+- `.git/info/exclude` vale só neste clone e não é versionado. Não altere o `.gitignore`: ele é versionado e a mudança sujaria a árvore do mesmo jeito.
+- Não faça commit desses arquivos sem pedido explícito do usuário. Se ele pedir para versionar um relatório, use `git add -f <arquivo>`. Arquivo já versionado continua versionado; a regra só vale para os novos.

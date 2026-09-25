@@ -120,6 +120,8 @@ Estado operacional:
         └── REPORT.md
 ```
 
+A pasta é local. Antes da primeira gravação, o plugin a adiciona ao `.git/info/exclude`, que não é versionado. Assim ela não aparece no `git status` e não impede o `ai-router-br` de delegar tarefas. Para versionar um relatório, use `git add -f <arquivo>`.
+
 Após auto-compaction ou nova sessão:
 
 ```text
