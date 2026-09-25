@@ -105,10 +105,11 @@ test('tracked .env with only browser-public variables does not block; anything e
     ['apps/web/.env','﻿VITE_SUPABASE_URL="https://x.supabase.co"\r\nexport VITE_APP_NAME=Margin\r\n\r\n',false],
     ['.env.production','NEXT_PUBLIC_API_URL=https://x\nDATABASE_URL=https://db\n',true],
     ['.env.production',`VITE_SUPABASE_ANON_KEY=${jwt}\n`,true],
-    ['.env','VITE_OPENAI_API_KEY=abc\n',true],
+    ['.env','VITE_MAPS_API_KEY=abc\n',true],
     ['.env','NEXT_PUBLIC_X=sb_secret_abcdef\n',true],
     ['.env','NEXT_PUBLIC_DB=postgres://user:pass@host/db\n',true],
-    ['.env','VITE_A=1\n-----BEGIN PRIVATE KEY-----\nMIIE\n',true],
+    ['.env','VITE_A=1\n-----BEGIN CERTIFICATE-----\nMIIE\n',true],
+    ['.env','VITE_CERT=-----BEGIN CERTIFICATE-----\n',true],
     ['.env','VITE_A="multi\nline"\n',true],
     ['certs/server.key','VITE_A=1\n',true],
   ]) {
