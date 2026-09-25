@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.3 — 2026-09-25
+Um `.env` versionado só com variáveis públicas do navegador deixa de bloquear a delegação.
+
+### Corrigido
+- O gate `tracked_secret` bloqueava qualquer `.env*` versionado só pelo nome, sem olhar o conteúdo. Caso real: um projeto Next.js versiona de propósito `.env.production` (o `.gitignore` abre exceção) com uma única linha, `NEXT_PUBLIC_API_URL=<url do backend>`. É valor que o próprio site publica, e mesmo assim toda tarefa delegável caía em `bloqueado (tracked_secret)`.
+- Agora um `.env*` versionado passa quando **todas** as linhas são comentário ou `CHAVE=valor` com prefixo público do framework (`NEXT_PUBLIC_`, `VITE_`, `PUBLIC_`, `EXPO_PUBLIC_`, `REACT_APP_`, `NUXT_PUBLIC_`, `GATSBY_`), e nenhum nome nem valor tem cara de segredo: nome com `KEY`/`TOKEN`/`SECRET`/`PASSWORD`/`AUTH`/`DSN`...; valor JWT, `sk-`, `ghp_`, `AKIA`, `AIza`, `sb_secret_`, `-----BEGIN` ou URL com usuário:senha.
+- A checagem lê a versão do HEAD, que é a que a worktree do worker recebe. Qualquer outra coisa continua bloqueando: chave sem prefixo público, linha fora do formato (valor multilinha, bloco PEM), arquivo fora do HEAD ou maior que 16 KB. `credentials.json`, `secrets.*` e `*.pem|key|p12|pfx` não mudaram, e a denylist dos workers também não: eles continuam sem ler nem escrever `.env*`.
+
+### Alterado
+- A skill `route` pede que, em `status: blocked`, o agente diga ao usuário o motivo concreto do campo `error` (ex.: `tracked_secret:.env.production`), não só o código. O `summary_line` segue sem caminhos, de propósito.
+
 ## 1.3.2 — 2026-09-24
 Problemas de escopo do TASK PACKAGE aparecem já no dry-run e com nome, em vez de um `invalid_path` genérico só no dispatch.
 

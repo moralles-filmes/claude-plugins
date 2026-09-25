@@ -98,6 +98,31 @@ test('tracked secret gate: data files block, source code and documentation do no
     rm(d);
   }
 });
+test('tracked .env with only browser-public variables does not block; anything else still does',()=>{
+  const jwt='eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.c2lnbmF0dXJlLXNpZ25hdHVyZQ';
+  for (const [f,content,blocked] of [
+    ['.env.production','# URL do backend\nNEXT_PUBLIC_API_URL=https://backend.vercel.app\n',false],
+    ['apps/web/.env','﻿VITE_SUPABASE_URL="https://x.supabase.co"\r\nexport VITE_APP_NAME=Margin\r\n\r\n',false],
+    ['.env.production','NEXT_PUBLIC_API_URL=https://x\nDATABASE_URL=https://db\n',true],
+    ['.env.production',`VITE_SUPABASE_ANON_KEY=${jwt}\n`,true],
+    ['.env','VITE_OPENAI_API_KEY=abc\n',true],
+    ['.env','NEXT_PUBLIC_X=sb_secret_abcdef\n',true],
+    ['.env','NEXT_PUBLIC_DB=postgres://user:pass@host/db\n',true],
+    ['.env','VITE_A=1\n-----BEGIN PRIVATE KEY-----\nMIIE\n',true],
+    ['.env','VITE_A="multi\nline"\n',true],
+    ['certs/server.key','VITE_A=1\n',true],
+  ]) {
+    const d=repo({'a.txt':'x\n',[f]:content});
+    if (blocked) assert.throws(()=>ensureSafeRepo(d),/tracked_secret/,`${f}: ${content}`); else assert.doesNotThrow(()=>ensureSafeRepo(d),`${f}: ${content}`);
+    rm(d);
+  }
+});
+test('public .env check reads the committed version, not the working tree',()=>{
+  const d=repo({'a.txt':'x\n','.env.production':'SECRET_TOKEN=abc\n'});
+  fs.writeFileSync(path.join(d,'.env.production'),'NEXT_PUBLIC_API_URL=https://x\n');
+  assert.throws(()=>ensureSafeRepo(d,{requireClean:false}),/tracked_secret/);
+  rm(d);
+});
 test('a task that explicitly forbids .env* also covers .env.example',()=>{
   assert.equal(pathAllowed('.env.example',['.env.example'],forbiddenPatterns({forbidden_files:['.env*']},{})),false);
   assert.equal(pathAllowed('.env.example',['.env.example'],forbiddenPatterns({},{security:{forbidden_files:['.env*']}})),true);

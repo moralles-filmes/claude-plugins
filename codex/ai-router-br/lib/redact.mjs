@@ -11,6 +11,12 @@ const SECRET_VALUE_PATTERNS=[
 export function isSecretEnvName(name) {
   return SECRET_NAME.test(name) || /^(OPENAI|ANTHROPIC|DEEPSEEK|CODEX)_(BASE_URL|API_BASE|PROJECT|ORG)/i.test(name);
 }
+/** High-confidence secret formats: known tokens, JWTs, private keys, Supabase secret keys, URLs with user:password. */
+export function secretShapedValue(value) {
+  const s=String(value??'');
+  // search() ignores the /g flag and lastIndex, so the shared global patterns stay stateless here.
+  return CREDENTIAL_URL.test(s) || /sb_secret_|-----BEGIN/.test(s) || SECRET_VALUE_PATTERNS.some(re=>s.search(re)>=0);
+}
 export function sanitizeEnv(env=process.env) {
   const clean={};
   for (const [k,v] of Object.entries(env)) {
