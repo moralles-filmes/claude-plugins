@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.3 — 2026-09-25
+Um `.env` versionado só com variáveis públicas do navegador deixa de bloquear a delegação.
+
+### Corrigido
+- `tracked_secret` bloqueava qualquer `.env*` versionado só pelo nome. Agora o arquivo passa quando todas as linhas são comentário ou `CHAVE=valor` com prefixo público (`NEXT_PUBLIC_`, `VITE_`, `PUBLIC_`, `EXPO_PUBLIC_`, `REACT_APP_`, `NUXT_PUBLIC_`, `GATSBY_`), sem nome nem valor com cara de segredo. A checagem lê a versão do HEAD, e qualquer outra coisa continua bloqueando. A denylist dos workers não mudou.
+
+### Alterado
+- A skill `ai-router` pede que, em `status: blocked`, o agente diga ao usuário o motivo concreto do campo `error`, não só o código.
+
 ## 1.3.2 — 2026-09-24
 Problemas de escopo do TASK PACKAGE aparecem já no dry-run e com nome.
 

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { stripRules, extractAllRules, RULES_BLOCK, RULE_FILES } from './rules.mjs';
+import { isSecretEnvName, secretShapedValue } from './redact.mjs';
 
 export const DEFAULT_FORBIDDEN=['.env','.env.*','**/.env','**/.env.*','**/*.pem','**/*.key','**/*.p12','**/*.pfx','**/credentials.json','**/secrets.*','.git/**','**/.git/**'];
 export const DEFAULT_TEST_EXECUTABLES=['node','npm','pnpm','yarn','bun','git','tsc','vitest','jest'];
@@ -9,6 +10,9 @@ const SAFE_ENV_DOC=/\.env(?:\.[^/]+)*\.(example|sample|template)$/i;
 const SAFE_TRACKED_DOC=/(^|\/)[^/]*\.(example|sample|template)(\.[A-Za-z0-9]+)?$/i;
 // Secret-bearing data files. Source code such as secrets.ts is not data and does not block delegation.
 const SECRET_TRACKED=/(^|\/)(\.env($|\.)|credentials\.json$|secrets?\.(json|ya?ml|toml|ini|env|txt|properties|conf)$|[^/]*\.(pem|p12|pfx|key)$)/i;
+const ENV_FILE=/(^|\/)\.env($|\.)/i;
+// Prefixes the frameworks inline into the browser bundle: these variables are public by definition.
+const PUBLIC_ENV_KEY=/^(NEXT_PUBLIC_|VITE_|PUBLIC_|EXPO_PUBLIC_|REACT_APP_|NUXT_PUBLIC_|GATSBY_)[A-Za-z0-9_]+$/;
 const META=/[;&|`$<>\n\r]/;
 const GIT_READONLY=new Set(['diff','status','log','show','ls-files','rev-parse','grep','blame','describe']);
 // Read-only git subcommands can still write files or spawn programs through these options.
@@ -172,6 +176,24 @@ function routerOnlyRuleChange(root,entry) {
   const head=git(root,['show',`HEAD:${entry.path}`],{allowFailure:true});
   return norm(stripRules(current))===norm(stripRules(head.status===0?head.stdout:''));
 }
+/**
+ * A committed .env file holding only browser-public variables (e.g. NEXT_PUBLIC_API_URL) exposes nothing the
+ * deployed site does not. Any other key, a secret-looking name or value, a line that is not a plain assignment,
+ * or a blob that is missing from HEAD, unreadable or large keeps blocking delegation.
+ */
+function publicEnvFile(root,p) {
+  if(!ENV_FILE.test(p)) return false;
+  // The worker worktree is built from HEAD; ./ keeps the ls-files path relative to root.
+  const r=git(root,['cat-file','blob',`HEAD:./${p}`],{allowFailure:true});
+  if(r.status!==0 || r.stdout.length>16384) return false;
+  for(const raw of r.stdout.split(/\r?\n/)) {
+    const line=raw.trim();
+    if(!line || line.startsWith('#')) continue;
+    const m=line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/);
+    if(!m || !PUBLIC_ENV_KEY.test(m[1]) || isSecretEnvName(m[1]) || secretShapedValue(m[2])) return false;
+  }
+  return true;
+}
 export function ensureSafeRepo(root,{requireClean=true}={}) {
   const inside=git(root,['rev-parse','--is-inside-work-tree'],{allowFailure:true});
   if(inside.status!==0 || inside.stdout.trim()!=='true') throw fail('not_git_repo','not_git_repo');
@@ -179,7 +201,7 @@ export function ensureSafeRepo(root,{requireClean=true}={}) {
   // Router config/state must stay local: a committed .ai-router/ could try to redirect keys, commands or budgets.
   const routerTracked=trackedRouterPath(tracked);
   if(routerTracked) throw fail(`tracked_router_config:${routerTracked}`,'tracked_router_config');
-  const secret=tracked.find(p=>SECRET_TRACKED.test(p) && !SAFE_TRACKED_DOC.test(p));
+  const secret=tracked.find(p=>SECRET_TRACKED.test(p) && !SAFE_TRACKED_DOC.test(p) && !publicEnvFile(root,p));
   if(secret) throw fail(`tracked_secret:${secret}`,'tracked_secret');
   const entries=statusEntries(root);
   // The auto-init rule block in CLAUDE.md/AGENTS.md is router infrastructure; any other edit keeps the repo dirty.
