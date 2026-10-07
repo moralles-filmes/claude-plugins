@@ -20,11 +20,13 @@ export function resolveProjectRoot(root) {
 }
 const same=(a,b)=>path.resolve(a).toLowerCase()===path.resolve(b).toLowerCase();
 const within=(parent,child)=>{ const rel=path.relative(path.resolve(parent).toLowerCase(),path.resolve(child).toLowerCase()); return rel==='' || (!rel.startsWith('..') && !path.isAbsolute(rel)); };
+// git returns symlink-free paths (macOS: /var -> /private/var), so compare real paths on both sides.
+const real=p=>{ try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } };
 function unsafeRoot(root,home) {
-  const r=path.resolve(root);
-  if (same(r,home) || same(r,path.parse(r).root)) return 'home_or_filesystem_root';
+  const r=real(root), h=real(home);
+  if (same(r,h) || same(r,path.parse(r).root)) return 'home_or_filesystem_root';
   // Agent configuration folders hold global CLAUDE.md/AGENTS.md: never treat them as projects.
-  if (within(path.join(home,'.claude'),r) || within(path.join(home,'.codex'),r)) return 'agent_config_dir';
+  if (within(real(path.join(h,'.claude')),r) || within(real(path.join(h,'.codex')),r)) return 'agent_config_dir';
   if (!fs.existsSync(r) || !fs.statSync(r).isDirectory()) return 'not_a_directory';
   // Workers need git, and outside a repository the rule files would land in arbitrary folders.
   if (gitOut(r,['rev-parse','--is-inside-work-tree'])!=='true') return 'not_git_repo';
