@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.4 — 2026-10-07
+O bloco do router deixa de ser duplicado em projetos que seguem o Padrão SaaS.
+
+### Corrigido
+- Num projeto em que o `CLAUDE.md` importa `@AGENTS.md`, o auto-init gravava o bloco nos dois arquivos e o Claude Code o carregava duas vezes. Agora o bloco fica só no `AGENTS.md`; se já existir uma cópia no `CLAUDE.md`, o `sync-rules` a remove.
+- Remover o bloco do `CLAUDE.md` nesse caso conta como mudança de infraestrutura do router e não bloqueia a delegação por `dirty_worktree`. Qualquer outra edição continua bloqueando.
+
 ## 1.3.3 — 2026-09-25
 Um `.env` versionado só com variáveis públicas do navegador deixa de bloquear a delegação.
 

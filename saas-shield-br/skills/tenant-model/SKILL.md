@@ -1,6 +1,6 @@
 ---
 name: tenant-model
-description: Fonte única da verdade sobre o modelo multi-tenant de um projeto. NÃO assume company_id — descreve o "tenancy-profile" (contrato configurável de tenancy), como lê-lo, como detectá-lo quando ausente, os invariantes universais que valem em qualquer arquétipo, e os 4 arquétipos de referência (company_id/JWT, unit/membership, org+unit/RBAC, unit/set). Pré-carregue em todo agente que audita ou gera RLS, migrations ou isolamento de tenant.
+description: Fonte única da verdade sobre o modelo multi-tenant de um projeto. NÃO assume company_id — descreve o "tenancy-profile" (contrato configurável de tenancy), como lê-lo, como detectá-lo quando ausente, os invariantes universais que valem em qualquer arquétipo, e os 5 arquétipos de referência (company_id/JWT, unit/membership, org+unit/RBAC, unit/set, e E — company_id+location_id com permissões por módulo, padrão do plugin padrao-saas). Pré-carregue em todo agente que audita ou gera RLS, migrations ou isolamento de tenant.
 ---
 
 # tenant-model
@@ -52,7 +52,7 @@ Estes não dependem do profile. São o núcleo de segurança:
 1. **`FORCE ROW LEVEL SECURITY`** em toda tabela com dado de tenant (RLS comum não afeta o dono da tabela).
 2. **Deny-by-default**: RLS habilitada e nenhuma policy permissiva `USING (true)` em tabela tenant-scoped.
 3. **Policies com `USING` E `WITH CHECK`** em INSERT/UPDATE (só `USING` deixa inserir linha de outro tenant).
-4. **Resolver `SECURITY DEFINER` + `STABLE` + `SET search_path`** (`= ''` ou `= public`) — sem isso há search_path hijack (CVE-grade) e o planner não faz cache.
+4. **Resolver `SECURITY DEFINER` + `STABLE` + `SET search_path = ''`** com nomes qualificados — sem isso há search_path hijack (CVE-grade) e o planner não faz cache. `= public` ainda aparece em projetos antigos: não é bloqueante, registre como P2 e proponha a troca.
 5. **Cliente nunca escolhe o tenant**: o valor de tenant em escrita vem do servidor (trigger, resolver, ou `.eq(<col>)` server-side), nunca do payload do cliente.
 6. **Super admin é autoridade SEPARADA do RBAC de tenant** — toda policy de tenant precisa de um ramo super-admin explícito OU o super é barrado; a autoridade nunca vem de `user_metadata` (o próprio usuário edita).
 7. **Segredo/`service_role` nunca no bundle do cliente**; env pública só com o prefixo do framework (`client_env_prefix`).
@@ -64,7 +64,7 @@ Estes não dependem do profile. São o núcleo de segurança:
 
 ## Arquétipos de referência
 
-Carregue `reference.md` desta skill para os 4 arquétipos reais completos (com resolver, escrita e exemplo de policy de cada): **A** `company_id`+JWT+force-trigger, **B** `unit_id`+membership-lookup, **C** `organization_id`+`unit_id`+RBAC, **D** `unit_id`+set-returning. Ao gerar código novo em greenfield sem profile, **pergunte** qual arquétipo e crie o profile junto.
+Carregue `reference.md` desta skill para os 5 arquétipos completos (com resolver, escrita e exemplo de policy de cada): **A** `company_id`+JWT+force-trigger, **B** `unit_id`+membership-lookup, **C** `organization_id`+`unit_id`+RBAC, **D** `unit_id`+set-returning, **E** `company_id`+`location_id`+permissões por módulo (padrão do Padrão SaaS). Ao gerar código novo em greenfield sem profile, **proponha o E**, confirme com o usuário e crie o profile junto. Projeto que segue o Padrão SaaS tem as normas em `docs/standards/` (MULTI_TENANCY, ACCESS_CONTROL); use-as como referência dos achados.
 
 ## Nomenclatura reutilizável
 

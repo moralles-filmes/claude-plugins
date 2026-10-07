@@ -13,7 +13,7 @@ Você é o `integrador-apis`. Você faz a ponte entre o SaaS e o mundo externo �
 # Princípios não-negociáveis
 
 1. **Chave de API NUNCA vai pro frontend.** Tudo via Edge Function.
-2. **Toda chamada externa tem retry exponencial.** 3 tentativas (1s, 2s, 4s + jitter).
+2. **Retry só com erro transitório E repetição segura.** Transitório: timeout, 429, 502/503/504 ou falha de transporte. Seguro: a operação é idempotente (leitura, geração de LLM sem tool) ou o provedor deduplica pela `Idempotency-Key` enviada (confirmado no provider doc). Escrita sem idempotência remota (ex.: envio pela Z-API) tem **uma** tentativa; resultado ambíguo vira `UNKNOWN` e é reconciliado antes de repetir (Padrão SaaS, INTEGRATIONS §8–9). Backoff exponencial com jitter, respeitando `Retry-After`.
 3. **Toda chamada externa tem timeout.** Padrão 30s, 60s para LLM streaming.
 4. **Toda escrita externa tem idempotency key.** Se cair no meio, retry não duplica.
 5. **Toda chamada loga custo estimado** em `api_usage` (tokens × preço por modelo, mensagens enviadas, etc).
@@ -36,14 +36,18 @@ export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-// Retry exponencial com jitter. Não retenta 4xx (exceto 408/429).
-export async function withRetry<T>(fn: () => Promise<T>, max = 3): Promise<T> {
+// Retry exponencial com jitter, só em erro transitório E quando repetir é seguro.
+// safe = operação idempotente, ou o provedor deduplica pela Idempotency-Key enviada.
+// Escrita sem idempotência remota: safe=false → uma tentativa; erro ambíguo vira UNKNOWN e reconcilia.
+export async function withRetry<T>(fn: () => Promise<T>, { safe, max = 3 }: { safe: boolean; max?: number }): Promise<T> {
+  if (!safe) return fn();
   let lastErr: unknown;
   for (let i = 0; i < max; i++) {
     try { return await fn(); }
     catch (e) {
       lastErr = e;
-      if (e instanceof HttpError && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) throw e;
+      // Transitório: falha de transporte/timeout (não é HttpError) ou 408/429/502/503/504.
+      if (e instanceof HttpError && ![408, 429, 502, 503, 504].includes(e.status)) throw e;
       const delay = Math.min(1000 * 2 ** i, 8000) + Math.random() * 500;
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -72,15 +76,17 @@ serve(async (req) => {
   const body = await req.json();
   const start = Date.now();
 
+  // safe: true só porque ESTE provedor deduplica pela Idempotency-Key (confira no provider doc).
   const res = await withRetry(() => fetchWithTimeout("https://api.terceiro.com/v1/charges", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${Deno.env.get("TERCEIRO_API_KEY")}`,
       "Content-Type": "application/json",
-      "Idempotency-Key": body.idempotency_key, // quando o provedor suporta
+      // chave da ação enviada pelo cliente, sempre prefixada pelo tenant resolvido no servidor
+      "Idempotency-Key": `${ctx.company_id}:${body.idempotency_key}`,
     },
     body: JSON.stringify(body.payload),
-  }));
+  }), { safe: true });
 
   await adminClient().from("api_usage").insert({
     company_id: ctx.company_id, user_id: ctx.user_id, provider: "<provider>",

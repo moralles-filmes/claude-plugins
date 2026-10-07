@@ -9,9 +9,14 @@
               },
     "plugins":  [
                     {
+                        "name":  "padrao-saas",
+                        "source":  "./padrao-saas",
+                        "description":  "Padrão SaaS v3.1 — fonte normativa dos projetos: arquitetura, segurança, multi-tenancy, controle de acesso (empresas, filiais, permissões por módulo/submódulo), banco, integrações, API pública, ciclo de vida da empresa, testes e operação. Skills aplicar (instala/audita/atualiza o padrão num projeto) e novo-modulo (criação de módulo com DoD). Lido pelos plugins saas-builder-br, saas-shield-br e saas-audit-br."
+                    },
+                    {
                         "name":  "saas-shield-br",
                         "source":  "./saas-shield-br",
-                        "description":  "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 4 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets) e custo de infra (performance fica com o turbo). 10 skills, 6 subagents, 5 commands, hooks. Revisão PT-BR e token budget ficam no pt-br-utils."
+                        "description":  "Suite de skills + agents auditores para SaaS multi-tenant em Supabase + Vercel — convention-driven (lê o tenancy-profile do projeto; Next.js/Vite/monorepo; 5 arquétipos de tenant, não assume company_id). Segurança (RLS, isolamento tenant, identidade/acesso, integrações, secrets) e custo de infra (performance fica com o turbo). 10 skills, 6 subagents, 5 commands, hooks. Revisão PT-BR e token budget ficam no pt-br-utils."
                     },
                     {
                         "name":  "pt-br-utils",

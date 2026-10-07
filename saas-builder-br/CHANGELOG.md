@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.4.0] — 2026-10-07
+
+### Alterado
+- **Padrão SaaS como norma.** O `arquiteto-chefe` pede `/padrao-saas:aplicar` antes da Fase 1 quando o repo não tem `docs/standards/`, cita o padrão relevante em cada delegação e, em projeto novo, propõe o arquétipo **E** (empresa → filial, usuário em várias empresas, permissões por módulo/submódulo/ação, módulos contratados). A spec passa a ter a árvore de módulos → submódulos → ações e os papéis de sistema.
+
+### Corrigido
+- **`integrador-apis`: retry só com erro transitório E repetição segura.** O princípio "toda chamada externa tem retry, 3 tentativas" repetia POST com efeito externo em 5xx mesmo quando o provedor não deduplica, o que pode cobrar ou enviar duas vezes. `withRetry` agora exige `{ safe }`: sem idempotência remota, uma tentativa e resultado ambíguo vira `UNKNOWN`. Só 408/429/502/503/504 e falha de transporte contam como transitórios. A chave de idempotência do exemplo é prefixada pelo tenant resolvido no servidor.
+- **`llm-multi-provider`:** fallback entre providers só em geração sem ferramenta com efeito externo; cada provider da cadeia precisa estar no inventário LGPD. A Edge Function deixa de devolver a mensagem de erro do provider ao cliente (`llm_unavailable`, 502).
+
 ## [1.3.0] — 2026-09-18
 
 ### Corrigido

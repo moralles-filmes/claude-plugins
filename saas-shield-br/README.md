@@ -1,6 +1,6 @@
 # saas-shield-br
 
-> Plugin Claude Code para devs brasileiros que constroem SaaS multi-tenant em Supabase + Vercel. **Convention-driven**: não assume `company_id` — lê o `tenancy-profile` do projeto e funciona em **Next.js App Router, Vite ou monorepo**, com 4 arquétipos de tenant. Foco em **segurança** (RLS, isolamento de tenant, identidade/acesso, integrações, secrets), **custo** e **padrões PT-BR**.
+> Plugin Claude Code para devs brasileiros que constroem SaaS multi-tenant em Supabase + Vercel. **Convention-driven**: não assume `company_id` — lê o `tenancy-profile` do projeto e funciona em **Next.js App Router, Vite ou monorepo**, com 5 arquétipos de tenant. Foco em **segurança** (RLS, isolamento de tenant, identidade/acesso, integrações, secrets), **custo** e **padrões PT-BR**.
 
 ## O modelo convention-driven (v2)
 
@@ -21,7 +21,7 @@ A skill **`tenant-model`** é a fonte única da verdade (spec do profile + detec
 
 | Skill | Categoria | O que faz |
 |---|---|---|
-| `tenant-model` | Fundação | Fonte da verdade de tenancy — spec do `tenancy-profile`, detecção, invariantes universais, 4 arquétipos |
+| `tenant-model` | Fundação | Fonte da verdade de tenancy — spec do `tenancy-profile`, detecção, invariantes universais, 5 arquétipos |
 | `agent-result-contract` | Fundação | Contrato único de saída dos auditores (veredito PASS/FAIL/INCONCLUSIVE, severidade P0–P3, regras de evidência) |
 | `rls-reviewer` | Segurança | Audita RLS parametrizado pelo profile — `FORCE RLS`, `USING`+`WITH CHECK`, `SECURITY DEFINER`+`search_path`, 12 anti-patterns |
 | `multi-tenant-auditor` | Segurança | Isolamento no repo inteiro — tabelas órfãs, fronteira privilegiada, views, leak detection (base do tenant-isolation-auditor) |

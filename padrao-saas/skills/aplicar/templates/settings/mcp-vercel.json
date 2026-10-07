@@ -1,0 +1,30 @@
+{
+  "_comentario": "Mescle em permissions.ask SOMENTE se o MCP da Vercel estiver configurado, trocando 'vercel' pelo nome do servidor. Liste ferramentas de escrita uma a uma: 'mcp__vercel__*' em ask pediria confirmação até para leitura, porque ask prevalece sobre allow.",
+  "ask": [
+    "mcp__vercel__create_deployment",
+    "mcp__vercel__cancel_deployment",
+    "mcp__vercel__request_promote",
+    "mcp__vercel__request_rollback",
+    "mcp__vercel__assign_alias",
+    "mcp__vercel__create_project",
+    "mcp__vercel__update_project",
+    "mcp__vercel__pause_project",
+    "mcp__vercel__unpause_project",
+    "mcp__vercel__create_project_env",
+    "mcp__vercel__edit_project_env",
+    "mcp__vercel__add_project_domain",
+    "mcp__vercel__create_or_transfer_domain",
+    "mcp__vercel__buy_domain",
+    "mcp__vercel__replace_domain_dns_records",
+    "mcp__vercel__update_record",
+    "mcp__vercel__put_firewall_config",
+    "mcp__vercel__update_firewall_config",
+    "mcp__vercel__update_attack_challenge_mode",
+    "mcp__vercel__invalidate_by_tags",
+    "mcp__vercel__start_rolling_release",
+    "mcp__vercel__approve_rolling_release_stage",
+    "mcp__vercel__complete_rolling_release",
+    "mcp__vercel__update_flag",
+    "mcp__vercel__create_flag"
+  ]
+}

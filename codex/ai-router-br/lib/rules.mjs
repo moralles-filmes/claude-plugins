@@ -56,6 +56,26 @@ export function syncRuleFiles(files,{apply=false}={}) {
   const blocks=files.map(f=>extractRules(apply&&fs.existsSync(f)?fs.readFileSync(f,'utf8'):mergeRules(fs.existsSync(f)?fs.readFileSync(f,'utf8'):'')));
   return {results,structural_block_identical:blocks.every(b=>b===RULES_BLOCK)};
 }
-export function syncProjectRules(root,opts) {
-  return syncRuleFiles(RULE_FILES.map(f=>path.join(root,f)),opts);
+// A CLAUDE.md that imports @AGENTS.md (Padrão SaaS) already receives the block through AGENTS.md.
+// Writing it in both files would load it twice in Claude Code, so it lives only in AGENTS.md.
+export const IMPORTS_AGENTS=/^@AGENTS\.md[ \t]*\r?$/m;
+export function projectRuleTargets(root) {
+  const claude=path.join(root,'CLAUDE.md');
+  const imports=fs.existsSync(claude) && IMPORTS_AGENTS.test(fs.readFileSync(claude,'utf8'));
+  return imports?{sync:['AGENTS.md'],strip:['CLAUDE.md']}:{sync:RULE_FILES,strip:[]};
+}
+export function syncProjectRules(root,opts={}) {
+  const {sync,strip}=projectRuleTargets(root);
+  const r=syncRuleFiles(sync.map(f=>path.join(root,f)),opts);
+  for (const f of strip) {
+    const file=path.join(root,f);
+    const before=fs.readFileSync(file,'utf8');
+    if (!pairs(before).length) continue;
+    const eol=before.includes('\r\n')?'\r\n':'\n';
+    let after=stripRules(before);
+    if (before.endsWith('\n') && !after.endsWith('\n')) after+=eol;
+    if (opts.apply) fs.writeFileSync(file,after);
+    r.results.push({file,changed:true,blocks:0,removed:true});
+  }
+  return r;
 }

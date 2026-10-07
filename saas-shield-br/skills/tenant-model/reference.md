@@ -117,6 +117,29 @@ create policy p_wr on public.<tabela> for all
 
 ---
 
+## Arquétipo E — `company_id` + `location_id` + permissões por módulo (Padrão SaaS)
+
+`[company_id] (+ location_id) / set / server-scoped / multi`
+
+Padrão do plugin `padrao-saas` para projeto novo (norma em `docs/standards/ACCESS_CONTROL.md`). Usuário em várias empresas, papel por empresa, concessões diretas, escopo por filial, permissões `<modulo>.<submodulo>.<acao>` com concessão por prefixo, módulos contratados por empresa (`company_modules`) e status `read_only`/`suspended`. A empresa ativa vem da URL; a RLS libera todas as empresas do usuário e a aplicação filtra pela ativa. Tabelas de acesso sem escrita do cliente.
+
+```sql
+-- helpers (fora do schema exposto), avaliados uma vez por consulta dentro de (select …)
+private.allowed_company_ids(p_perm text, p_full_company boolean default false) returns setof uuid
+private.allowed_location_ids(p_perm text) returns setof uuid
+
+-- tabela da empresa
+create policy p_sel on public.<tabela> for select to authenticated
+  using (company_id in (select private.allowed_company_ids('<modulo>.<sub>.ver')));
+-- tabela da filial (FK composta (company_id, location_id) → locations)
+create policy p_sel on public.<tabela> for select to authenticated
+  using (location_id in (select private.allowed_location_ids('<modulo>.<sub>.ver')));
+```
+
+Implementação completa e testes pgTAP: `padrao-saas/skills/aplicar/templates/sql/`. **Ao auditar**: exija FORCE RLS, FK composta com a coluna de tenant (e de filial), coluna de estado sem grant de update nas transições críticas, ausência de grant de escrita de `authenticated` nas tabelas de acesso, e policy de leitura usando a permissão `ver` do submódulo dono da tabela.
+
+---
+
 ## Tabela-resumo (para detecção rápida)
 
 | Sinal no código | Arquétipo provável |
@@ -125,5 +148,6 @@ create policy p_wr on public.<tabela> for all
 | `is_unit_member(uid, unit)` boolean, `unit_members`, `organizations`+`units` | **B** |
 | `has_permission(key, org, unit)`, `roles`/`permissions`/`role_permissions`, escrita por RPC | **C** |
 | `current_unit_ids()` setof, `= any(...)`, helpers `app.*`, `user_profiles.is_super_admin` | **D** |
+| `private.allowed_company_ids(perm)` / `allowed_location_ids(perm)`, `member_permissions`, `company_modules`, `locations` | **E** |
 
 Se o projeto não bate exatamente com nenhum, é um **híbrido** — descreva-o no `tenancy-profile` combinando os campos. O profile é a autoridade; os arquétipos são só atalhos de reconhecimento.
