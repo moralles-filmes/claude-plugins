@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [2.3.0] — 2026-10-07
+
+### Adicionado
+- **Arquétipo E** no `tenant-model` (padrão do plugin `padrao-saas`): `company_id` + `location_id`, resolver por conjunto, permissões `<modulo>.<submodulo>.<acao>`, módulos contratados. Em greenfield sem profile, o E passa a ser a proposta padrão.
+- `rls-reviewer`: FK entre tabelas do mesmo tenant precisa ser composta com a coluna de tenant (checagens de FK ignoram RLS). Nova violação 11.
+
+### Alterado
+- `search_path` de função `security definer`: o esperado é `= ''` com nomes qualificados. `= public` em projeto antigo deixa de passar calado e vira P2.
+
 ## [2.2.0] — 2026-09-18
 
 ### Removido (breaking para quem invocava por nome)

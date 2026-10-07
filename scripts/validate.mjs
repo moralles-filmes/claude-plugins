@@ -531,6 +531,22 @@ if (existsSync(claudeRouter) && existsSync(codexRouter)) {
   if (!drift) ok(`núcleo compartilhado idêntico (${a.size} arquivos), versão ${versions[0]}`)
 }
 
+// ─── 9. padrao-saas: manifest e AGENTS aninhados do kit em dia ───────
+
+step('Validando o kit do padrao-saas (manifest, @AGENTS.md, AGENTS aninhados)')
+
+const padraoKit = join(REPO_ROOT, 'padrao-saas', 'skills', 'aplicar', 'assets', 'repo')
+const padraoCheck = join(padraoKit, 'scripts', 'check-padrao.mjs')
+if (existsSync(padraoCheck)) {
+  try {
+    execSync(`node "${padraoCheck}" --root "${padraoKit}"`, { stdio: 'pipe' })
+    ok('padrao-saas: padrões batem com o manifest; supabase/AGENTS.md em dia')
+  } catch (e) {
+    const out = `${e.stdout ?? ''}${e.stderr ?? ''}`.trim().split('\n').filter(l => l.trim().startsWith('-')).join(' | ')
+    err(`padrao-saas: kit desatualizado — rode check-padrao.mjs --root <kit> --write-manifest --write-nested (${out})`)
+  }
+}
+
 // ─── Resumo ──────────────────────────────────────────────────────────
 
 console.log('')

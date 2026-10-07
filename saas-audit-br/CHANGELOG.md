@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2 — 2026-10-07
+
+- Projetos no Padrão SaaS (`docs/standards/` + `.claude/tenancy-profile.yml`): a baseline trata esses documentos como a norma dos achados, e a Fase 10 grava só no `AGENTS.md` (o `CLAUDE.md` importa `@AGENTS.md`), mandando detalhe de assunto para "Particularidades deste projeto" ou `docs/modules/`. O corpo normativo de `docs/standards/` nunca é editado. Sem o padrão, o comportamento anterior continua.
+
 ## 1.2.1 — 2026-09-25
 
 - `.saas-audit/` passa a ser adicionada ao `.git/info/exclude` antes da primeira gravação de cada sessão, inclusive ao retomar uma auditoria. O protocolo já dizia que a pasta era estado local, mas nada a escondia do git: `STATE.md` e os outros arquivos apareciam como não versionados e o `ai-router-br` recusava delegar ao Codex/DeepSeek (`dirty_worktree`). A regra é local, idempotente e não mexe no `.gitignore`. Para versionar um relatório a pedido do usuário, use `git add -f`; arquivos já versionados continuam versionados.

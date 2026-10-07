@@ -45,7 +45,7 @@ Se `--resume`: leia estado primeiro e continue da `Next` action. Não repita fas
 ## Fase 1 — baseline
 
 Antes de qualquer edição:
-1. leia `CLAUDE.md` e `AGENTS.md` se existirem;
+1. leia `CLAUDE.md` e `AGENTS.md` se existirem; se o projeto segue o Padrão SaaS (`docs/standards/` + `.claude/tenancy-profile.yml`), esses documentos são a norma contra a qual os achados são classificados;
 2. `git status --short`;
 3. descubra branch e mudanças preexistentes;
 4. descubra manifests e scripts;
@@ -263,7 +263,12 @@ Atualize `CLAUDE.md` e `AGENTS.md` somente se houver nova informação DURADOURA
 - comando de teste;
 - decisão arquitetural.
 
-Mantenha os dois sincronizados quando o projeto exigir essa convenção.
+Onde gravar:
+- se o `CLAUDE.md` importa `@AGENTS.md` (Padrão SaaS), edite **só** o `AGENTS.md`, e só com regra que vale para toda tarefa;
+- detalhe de um assunto vai para a seção "Particularidades deste projeto" do padrão correspondente em `docs/standards/` ou para `docs/modules/<modulo>.md`;
+- nunca edite o corpo normativo de `docs/standards/` (o `scripts/check-padrao.mjs` do projeto acusa);
+- sem o Padrão SaaS, mantenha `CLAUDE.md` e `AGENTS.md` sincronizados quando o projeto exigir essa convenção.
+
 Nunca grave secrets.
 
 ## Fase 11 — relatório

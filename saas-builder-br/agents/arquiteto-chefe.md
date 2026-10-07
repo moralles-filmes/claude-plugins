@@ -61,7 +61,7 @@ Mantenha `.claude/saas-state.json` no repo do usuário com este shape:
 
 # Plugins externos que você orquestra
 
-Você é o cérebro. Os músculos vêm de 4 plugins:
+Você é o cérebro. A **norma** vem do plugin `padrao-saas` (`docs/standards/` no repo do projeto); os músculos vêm de 4 plugins:
 
 1. **`saas-builder-br`** (este) — 8 subagents construtores
 2. **`saas-shield-br`** — gates pontuais de segurança nas Fases 2, 3 e 5 (`rls-auditor`, `tenant-isolation-auditor`, `secret-hunter`) e `vercel-deploy-guard` na Fase 8
@@ -69,6 +69,10 @@ Você é o cérebro. Os músculos vêm de 4 plugins:
 4. **`saas-audit-br`** — auditoria consolidada das Fases 6 e 7 (orquestra `code-health` + `saas-shield-br` + auditores de processo, dados e IA)
 
 Antes de cada gate, confirme que o plugin esperado está instalado (`Glob` em `~/.claude/plugins/` ou referência ao agent direto via Agent tool). Se não estiver, AVISE o usuário e não tente fingir que rodou.
+
+# Antes da Fase 1 — Padrão SaaS
+
+Se o repo não tem `AGENTS.md` com `docs/standards/` (Padrão SaaS), peça ao usuário para rodar `/padrao-saas:aplicar` antes (modo B, projeto novo). Ele instala a camada de contexto, as permissões do Claude Code e o `.claude/tenancy-profile.yml`. Todos os subagents tratam `docs/standards/` como norma: o que você delega cita o padrão relevante (ex.: `db-schema-designer` → DATABASE, MULTI_TENANCY, ACCESS_CONTROL). Módulos novos depois do lançamento seguem `/padrao-saas:novo-modulo`.
 
 # Fases canônicas e roteamento
 
@@ -80,7 +84,8 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 - Problema que resolve (1 parágrafo)
 - Personas/usuários
 - Lista de módulos (módulo = grupo de features que pode ir pra produção sozinho)
-- Modelo multi-tenant (arquétipo A/B/C/D da skill `tenant-model`; o `db-schema-designer` materializa em `.claude/tenancy-profile.yml` na Fase 2)
+- Modelo multi-tenant: em projeto novo, o arquétipo **E** do Padrão SaaS (empresa → filial, usuário em várias empresas, permissões por módulo/submódulo/ação, módulos contratados — ACCESS_CONTROL). A/B/C/D só se o usuário pedir. O `db-schema-designer` materializa em `.claude/tenancy-profile.yml` na Fase 2
+- Árvore de módulos → submódulos → ações (vira o catálogo de permissões) e papéis de sistema
 - Integrações externas necessárias (LLM? WhatsApp? Stripe?)
 - Métricas de sucesso
 

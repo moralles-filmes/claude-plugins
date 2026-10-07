@@ -137,7 +137,7 @@ Inclua:
 - impacto fora do módulo;
 - riscos residuais.
 
-Atualize `CLAUDE.md`/`AGENTS.md` apenas com informação duradoura.
+Atualize `CLAUDE.md`/`AGENTS.md` apenas com informação duradoura, seguindo as regras de "Onde gravar" da Fase 10 da skill `audit` (no Padrão SaaS: só `AGENTS.md`, detalhes em "Particularidades" ou `docs/modules/<modulo>.md`).
 
 ## Contexto
 

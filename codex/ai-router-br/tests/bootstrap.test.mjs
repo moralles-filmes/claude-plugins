@@ -49,6 +49,29 @@ test('auto-init on first router use in a brand-new repo, idempotent on second ru
   rm(d);
 });
 
+test('CLAUDE.md that imports @AGENTS.md keeps the block only in AGENTS.md',()=>{
+  const d=repo({'README.md':'# app\n','CLAUDE.md':'@AGENTS.md\n\n## Específico do Claude Code\n','AGENTS.md':'# Contexto\n'});
+  const first=cli(d,'dry-run','--objective','Implementar módulo de fornecedores no backend e frontend em vários arquivos.');
+  assert.equal(first.code,0); assert.equal(first.json.auto_init.status,'created');
+  const claude=fs.readFileSync(path.join(d,'CLAUDE.md'),'utf8'); const agents=fs.readFileSync(path.join(d,'AGENTS.md'),'utf8');
+  assert.equal(count(claude,RULES_START),0); assert.equal(claude,'@AGENTS.md\n\n## Específico do Claude Code\n');
+  assert.equal(count(agents,RULES_START),1); assert.ok(agents.startsWith('# Contexto\n'));
+  assert.equal(ensureSafeRepo(d).dirty,false);
+  rm(d);
+});
+
+test('a block left in a CLAUDE.md that imports @AGENTS.md is removed and does not dirty the repo',()=>{
+  const d=repo({'README.md':'# app\n','CLAUDE.md':`@AGENTS.md\n\n## Claude\n\n${RULES_BLOCK}\n`,'AGENTS.md':`# Contexto\n\n${RULES_BLOCK}\n`});
+  const r=spawnSync(process.execPath,[path.join(pluginRoot,'scripts','sync-rules.mjs'),d,'--apply'],{encoding:'utf8'});
+  assert.equal(r.status,0,r.stderr);
+  assert.equal(fs.readFileSync(path.join(d,'CLAUDE.md'),'utf8'),'@AGENTS.md\n\n## Claude\n');
+  assert.equal(count(fs.readFileSync(path.join(d,'AGENTS.md'),'utf8'),RULES_START),1);
+  assert.equal(ensureSafeRepo(d).dirty,false);
+  fs.appendFileSync(path.join(d,'CLAUDE.md'),'\nOutra regra.\n');
+  assert.throws(()=>ensureSafeRepo(d),/dirty_worktree/);
+  rm(d);
+});
+
 test('auto-init from a subdirectory targets the git top-level',()=>{
   const d=repo({'packages/app/index.js':'x\n'});
   const r=cli(path.join(d,'packages','app'),'classify','--objective','Inventariar arquivos e catalogar referências repetitivas do projeto.');

@@ -1,0 +1,42 @@
+# Contrato de tenancy e acesso do projeto — Padrão SaaS v3.1
+# Fonte única lida pelo Padrão SaaS e pelos plugins saas-shield-br, saas-builder-br e saas-audit-br.
+# Preencha com fatos CONFIRMADOS. Projeto existente declara o arquétipo que já usa (A–D);
+# projeto novo usa o arquétipo E abaixo (ACCESS_CONTROL.md).
+
+archetype: E                      # A | B | C | D | E  (E = company_id + location_id + permissões por módulo)
+framework: next-app               # next-app | vite | monorepo
+tenant:
+  columns: [company_id]
+  resolver: private.user_company_ids
+  resolver_kind: set              # set | membership-lookup | jwt-claim
+  force_trigger: false
+  write_path: server-scoped       # server-scoped | rpc-security-definer | force-trigger
+  active_source: url              # de onde vem a empresa ativa: url | jwt-claim | session
+locations:
+  enabled: true                   # false se o produto não tem filiais
+  column: location_id
+  table: locations
+membership:
+  model: multi                    # o mesmo usuário em várias empresas
+  table: company_members
+  owner_flag: is_owner
+roles:
+  model: permission-strings       # <modulo>.<submodulo>.<acao>
+  catalog_table: permissions
+  modules_table: app_modules
+  grant_tables: [role_permissions, member_permissions]
+  member_roles_table: member_roles
+  helpers:
+    company: private.allowed_company_ids
+    location: private.allowed_location_ids
+    effective: public.my_permissions
+entitlements:
+  table: company_modules          # módulos contratados por empresa
+super_admin:
+  authority: platform_admins      # identidade separada; barrada nas policies de tenant
+  fn: private.is_platform_admin
+secrets_boundary: route-handler   # route-handler | edge-function | rpc
+client_env_prefix: NEXT_PUBLIC_   # NEXT_PUBLIC_ | VITE_
+rls_helper_namespace: private
+display_term: Empresa
+location_display_term: Filial

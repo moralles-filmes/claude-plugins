@@ -171,10 +171,13 @@ function routerOnlyRuleChange(root,entry) {
   const current=fs.readFileSync(abs,'utf8');
   // Only the exact router block counts: any other text between the markers is a real edit.
   const blocks=extractAllRules(current);
-  if(!blocks.length || blocks.some(b=>b!==RULES_BLOCK)) return false;
+  if(blocks.some(b=>b!==RULES_BLOCK)) return false;
   const norm=s=>s.replace(/\r\n/g,'\n').replace(/\s+$/,'');
   const head=git(root,['show',`HEAD:${entry.path}`],{allowFailure:true});
-  return norm(stripRules(current))===norm(stripRules(head.status===0?head.stdout:''));
+  const before=head.status===0?head.stdout:'';
+  // Adding the block, or removing it from a CLAUDE.md that imports @AGENTS.md, is router infrastructure.
+  if(!blocks.length && !extractAllRules(before).length) return false;
+  return norm(stripRules(current))===norm(stripRules(before));
 }
 /**
  * A committed .env file holding only browser-public variables (e.g. NEXT_PUBLIC_API_URL) exposes nothing the

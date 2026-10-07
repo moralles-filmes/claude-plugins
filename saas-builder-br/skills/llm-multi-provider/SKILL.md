@@ -9,7 +9,7 @@ description: Padrão de roteador multi-provider para LLMs (OpenAI, Anthropic, Ge
 
 1. **Frontend nunca chama LLM direto.** Sempre via Edge Function.
 2. **Toda chamada loga uso (`api_usage`)** com custo estimado.
-3. **Fallback entre providers** quando o feature não exige modelo específico.
+3. **Fallback entre providers** quando o feature não exige modelo específico **e a chamada não executa ferramenta com efeito externo** (no meio de tool call, nada de trocar de provider). Cada provider da cadeia é operador de dados pessoais (LGPD): só entra na cadeia o que está no inventário do projeto (Padrão SaaS, SECURITY §9–10). A resposta registra `model_used`.
 4. **Retry exponencial** apenas em 5xx e 429.
 5. **Cache** quando temperatura = 0 e prompt é determinístico.
 6. **Limite por tenant** (rate limit + budget mensal).
@@ -117,7 +117,8 @@ Deno.serve(async (req) => {
     return json(result, 200);
   } catch (e) {
     console.error("[llm]", e);
-    return json({ error: e instanceof Error ? e.message : "unknown" }, 500);
+    // Erro normalizado: a mensagem do provider não vai ao cliente.
+    return json({ error: "llm_unavailable" }, 502);
   }
 });
 

@@ -32,8 +32,9 @@ Onde este documento escreve `TC`/`R`, use os valores do projeto. **Se não resol
    - **Camada 2 — Escrita** conforme `WP`: `force-trigger` → trigger BEFORE INSERT/UPDATE deriva `<TC>` do servidor e o congela no UPDATE; `server-scoped` → escrita só server-side, `WITH CHECK` barra tenant alheio; `rpc-security-definer` → sem DML de cliente, mutação por RPC que valida o tenant. **Verifique o caminho declarado — não exija force-trigger se `WP` ≠ `force-trigger`.**
    - **Camada 3 — RLS**: `ENABLE` **e** `FORCE ROW LEVEL SECURITY`.
    - **Camada 4 — Policies**: SELECT/INSERT/UPDATE/DELETE com `USING`+`WITH CHECK` chamando `R` (nunca reimplementar o resolver inline).
-4. **Para cada função `SECURITY DEFINER`**: `SET search_path` (`''`/`public`), `STABLE`/`IMMUTABLE` quando possível, não retorna dados de outro tenant.
-5. **Rode os 12 anti-patterns** do `reference.md`. Cada match confirmado é bloqueante (P0/P1).
+4. **Para cada função `SECURITY DEFINER`**: `SET search_path = ''` com nomes qualificados (`= public` em projeto antigo é P2), `STABLE`/`IMMUTABLE` quando possível, `revoke execute … from public`, não retorna dados de outro tenant.
+5. **Para cada FK entre tabelas do mesmo tenant**: chave composta `(<TC>, <fk>)` referenciando `unique (<TC>, id)`. Checagens de FK ignoram RLS; FK simples permite referência cruzada entre tenants.
+6. **Rode os 12 anti-patterns** do `reference.md`. Cada match confirmado é bloqueante (P0/P1).
 
 ## Princípio fundamental
 
@@ -53,6 +54,7 @@ Policy que usa `auth.uid()`/subquery direto na tabela de domínio (sem passar po
 8. Caminho de escrita que aceita `<TC>` do cliente (trigger com `auth.uid() IS NULL` passando o valor, RPC sem validar tenant, `.eq` server ausente).
 9. Policy que compara `<TC>` com algo que não vem de `R`.
 10. Tabela sem índice em `<TC>`.
+11. FK nova entre tabelas do mesmo tenant sem chave composta com `<TC>` (P1; em tabela existente, P2 com plano de migração).
 
 ## Saída
 

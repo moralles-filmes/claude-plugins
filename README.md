@@ -4,6 +4,7 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 
 ## Plugins inclusos
 
+- **[padrao-saas](./padrao-saas/)** — Padrão SaaS: a norma dos projetos (arquitetura, segurança, multi-tenancy, controle de acesso por empresa/filial/módulo, banco, integrações, API pública, ciclo de vida da empresa, testes, operação). Skills `aplicar` e `novo-modulo`. Os plugins abaixo executam; este diz o quê e por quê. Comece pelo [LEIA-ME](./padrao-saas/LEIA-ME.md).
 - **[saas-shield-br](./saas-shield-br/)** — Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite (segurança RLS, isolamento tenant, secrets, custo, PT-BR).
 - **[code-health](./code-health/)** — Auditoria e limpeza de código JS/TS/React/Next.js/Vite, Supabase-aware (dead code, botões fantasma, rotas quebradas, mocks, stubs, referências Supabase quebradas).
 - **[saas-builder-br](./saas-builder-br/)** — Orquestrador + subagents para construir SaaS multi-tenant (Vite + React + TS / Supabase / Vercel), com gates pontuais do saas-shield-br e auditoria completa delegada ao saas-audit-br.
@@ -54,6 +55,20 @@ Depois da instalação global não há nada para configurar por projeto: abra o 
 - Os workers precisam de Git: numa pasta sem repositório o router só classifica e não cria nada. `.ai-router/` é sempre local — nunca faça commit dessa pasta.
 - Faça commit do bloco em `CLAUDE.md`/`AGENTS.md` quando quiser; enquanto isso ele não bloqueia os workers (o router reconhece que a mudança é só dele).
 
+## padrao-saas — a norma dos projetos
+
+Num projeto novo ou existente, cole o [prompt inicial](./padrao-saas/PROMPT_INICIAL.md) como primeira mensagem (Claude Code ou Codex). O agente instala a camada de contexto (`AGENTS.md`, `docs/standards/`, `.claude/tenancy-profile.yml`, regras e permissões), faz o diagnóstico e para antes de mexer em código. Para cada módulo novo: `/padrao-saas:novo-modulo`.
+
+| Plugin | Papel em relação ao padrão |
+|---|---|
+| `padrao-saas` | Norma: o que é certo e por quê |
+| `saas-builder-br` | Constrói seguindo a norma |
+| `saas-shield-br` · `saas-audit-br` · `code-health` | Auditam contra a norma |
+| `turbo` | Otimiza sem violar a norma |
+| `ai-router-br` | Distribui o trabalho; workers recebem a norma no pacote da tarefa |
+
+Detalhes, atualização e o que mudou da v3.0: [padrao-saas/LEIA-ME.md](./padrao-saas/LEIA-ME.md).
+
 ## saas-audit-br — orquestrador de auditoria
 
 Orquestrador de auditoria completa de SaaS. **Não substitui** `saas-shield-br` nem `code-health`: coordena os dois e cobre o que nenhum deles cobre.
@@ -89,7 +104,7 @@ Uso:
 ```
 
 - **Dependências**: instale junto `saas-shield-br` e `code-health` (o setup automático já faz isso). Sem eles a auditoria continua, mas a cobertura correspondente fica `INCONCLUSIVE`.
-- **Tenancy**: resolvido pela skill `tenant-model` do saas-shield-br (4 arquétipos) — não assume `company_id`.
+- **Tenancy**: resolvido pela skill `tenant-model` do saas-shield-br (5 arquétipos) — não assume `company_id`.
 - **Estado**: `.saas-audit/` no projeto auditado (`STATE.md`, `ARCHITECTURE.md`, `FINDINGS.md`, `PLAN.md`, `TESTS.md`, `REPORT.md`, `modules/`). Subagents fazem a varredura pesada; o thread principal recebe só resumo, evidência, severidade e próximo passo.
 - **Segurança operacional**: nunca executa automaticamente `git reset --hard`, `git clean -fd`, force push, DROP/purge/restore em produção, rotação de secrets ou alteração massiva irreversível de dados — esses casos viram plano + backup + rollback/roll-forward + passo manual + validação.
 
