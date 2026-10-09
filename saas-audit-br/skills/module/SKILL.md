@@ -1,7 +1,7 @@
 ---
 name: module
-description: 'Auditoria e correção focada em um único módulo de SaaS, reutilizando saas-shield-br e code-health e seguindo o fluxo audit→P0-P3→fix→test sem refatorar o sistema inteiro. Use quando o usuário pedir para auditar um módulo específico, ou quando o ai-router-br retornar `audit_required: true`. Sem modo informado o padrão é `--fix`; se o usuário só pediu para auditar/ver, passe `--audit-only`. Auditoria do sistema inteiro é a skill manual `/saas-audit-br:audit`.'
-argument-hint: "<módulo> [--audit-only | --fix | --full | --resume | --status]"
+description: 'Auditoria e correção focada em um único módulo de SaaS, reutilizando saas-shield-br e code-health e seguindo o fluxo audit→P0-P3→fix→test sem refatorar o sistema inteiro. Use quando o usuário pedir para auditar um módulo específico, ou quando o ai-router-br retornar `audit_required: true`. Sem modo informado o padrão é `--audit-only` (não edita código); passe `--fix`/`--full` só quando o usuário pedir correção explícita ou o chamador mandar o modo (ex.: `ai-router-br`). Auditoria do sistema inteiro é a skill manual `/saas-audit-br:audit`.'
+argument-hint: "<módulo> [--audit-only (padrão) | --fix | --full | --resume | --status]"
 ---
 
 # SaaS Audit — por módulo
@@ -9,11 +9,13 @@ argument-hint: "<módulo> [--audit-only | --fix | --full | --resume | --status]"
 Entrada: `$ARGUMENTS`
 
 O primeiro argumento lógico é o módulo/escopo. Modos:
-- `--audit-only`
-- `--fix` — padrão
-- `--full`
+- `--audit-only` — **padrão**: audita, classifica e planeja; não edita código
+- `--fix` — só explícito: corrige P0/P1/P2 com teste
+- `--full` — só explícito: `--fix` + hardening P3 relevante
 - `--resume`
 - `--status`
+
+Não deduza `--fix` de um pedido vago ("audita o módulo X"). Grave no state do módulo `Mode: audit-only (default)` ou `Mode: fix (explicit)`.
 
 Carregue:
 - `audit-state-protocol`
@@ -36,6 +38,8 @@ Leia:
 - `AGENTS.md`;
 - git status;
 - estado anterior.
+
+Grave `Baseline commit` (`git rev-parse HEAD`) no state do módulo.
 
 Não edite produto ainda.
 
@@ -68,6 +72,7 @@ Exemplos:
 
 ### Condicionais
 - `rls-auditor` — tabelas/migrations do módulo;
+- `migration-validator` — só migrations do módulo não commitadas, alteradas desde a última auditoria concluída (`Baseline commit` de um `.saas-audit/STATE.md` com `Phase: done`) ou as do PR/tarefa; nunca o histórico do módulo inteiro;
 - `integration-reliability-auditor` — webhook/fila/API externa;
 - `secret-hunter` — quando módulo toca integrações/server/client boundary;
 - `supabase-auditor` — se Supabase;
@@ -76,7 +81,13 @@ Exemplos:
 
 Rode os independentes em paralelo.
 
-Forneça a cada agent: mapa do módulo, tenancy-profile resolvido (ou `sem multi-tenant`/`INCONCLUSIVE`) e escopo (arquivos/camadas do módulo).
+Uma verificação, um dono (mesma divisão da Fase 3 da skill `audit`): `rls-auditor` fica com policies/grants do SQL do módulo; `tenant-isolation-auditor` fica com os caminhos de código do módulo (telas, Edge Functions, server code, chamadas `.rpc()`/`.from()`) e não re-revisa policies; `migration-validator` só entra com migration nova/alterada, focado em idempotência, reversibilidade e compatibilidade.
+
+Forneça a cada agent: mapa do módulo, tenancy-profile resolvido (ou `sem multi-tenant`/`INCONCLUSIVE`), escopo (arquivos/camadas do módulo) e o que fica com outro agente.
+
+### Padrão SaaS e portabilidade do módulo
+
+Se o projeto tem `scripts/check-portabilidade.mjs`, rode o bloco da seção "Padrão SaaS e portabilidade" da Fase 4 da skill `audit` (lido em `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`) e considere só os arquivos do módulo: dívida nova → P2, legada → P3 com item "reduzir linha de base deste módulo". Script ausente com `docs/standards/` presente → P3, sugerindo `padrao-saas:aplicar`. Nunca refatore para portabilidade em `--audit-only`; em `--fix`, só a dívida nova do módulo.
 
 ## Fase 4 — classificar
 
@@ -92,7 +103,7 @@ P0/P1/P2/P3, com:
 
 Deduplicate por causa raiz.
 
-Se `--audit-only`, gere relatório e pare.
+Se `--audit-only` (o padrão), gere relatório e pare, dizendo que nada foi corrigido e que a correção é `/saas-audit-br:module <módulo> --fix`.
 
 ## Fase 5 — corrigir
 

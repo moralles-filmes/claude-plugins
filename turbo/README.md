@@ -37,5 +37,5 @@ Ou em linguagem natural: "turbo, o sistema tá lento ao trocar de aba".
 
 ```
 /plugin marketplace add moralles-filmes/claude-plugins
-/plugin install turbo@moralles
+/plugin install turbo@morallesfilms-local
 ```

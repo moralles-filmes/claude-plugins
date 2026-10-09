@@ -9,10 +9,21 @@ Você é um auditor funcional especializado. Seu trabalho é executar 7 detector
 
 # Regras de operação
 
-1. **Você é read-only.** Apenas analisa, nunca edita.
-2. **Output em arquivo.** Escreva o resultado em `/tmp/functional-findings.json` e retorne apenas o caminho + sumário curto.
+1. **Você é read-only.** Apenas analisa, nunca edita código do projeto. A única escrita permitida é em `.code-health/` (Passo 0).
+2. **Output em arquivo.** Escreva o resultado em `.code-health/functional-findings.json` e retorne apenas o caminho + sumário curto.
 3. **Tolerante a falhas.** Detector que falhar é marcado como `skipped`, não aborta o processo.
 4. **Timeout 60s por detector.**
+
+# Passo 0 — diretório de trabalho
+
+Nada de `/tmp` com nome fixo: dois projetos auditados ao mesmo tempo se sobrescrevem. Os arquivos intermediários ficam em `.code-health/work/functional/` e o resultado em `.code-health/functional-findings.json`, na raiz do projeto, fora do git. Variáveis de shell não persistem entre chamadas, então os caminhos abaixo são literais.
+
+```bash
+f="$(git rev-parse --git-path info/exclude 2>/dev/null)" && mkdir -p "$(dirname "$f")" && { grep -qE '^/?\.code-health/?$' "$f" 2>/dev/null || printf '\n.code-health/\n' >> "$f"; }
+rm -rf .code-health/work/functional && mkdir -p .code-health/work/functional
+```
+
+A regra vai para `.git/info/exclude` (local, não versionado): `.code-health/` não aparece no `git status` e o `.gitignore` não é tocado.
 
 # Detectores
 
@@ -40,17 +51,17 @@ Execute em sequência (alguns dependem de outros). Para cada finding, normalize:
 # Empty arrow
 rg -U --multiline -n 'onClick=\{\s*\(\s*\)\s*=>\s*\{\s*\}\s*\}' --glob '*.{tsx,jsx}' \
   --glob '!node_modules' --glob '!.next' \
-  > /tmp/phantom-empty.txt 2>/dev/null
+  > .code-health/work/functional/phantom-empty.txt 2>/dev/null
 
 # Só console
 rg -U --multiline -n 'onClick=\{\s*\(\s*\)\s*=>\s*\{?\s*console\.[a-z]+\([^)]*\)\s*;?\s*\}?\s*\}' \
   --glob '*.{tsx,jsx}' --glob '!node_modules' --glob '!.next' \
-  > /tmp/phantom-console.txt 2>/dev/null
+  > .code-health/work/functional/phantom-console.txt 2>/dev/null
 
 # preventDefault e nada mais
 rg -U --multiline -n 'onClick=\{\s*\(\s*[a-z]\s*\)\s*=>\s*[a-z]\.preventDefault\(\)\s*\}' \
   --glob '*.{tsx,jsx}' \
-  > /tmp/phantom-prevent.txt 2>/dev/null
+  > .code-health/work/functional/phantom-prevent.txt 2>/dev/null
 ```
 
 ### 1b. Botões sem handler
@@ -60,14 +71,14 @@ rg -U --multiline -n 'onClick=\{\s*\(\s*[a-z]\s*\)\s*=>\s*[a-z]\.preventDefault\
 # -P (PCRE2) é obrigatório: o motor padrão do ripgrep não suporta lookahead (?!...)
 rg -P -U --multiline -n '<button(?![^>]*\b(onClick|type=["\']submit["\']|type=["\']reset["\']|disabled)\b)[^>]*>[^<]*[a-zA-ZÀ-ÿ]' \
   --glob '*.{tsx,jsx}' --glob '!node_modules' \
-  > /tmp/phantom-no-handler.txt 2>/dev/null
+  > .code-health/work/functional/phantom-no-handler.txt 2>/dev/null
 ```
 
 ### 1c. Links inertes
 
 ```bash
 rg -n 'href=["\'](#|\?|javascript:void)' --glob '*.{tsx,jsx}' --glob '!node_modules' \
-  > /tmp/phantom-inert.txt 2>/dev/null
+  > .code-health/work/functional/phantom-inert.txt 2>/dev/null
 ```
 
 **Severidade base:** HIGH. Sobe para BLOCKER se o arquivo bater com `app/(checkout|signup|login|payment)/`, `pages/(checkout|signup|login)/`. Desce para LOW se em `*.stories.*` ou `__tests__/`.
@@ -77,27 +88,27 @@ rg -n 'href=["\'](#|\?|javascript:void)' --glob '*.{tsx,jsx}' --glob '!node_modu
 ### 2a. Listar rotas existentes
 
 ```bash
-> /tmp/existing-routes.txt
-> /tmp/existing-api.txt
+> .code-health/work/functional/existing-routes.txt
+> .code-health/work/functional/existing-api.txt
 
 # App Router
 if [ -d app ]; then
   find app -type f -name 'page.*' 2>/dev/null | \
-    sed -e 's|^app||' -e 's|/page\.[a-z]*$||' -e 's|^$|/|' >> /tmp/existing-routes.txt
+    sed -e 's|^app||' -e 's|/page\.[a-z]*$||' -e 's|^$|/|' >> .code-health/work/functional/existing-routes.txt
   find app -type f -name 'route.*' 2>/dev/null | \
-    sed -e 's|^app||' -e 's|/route\.[a-z]*$||' >> /tmp/existing-api.txt
+    sed -e 's|^app||' -e 's|/route\.[a-z]*$||' >> .code-health/work/functional/existing-api.txt
 fi
 
 # Pages Router
 if [ -d pages ]; then
   find pages -type f -not -path '*/api/*' \( -name '*.tsx' -o -name '*.ts' -o -name '*.jsx' -o -name '*.js' \) 2>/dev/null | \
-    sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' >> /tmp/existing-routes.txt
+    sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' >> .code-health/work/functional/existing-routes.txt
   find pages/api -type f \( -name '*.ts' -o -name '*.js' \) 2>/dev/null | \
-    sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' >> /tmp/existing-api.txt
+    sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' >> .code-health/work/functional/existing-api.txt
 fi
 
-sort -u /tmp/existing-routes.txt -o /tmp/existing-routes.txt
-sort -u /tmp/existing-api.txt -o /tmp/existing-api.txt
+sort -u .code-health/work/functional/existing-routes.txt -o .code-health/work/functional/existing-routes.txt
+sort -u .code-health/work/functional/existing-api.txt -o .code-health/work/functional/existing-api.txt
 ```
 
 ### 2b. Listar rotas usadas
@@ -108,18 +119,18 @@ rg -n -o '(href|to|router\.push|router\.replace|redirect|navigate)\s*[=(]\s*["\'
   --glob '*.{tsx,jsx,ts,js}' --glob '!node_modules' --glob '!.next' 2>/dev/null \
   | awk -F: '{print $1":"$2"\t"$0}' \
   | sed -E 's|.*"(/[^"]+)".*|&|; s|.*'"'"'(/[^'"'"']+)'"'"'.*|&|' \
-  > /tmp/used-routes-raw.txt
+  > .code-health/work/functional/used-routes-raw.txt
 
 # Fetch para /api/
 rg -n -o "fetch\\s*\\(\\s*[\"'](/api/[^\"']+)[\"']" \
   --glob '*.{tsx,jsx,ts,js}' --glob '!node_modules' 2>/dev/null \
-  > /tmp/used-api.txt
+  > .code-health/work/functional/used-api.txt
 ```
 
 ### 2c. Cruzar e identificar broken
 
 ```bash
-> /tmp/broken-routes.txt
+> .code-health/work/functional/broken-routes.txt
 while IFS= read -r line; do
   file=$(echo "$line" | cut -d: -f1)
   lineno=$(echo "$line" | cut -d: -f2)
@@ -127,7 +138,7 @@ while IFS= read -r line; do
   [ -z "$route" ] && continue
 
   # Match exato
-  if grep -qxF "$route" /tmp/existing-routes.txt; then continue; fi
+  if grep -qxF "$route" .code-health/work/functional/existing-routes.txt; then continue; fi
 
   # Match dynamic [param]
   match_found=false
@@ -136,7 +147,7 @@ while IFS= read -r line; do
     if echo "$route" | grep -qE "^${pattern}$"; then
       match_found=true; break
     fi
-  done < /tmp/existing-routes.txt
+  done < .code-health/work/functional/existing-routes.txt
   $match_found && continue
 
   # Ignorar URLs externas, anchors
@@ -144,8 +155,8 @@ while IFS= read -r line; do
     /\#*|/?\?*) continue ;;
   esac
 
-  echo "$file:$lineno|$route" >> /tmp/broken-routes.txt
-done < /tmp/used-routes-raw.txt
+  echo "$file:$lineno|$route" >> .code-health/work/functional/broken-routes.txt
+done < .code-health/work/functional/used-routes-raw.txt
 ```
 
 **Severidade base:** BLOCKER (qualquer link que dá 404 quebra UX).
@@ -157,35 +168,35 @@ done < /tmp/used-routes-raw.txt
 rg -i -n 'lorem\s+ipsum|dolor\s+sit\s+amet|consectetur\s+adipiscing' \
   --glob '*.{ts,tsx,js,jsx,md,mdx}' --glob '!node_modules' --glob '!.next' \
   --glob '!__tests__/**' --glob '!*.test.*' --glob '!*.spec.*' \
-  > /tmp/mock-lorem.txt 2>/dev/null
+  > .code-health/work/functional/mock-lorem.txt 2>/dev/null
 
 # Emails fake
 rg -i -n "[a-z0-9._-]+@(example|test|fake|mock|sample|dummy|local|invalid|placeholder)\.(com|org|net|io)" \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
   --glob '!__tests__/**' --glob '!*.test.*' --glob '!*.spec.*' --glob '!__mocks__/**' \
-  > /tmp/mock-emails.txt 2>/dev/null
+  > .code-health/work/functional/mock-emails.txt 2>/dev/null
 
 # Constantes nomeadas como mock
 rg -n '^\s*(const|let|var|export\s+const)\s+(MOCK|FAKE|SAMPLE|DUMMY|TEST_DATA|FIXTURE|PLACEHOLDER)_?' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
   --glob '!__tests__/**' --glob '!*.test.*' --glob '!*.spec.*' --glob '!__mocks__/**' --glob '!mocks/**' \
-  > /tmp/mock-consts.txt 2>/dev/null
+  > .code-health/work/functional/mock-consts.txt 2>/dev/null
 
 # John/Jane Doe
 rg -i -n '\b(john\s+doe|jane\s+doe|test\s+user|sample\s+user|fake\s+name|user\s+\d+)\b' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
   --glob '!__tests__/**' --glob '!*.test.*' \
-  > /tmp/mock-names.txt 2>/dev/null
+  > .code-health/work/functional/mock-names.txt 2>/dev/null
 
 # Imagens placeholder
 rg -n '(via\.placeholder\.com|placehold\.it|placehold\.co|placekitten\.com|picsum\.photos|loremflickr\.com)' \
   --glob '*.{ts,tsx,js,jsx,html,md,mdx}' --glob '!node_modules' \
-  > /tmp/mock-images.txt 2>/dev/null
+  > .code-health/work/functional/mock-images.txt 2>/dev/null
 
 # Arrays com IDs sequenciais (sinal de mock)
 rg -U --multiline -n '\[\s*\{\s*id:\s*1[^}]*\}\s*,\s*\{\s*id:\s*2[^}]*\}\s*,\s*\{\s*id:\s*3' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!__tests__' --glob '!*.test.*' \
-  > /tmp/mock-sequential.txt 2>/dev/null
+  > .code-health/work/functional/mock-sequential.txt 2>/dev/null
 ```
 
 **Severidade base:** HIGH. Sobe para BLOCKER se em `app/page.tsx` (homepage) ou rotas de checkout. Desce para LOW se em `__tests__/`, `__mocks__/`, `mocks/`, `*.stories.*`.
@@ -197,28 +208,28 @@ rg -U --multiline -n '\[\s*\{\s*id:\s*1[^}]*\}\s*,\s*\{\s*id:\s*2[^}]*\}\s*,\s*\
 rg -U --multiline -n 'async\s+(function\s+\w+|\([^)]*\)\s*=>)[^{]*\{\s*(//[^\n]*\n)*\s*return\s+(undefined|null|Promise\.resolve\(\)|\{\s*\}|\[\s*\])\s*;?\s*\}' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
   --glob '!__tests__/**' --glob '!*.test.*' --glob '!__mocks__/**' \
-  > /tmp/stub-async.txt 2>/dev/null
+  > .code-health/work/functional/stub-async.txt 2>/dev/null
 
 # Throw not implemented
 rg -i -n "throw\s+new\s+(Error|TypeError|ReferenceError)\s*\(\s*['\"]?(not\s+implemented|nyi|todo|fixme|coming\s+soon|wip|placeholder)" \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
-  > /tmp/stub-throw.txt 2>/dev/null
+  > .code-health/work/functional/stub-throw.txt 2>/dev/null
 
 # Função com corpo só comentário
 rg -U --multiline -n 'function\s+\w+\s*\([^)]*\)[^{]*\{\s*(//[^\n]*\n\s*)+\}' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
-  > /tmp/stub-empty-body.txt 2>/dev/null
+  > .code-health/work/functional/stub-empty-body.txt 2>/dev/null
 ```
 
 Para cada stub encontrado, **busque cross-reference** das chamadas:
 
 ```bash
 # Para cada nome de função stub, verificar se é chamada em código não-test
-for stub_name in $(awk -F: '{print $1}' /tmp/stub-async.txt | grep -oE 'function\s+\w+' | awk '{print $2}'); do
+for stub_name in $(awk -F: '{print $1}' .code-health/work/functional/stub-async.txt | grep -oE 'function\s+\w+' | awk '{print $2}'); do
   callers=$(rg -l "${stub_name}\\s*\\(" --glob '*.{ts,tsx,js,jsx}' \
     --glob '!node_modules' --glob '!__tests__/**' --glob '!*.test.*' 2>/dev/null | wc -l)
   echo "$stub_name|callers:$callers"
-done > /tmp/stub-cross.txt
+done > .code-health/work/functional/stub-cross.txt
 ```
 
 **Severidade:**
@@ -231,22 +242,22 @@ done > /tmp/stub-cross.txt
 # catch vazio
 rg -U --multiline -n 'catch\s*(\([^)]*\))?\s*\{\s*\}' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' --glob '!.next' \
-  > /tmp/empty-catch.txt 2>/dev/null
+  > .code-health/work/functional/empty-catch.txt 2>/dev/null
 
 # .catch promise vazio
 rg -n "\\.catch\\s*\\(\\s*\\(\\s*[a-z_]?\\s*\\)\\s*=>\\s*\\{?\\s*\\}?\\s*\\)" \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
-  > /tmp/empty-catch-promise.txt 2>/dev/null
+  > .code-health/work/functional/empty-catch-promise.txt 2>/dev/null
 
 # .catch(() => null)
 rg -n "\\.catch\\s*\\(\\s*\\(\\s*\\)\\s*=>\\s*(null|undefined|''|\"\")\\s*\\)" \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
-  > /tmp/empty-catch-null.txt 2>/dev/null
+  > .code-health/work/functional/empty-catch-null.txt 2>/dev/null
 
 # onError vazio
 rg -U --multiline -n 'onError(:\s*|=\{\s*)\(\s*\)\s*=>\s*\{?\s*\}?\s*\}?' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
-  > /tmp/empty-onerror.txt 2>/dev/null
+  > .code-health/work/functional/empty-onerror.txt 2>/dev/null
 ```
 
 **Severidade base:** HIGH. BLOCKER se em código que escreve no DB ou processa pagamento.
@@ -256,18 +267,19 @@ rg -U --multiline -n 'onError(:\s*|=\{\s*)\(\s*\)\s*=>\s*\{?\s*\}?\s*\}?' \
 ```bash
 rg -n '(TODO|FIXME|XXX|HACK|@deprecated|@todo)\b' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' --glob '!.next' \
-  > /tmp/todos-raw.txt 2>/dev/null
+  > .code-health/work/functional/todos-raw.txt 2>/dev/null
 
-> /tmp/todos.txt
+> .code-health/work/functional/todos.txt
 while IFS=: read -r file line rest; do
-  blame_date=$(git blame -L "${line},${line}" --date=short -- "$file" 2>/dev/null | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
-  if [ -n "$blame_date" ]; then
-    age_days=$(( ( $(date +%s) - $(date -d "$blame_date" +%s 2>/dev/null || echo 0) ) / 86400 ))
-    echo "$file:$line|age:${age_days}|$rest" >> /tmp/todos.txt
+  # author-time vem em epoch: evita `date -d`, que só existe no GNU date
+  blame_ts=$(git blame -L "${line},${line}" --porcelain -- "$file" 2>/dev/null | grep '^author-time ' | head -1 | cut -d' ' -f2)
+  if [ -n "$blame_ts" ]; then
+    age_days=$(( ( $(date +%s) - blame_ts ) / 86400 ))
+    echo "$file:$line|age:${age_days}|$rest" >> .code-health/work/functional/todos.txt
   else
-    echo "$file:$line|age:?|$rest" >> /tmp/todos.txt
+    echo "$file:$line|age:?|$rest" >> .code-health/work/functional/todos.txt
   fi
-done < /tmp/todos-raw.txt
+done < .code-health/work/functional/todos-raw.txt
 ```
 
 **Severidade:**
@@ -281,24 +293,24 @@ done < /tmp/todos-raw.txt
 # /* */ grandes
 rg -U --multiline -n '/\*[\s\S]{300,}?\*/' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' --glob '!.next' \
-  > /tmp/big-block-comments.txt 2>/dev/null
+  > .code-health/work/functional/big-block-comments.txt 2>/dev/null
 
 # // sequenciais
 rg -U --multiline -n '(^\s*//[^\n]*\n){5,}' \
   --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' --glob '!.next' \
-  > /tmp/seq-line-comments.txt 2>/dev/null
+  > .code-health/work/functional/seq-line-comments.txt 2>/dev/null
 
 # JSX comentado
 rg -U --multiline -n '\{/\*\s*<[A-Z][\s\S]*?\*/\}' \
   --glob '*.{tsx,jsx}' --glob '!node_modules' \
-  > /tmp/jsx-commented.txt 2>/dev/null
+  > .code-health/work/functional/jsx-commented.txt 2>/dev/null
 ```
 
 **Severidade base:** MEDIUM.
 
 # Output final
 
-Mescle tudo em `/tmp/functional-findings.json`:
+Mescle tudo em `.code-health/functional-findings.json`:
 
 ```json
 {
@@ -329,11 +341,11 @@ Resposta para o agente principal (curta):
 
 ```
 Audit completed.
-Output: /tmp/functional-findings.json
+Output: .code-health/functional-findings.json
 Verdict: NOT_PRODUCTION_READY (12 blockers)
 Summary: 234 findings — 12 BLOCKER, 23 HIGH, 34 MEDIUM, 56 LOW
 Top blockers: phantom buttons (8), broken routes (5)
-Read /tmp/functional-findings.json for full data.
+Read .code-health/functional-findings.json for full data.
 ```
 
 NÃO retorne os findings inline.

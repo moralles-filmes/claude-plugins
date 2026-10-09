@@ -50,7 +50,7 @@ O que procurar, em ordem:
 
 ## Passo 4: RLS multi-tenant
 
-RLS mal escrita é o assassino silencioso de multi-tenant. Os exemplos usam `company_id`/`get_current_company_id()` (arquétipo A do `.claude/tenancy-profile.yml` do saas-shield-br); troque pela coluna e pelo resolver do projeto (`unit_id`/`is_unit_member()`, etc.). As três armadilhas, em ordem de impacto:
+RLS mal escrita é o assassino silencioso de multi-tenant. Os exemplos usam `company_id`/`get_current_company_id()` (arquétipo A do `.claude/tenancy-profile.yml` do saas-shield-br); troque pela coluna e pelo resolver do projeto (`unit_id`/`is_unit_member()`, etc.). Em projeto no Padrão SaaS (`docs/standards/`), o resolver são os helpers `private.*` — `private.current_user_id()`, `private.allowed_company_ids('<permissão>')` — e a norma (DATABASE §5, MULTI_TENANCY §4) vale sobre qualquer otimização daqui. As três armadilhas, em ordem de impacto:
 
 **1. Função avaliada por linha.** Policy como `USING (company_id = get_current_company_id())` pode ser executada uma vez POR LINHA examinada. A correção é embrulhar em subselect para virar InitPlan (avaliada uma vez):
 
@@ -60,13 +60,18 @@ USING (company_id = get_current_company_id())
                                           USING (company_id = (SELECT get_current_company_id()))
 ```
 
-O mesmo vale para `auth.uid()` e `auth.jwt()`. Diferenças de 100x+ são normais. Confirmar no EXPLAIN: a função deve aparecer como `InitPlan`, não dentro do Filter.
+O mesmo vale para a identidade do usuário. No Padrão SaaS, a policy chama `(select private.current_user_id())`, nunca `auth.uid()` direto: só o adapter de identidade conhece o provedor, e o `(select …)` continua sendo o que faz virar InitPlan. Fora do padrão, `(select auth.uid())`. Diferenças de 100x+ são normais. Confirmar no EXPLAIN: a função deve aparecer como `InitPlan`, não dentro do Filter.
+
+```sql
+-- Padrão SaaS: helper de permissão avaliado uma vez por consulta
+USING (company_id IN (SELECT private.allowed_company_ids('financeiro.contas_pagar.ver')))
+```
 
 **2. Coluna da policy sem índice.** Toda coluna usada em policy (`company_id`, `user_id`) precisa de índice — a policy vira um WHERE invisível em TODAS as queries da tabela.
 
-**3. Marcar funções corretamente.** Funções usadas em policies devem ser `STABLE` (não `VOLATILE`, o default) para o planner poder otimizá-las; `SECURITY DEFINER` quando precisam ler tabela de membership sem recursão de RLS — e nesse caso, sempre com `SET search_path = ''` fixado.
+**3. Marcar funções corretamente.** Funções usadas em policies devem ser `STABLE` (não `VOLATILE`, o default) para o planner poder otimizá-las; `SECURITY DEFINER` quando precisam ler tabela de membership sem recursão de RLS — e nesse caso, sempre com `SET search_path = ''` fixado e fora do schema exposto (`private`).
 
-Checklist extra: policies separadas por operação (SELECT/INSERT/UPDATE/DELETE) em vez de uma `FOR ALL` complexa; evitar join dentro da policy quando um claim no JWT resolve.
+Checklist extra: policies separadas por operação (SELECT/INSERT/UPDATE/DELETE) em vez de uma `FOR ALL` complexa; nada de join solto dentro da policy — a checagem de membership/permissão fica num helper `STABLE` `SECURITY DEFINER` chamado dentro de `(SELECT …)`, que o Postgres avalia uma vez por consulta, e as colunas que esse helper lê têm índice (ex.: `memberships (user_id, company_id)`, permissões por papel). **Não troque a leitura do banco por claim no JWT para ganhar velocidade:** permissões e empresa ativa são lidas do banco a cada requisição, para que remover um acesso valha na requisição seguinte. Claim fica velha até o refresh do token, e o mesmo usuário opera várias empresas (ACCESS_CONTROL §6, MULTI_TENANCY §2). O cache permitido é dentro da consulta (InitPlan), não entre requisições.
 
 ## Passo 5: padrões de acesso (onde APIs morrem)
 
@@ -78,7 +83,7 @@ Checklist extra: policies separadas por operação (SELECT/INSERT/UPDATE/DELETE)
 
 ## Passo 6: pooling e cache
 
-- Serverless (Vercel) + Postgres exige pooler: usar a connection string do **transaction mode** (porta 6432 no Supavisor) para functions; session mode só para quem precisa de prepared statements/features de sessão. Sintoma de pooling errado: erros de "too many connections" ou latência de connect alta em cold start.
+- Serverless (Vercel) + Postgres exige pooler: usar a connection string do **transaction mode** (porta 6543 no Supavisor) para functions; session mode (porta 5432 no host do pooler) só para quem precisa de prepared statements/features de sessão. Em transaction mode, desligue prepared statements no driver (ex.: `prepare: false` no postgres.js, `?pgbouncer=true` no Prisma). Sintoma de pooling errado: erros de "too many connections" ou latência de connect alta em cold start.
 - Camadas de cache, da mais barata para a mais cara de invalidar: CDN/edge para dados públicos → cache HTTP (`Cache-Control`, `stale-while-revalidate`) → cache de aplicação (TanStack Query no front, `unstable_cache`/revalidate no Next) → view materializada para agregações pesadas (com estratégia de refresh definida).
 - Desnormalização deliberada (coluna computada mantida por trigger) quando leitura domina e o join é comprovadamente o custo — só com número na mão.
 

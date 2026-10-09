@@ -57,6 +57,8 @@ rg -l '<form' --glob '*.{tsx,jsx}' --glob '!node_modules'
 
 Anote: quantas rotas, quantos endpoints, quantos forms, quantos componentes interativos. Esse é seu universo de auditoria.
 
+**Portabilidade.** Se o projeto tem `scripts/check-portabilidade.mjs` (Padrão SaaS), rode-o como no passo 3 de `/code-health:health` e inclua o resumo no relatório. Não reimplemente a checagem nem refatore para portabilidade aqui.
+
 ### Fase 2 — Varredura paralela (use o subagent functional-auditor)
 
 Delegue ao subagent `functional-auditor`. Ele roda 7 detectores em paralelo. Cada detector busca um padrão específico e retorna findings com `file:line` + categoria + severidade.
@@ -282,24 +284,26 @@ rg -n 'TODO|FIXME|XXX|HACK|@deprecated|@todo' --glob '*.{ts,tsx,js,jsx}' --glob 
 
 ## Detector de rotas quebradas (algoritmo)
 
+> **Arquivos intermediários:** os exemplos gravam em `.code-health/work/functional-audit/`, na raiz do projeto, nunca em `/tmp` com nome fixo (dois projetos auditados ao mesmo tempo se sobrescrevem). Antes, rode o Passo 0 dos agentes do plugin: `.code-health/` entra no `.git/info/exclude` e o diretório é criado com `mkdir -p .code-health/work/functional-audit`.
+
 ```bash
 # 1. Listar todas as rotas existentes (App Router)
-find app -type f -name 'page.*' | sed 's|app||; s|/page\.[a-z]*$||; s|^$|/|' > /tmp/existing-routes.txt
+find app -type f -name 'page.*' | sed 's|app||; s|/page\.[a-z]*$||; s|^$|/|' > .code-health/work/functional-audit/existing-routes.txt
 
 # 2. Listar todos os hrefs e router.push de strings literais
 rg -n -o '(href|router\.push|router\.replace)\s*[=(]\s*["\']/([^"\']+)["\']' \
   --glob '*.{tsx,jsx,ts,js}' --glob '!node_modules' | \
-  awk -F'"' '{print $2}' | grep '^/' | sort -u > /tmp/used-routes.txt
+  awk -F'"' '{print $2}' | grep '^/' | sort -u > .code-health/work/functional-audit/used-routes.txt
 
 # 3. Para cada used-route, checar se existe (ou bate com dynamic [param])
 while read route; do
   base=$(echo "$route" | sed 's|/[^/]*$||')
   # Procurar match exato ou via [param]
-  if ! grep -qF "$route" /tmp/existing-routes.txt && \
-     ! grep -qE "${base}/\[[^\]]+\]" /tmp/existing-routes.txt; then
+  if ! grep -qF "$route" .code-health/work/functional-audit/existing-routes.txt && \
+     ! grep -qE "${base}/\[[^\]]+\]" .code-health/work/functional-audit/existing-routes.txt; then
     echo "BROKEN: $route"
   fi
-done < /tmp/used-routes.txt
+done < .code-health/work/functional-audit/used-routes.txt
 ```
 
 Para Pages Router, troque `app/` por `pages/` e adapte.

@@ -31,7 +31,7 @@ Correções por padrão de causa:
 
 Se trocar de aba refaz todos os fetches, o problema não é velocidade — é ausência de camada de server state.
 
-- Instale/configure TanStack Query (ou use o cache do RSC no Next). O ponto crítico é `staleTime`: o default é 0, ou seja, TUDO é considerado velho e refetcha ao remontar. Configure `staleTime` por tipo de dado (listas de referência: minutos; dados vivos: segundos + realtime).
+- Instale/configure TanStack Query (ou use o cache do RSC no Next). O ponto crítico é `staleTime`: o default é 0, ou seja, TUDO é considerado velho e refetcha ao remontar. Configure `staleTime` por tipo de dado (listas de referência: minutos; dados vivos: segundos + realtime). Em multi-tenant, a chave da query começa pela empresa ativa (`['<company_id>', ...]`) e trocar de empresa ou sair descarta o cache privado; permissões, saldo e estoque não ganham `staleTime` longo.
 - Prefetch na intenção: `queryClient.prefetchQuery` no hover/focus do link da aba torna a navegação instantânea de verdade.
 - No Next App Router: `<Link prefetch>` já ajuda para a rota; o dado é com a camada de query.
 

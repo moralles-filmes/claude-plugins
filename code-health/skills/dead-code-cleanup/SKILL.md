@@ -75,9 +75,11 @@ Delegue a varredura pesada para o subagent `dead-code-scanner`. Ele roda 6 passe
 
 **Como invocar o knip (preferido sobre ts-prune — ts-prune está em manutenção):**
 
+> **Arquivos intermediários:** os exemplos gravam em `.code-health/work/dead-code-cleanup/`, na raiz do projeto, nunca em `/tmp` com nome fixo (dois projetos auditados ao mesmo tempo se sobrescrevem). Antes, rode o Passo 0 dos agentes do plugin: `.code-health/` entra no `.git/info/exclude` e o diretório é criado com `mkdir -p .code-health/work/dead-code-cleanup`.
+
 ```bash
 # Detecta tudo de uma vez sem precisar de config
-npx knip --no-progress --reporter json > /tmp/knip-report.json 2>&1 || true
+npx knip --no-progress --reporter json > .code-health/work/dead-code-cleanup/knip-report.json 2>&1 || true
 
 # Versão mais conservadora (só arquivos, não exports)
 npx knip --no-progress --include files --reporter compact

@@ -25,10 +25,12 @@ Shape recomendado:
 
 ```markdown
 # SaaS Audit State
-Mode: audit-only | fix | full
+Mode: audit-only (default) | fix (explicit) | full (explicit)
 Scope: full | module:<nome>
 Last scope: full | module:<slug> → .saas-audit/modules/<slug>/STATE.md
 Phase: baseline | discovery | audit | classify | plan | fix-p0 | fix-p1 | fix-p2 | hardening | regression | done
+Baseline commit: <sha do HEAD no início>
+Previous audit commit: <sha da última auditoria concluída | none>
 Started: <ISO>
 Updated: <ISO>
 
@@ -38,6 +40,10 @@ Updated: <ISO>
 ## Plugins disponíveis
 - saas-shield-br: yes/no
 - code-health: yes/no
+
+## Padrão SaaS
+- check-padrao: ok | N erros | ausente | N/A
+- portabilidade: total X (nova Y, legada Z), linha de base presente/ausente | ausente | N/A
 
 ## Tenant profile
 - resolved: yes/no

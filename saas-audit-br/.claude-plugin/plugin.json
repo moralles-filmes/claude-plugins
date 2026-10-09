@@ -1,7 +1,7 @@
 {
   "name": "saas-audit-br",
-  "version": "1.2.2",
-  "description": "Orquestrador de auditoria ponta a ponta para SaaS: reconhece arquitetura, distribui análise entre subagents, reutiliza saas-shield-br e code-health, cobre riscos de processo/IA/dados não cobertos pelos plugins especialistas, classifica P0-P3, corrige em fases com testes e mantém estado em disco para sobreviver a compactação e novas sessões. Inclui auditoria completa e por módulo.",
+  "version": "1.3.0",
+  "description": "Orquestrador de auditoria ponta a ponta para SaaS: reconhece arquitetura, distribui análise entre subagents, reutiliza saas-shield-br e code-health, cobre riscos de processo/IA/dados não cobertos pelos plugins especialistas, classifica P0-P3 (inclusive portabilidade do Padrão SaaS), audita sem editar por padrão (--audit-only), corrige em fases com testes só com --fix/--full explícito e mantém estado em disco para sobreviver a compactação e novas sessões. Inclui auditoria completa e por módulo.",
   "author": {
     "name": "Yuri Moraes",
     "email": "morallesfilms@gmail.com"

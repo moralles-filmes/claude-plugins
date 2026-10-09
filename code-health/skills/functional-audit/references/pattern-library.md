@@ -2,6 +2,8 @@
 
 Carregue quando precisar dos regex completos para um detector específico. Otimizados para JS/TS/React/Next.js.
 
+> **Arquivos intermediários:** os exemplos gravam em `.code-health/work/functional-audit/`, na raiz do projeto, nunca em `/tmp` com nome fixo (dois projetos auditados ao mesmo tempo se sobrescrevem). Antes, rode o Passo 0 dos agentes do plugin: `.code-health/` entra no `.git/info/exclude` e o diretório é criado com `mkdir -p .code-health/work/functional-audit`.
+
 ## 1. Phantom buttons (botões sem função real)
 
 ### 1a. onClick com handler vazio
@@ -48,25 +50,25 @@ rg 'href=["\'](#|\?|javascript:void)' --glob '*.{tsx,jsx,html}'
 
 ```bash
 find app -type f \( -name 'page.tsx' -o -name 'page.ts' -o -name 'page.jsx' -o -name 'page.js' \) | \
-  sed -e 's|^app||' -e 's|/page\.[a-z]*$||' -e 's|^$|/|' | sort -u > /tmp/existing-routes.txt
+  sed -e 's|^app||' -e 's|/page\.[a-z]*$||' -e 's|^$|/|' | sort -u > .code-health/work/functional-audit/existing-routes.txt
 ```
 
 ### 2b. Listagem de rotas existentes (Pages Router)
 
 ```bash
 find pages -type f -not -path '*/api/*' \( -name '*.tsx' -o -name '*.ts' -o -name '*.jsx' -o -name '*.js' \) | \
-  sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' -e 's|^$|/|' | sort -u >> /tmp/existing-routes.txt
+  sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' -e 's|^$|/|' | sort -u >> .code-health/work/functional-audit/existing-routes.txt
 ```
 
 ### 2c. Listagem de endpoints de API existentes
 
 ```bash
 # App Router
-find app -type f -name 'route.*' | sed -e 's|^app||' -e 's|/route\.[a-z]*$||' >> /tmp/existing-api.txt
+find app -type f -name 'route.*' | sed -e 's|^app||' -e 's|/route\.[a-z]*$||' >> .code-health/work/functional-audit/existing-api.txt
 
 # Pages Router
 find pages/api -type f \( -name '*.ts' -o -name '*.js' \) | \
-  sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' >> /tmp/existing-api.txt
+  sed -e 's|^pages||' -e 's|\.[a-z]*$||' -e 's|/index$||' >> .code-health/work/functional-audit/existing-api.txt
 ```
 
 ### 2d. Hrefs literais usados no código
@@ -75,7 +77,7 @@ find pages/api -type f \( -name '*.ts' -o -name '*.js' \) | \
 rg -n -o '(href|to|router\.push|router\.replace|redirect|navigate)\s*[=(]\s*["\'](/[^"\']*)["\']' \
   --glob '*.{tsx,jsx,ts,js}' --glob '!node_modules' --glob '!.next' \
   | sed -E 's|.*"(/[^"]+)".*|\1|; s|.*'"'"'(/[^'"'"']+)'"'"'.*|\1|' \
-  | sort -u > /tmp/used-routes.txt
+  | sort -u > .code-health/work/functional-audit/used-routes.txt
 ```
 
 ### 2e. fetch para endpoints internos
@@ -89,7 +91,7 @@ rg -n -o "fetch\s*\(\s*[\"']/api/([^\"']+)[\"']" --glob '*.{tsx,jsx,ts,js}' --gl
 ```bash
 while read route; do
   # Match exato
-  if grep -qxF "$route" /tmp/existing-routes.txt; then continue; fi
+  if grep -qxF "$route" .code-health/work/functional-audit/existing-routes.txt; then continue; fi
   # Match com dynamic segment [param]
   match_found=false
   while read existing; do
@@ -98,9 +100,9 @@ while read route; do
       match_found=true
       break
     fi
-  done < /tmp/existing-routes.txt
+  done < .code-health/work/functional-audit/existing-routes.txt
   $match_found || echo "BROKEN: $route"
-done < /tmp/used-routes.txt
+done < .code-health/work/functional-audit/used-routes.txt
 ```
 
 ## 3. Mocked data
@@ -232,9 +234,10 @@ rg -n '(TODO|FIXME|XXX|HACK|@deprecated|@todo)\b' \
 # Com idade (último commit que tocou na linha)
 rg -n '(TODO|FIXME|XXX|HACK)\b' --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' | \
   while IFS=: read file line rest; do
-    blame=$(git blame -L "${line},${line}" --date=short -- "$file" 2>/dev/null | head -1)
-    date=$(echo "$blame" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
-    age_days=$(( ( $(date +%s) - $(date -d "$date" +%s 2>/dev/null || echo 0) ) / 86400 ))
+    # author-time em epoch: portável (sem `date -d`, que só existe no GNU date)
+    ts=$(git blame -L "${line},${line}" --porcelain -- "$file" 2>/dev/null | grep '^author-time ' | head -1 | cut -d' ' -f2)
+    [ -z "$ts" ] && continue
+    age_days=$(( ( $(date +%s) - ts ) / 86400 ))
     if [ "$age_days" -gt 180 ]; then
       echo "OLD($age_days days): $file:$line | $rest"
     fi
@@ -268,7 +271,7 @@ rg -U --multiline '\{/\*\s*<[A-Z][\s\S]*?\*/\}' --glob '*.{tsx,jsx}'
 ```bash
 # Server Action chamada em componente sem 'use client'
 # (regex aproximado — confirme manualmente)
-rg -l "^['\"]use client['\"]" --glob '*.{tsx,jsx}' > /tmp/client-files.txt
+rg -l "^['\"]use client['\"]" --glob '*.{tsx,jsx}' > .code-health/work/functional-audit/client-files.txt
 ```
 
 ### Metadata em rota dinâmica sem generateMetadata
@@ -287,10 +290,10 @@ done
 ```bash
 # process.env.X usado mas não em .env.example
 rg -o 'process\.env\.([A-Z_]+)' --glob '*.{ts,tsx,js,jsx}' --glob '!node_modules' \
-  | sort -u > /tmp/used-env.txt
+  | sort -u > .code-health/work/functional-audit/used-env.txt
 
 if [ -f .env.example ]; then
-  grep -oE '^[A-Z_]+' .env.example | sort -u > /tmp/declared-env.txt
-  comm -23 /tmp/used-env.txt /tmp/declared-env.txt
+  grep -oE '^[A-Z_]+' .env.example | sort -u > .code-health/work/functional-audit/declared-env.txt
+  comm -23 .code-health/work/functional-audit/used-env.txt .code-health/work/functional-audit/declared-env.txt
 fi
 ```

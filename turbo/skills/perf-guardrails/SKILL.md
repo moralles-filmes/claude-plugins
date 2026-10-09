@@ -30,7 +30,7 @@ Para endpoints/APIs: golden tests — gravar request/response reais (dados anoni
 
 ### RLS e segurança (crítico em multi-tenant)
 
-Qualquer mudança em policy RLS durante otimização exige teste de isolamento que prove: autenticado como tenant A, (1) SELECT não retorna linhas do tenant B; (2) INSERT/UPDATE forjando `company_id` do tenant B falha; (3) usuário anônimo não lê nada de tabela protegida. Rodar antes e depois da mudança. Otimização que vaza dado entre tenants não é otimização — é incidente.
+Qualquer mudança em policy RLS durante otimização exige teste de isolamento que prove: autenticado como tenant A, (1) SELECT não retorna linhas do tenant B; (2) INSERT/UPDATE forjando `company_id` do tenant B falha; (3) usuário anônimo não lê nada de tabela protegida; (4) com cache aquecido, remover a membership/permissão corta o acesso na requisição seguinte — otimização que guarda permissão em claim do JWT ou em cache entre requisições quebra isso. Rodar antes e depois da mudança. Otimização que vaza dado entre tenants não é otimização — é incidente.
 
 ## B. Não regredir depois
 
