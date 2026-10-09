@@ -5,11 +5,11 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 ## Plugins inclusos
 
 - **[padrao-saas](./padrao-saas/)** — Padrão SaaS: a norma dos projetos (arquitetura, segurança, multi-tenancy, controle de acesso por empresa/filial/módulo, banco, integrações, API pública, ciclo de vida da empresa, testes, operação). Skills `aplicar` e `novo-modulo`. Os plugins abaixo executam; este diz o quê e por quê. Comece pelo [LEIA-ME](./padrao-saas/LEIA-ME.md).
-- **[saas-shield-br](./saas-shield-br/)** — Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite (segurança RLS, isolamento tenant, secrets, custo, PT-BR).
+- **[saas-shield-br](./saas-shield-br/)** — Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite (segurança RLS, isolamento tenant, secrets, custo, PT-BR). Fonte única dos templates de migration, Edge Function e deploy usados pelos outros plugins.
 - **[code-health](./code-health/)** — Auditoria e limpeza de código JS/TS/React/Next.js/Vite, Supabase-aware (dead code, botões fantasma, rotas quebradas, mocks, stubs, referências Supabase quebradas).
 - **[saas-builder-br](./saas-builder-br/)** — Orquestrador + subagents para construir SaaS multi-tenant (Vite + React + TS / Supabase / Vercel), com gates pontuais do saas-shield-br e auditoria completa delegada ao saas-audit-br.
 - **[turbo](./turbo/)** — Otimização de performance ponta a ponta (React/Next + Postgres/Supabase), com baseline medido e guarda-corpos contra regressão.
-- **[saas-audit-br](./saas-audit-br/)** — Orquestrador de auditoria completa de SaaS (audit → fix → test), reutilizando saas-shield-br + code-health.
+- **[saas-audit-br](./saas-audit-br/)** — Orquestrador de auditoria completa de SaaS (audit → fix → test), reutilizando saas-shield-br + code-health. Por padrão só audita; correção só com `--fix`/`--full`.
 - **[ai-router-br](./ai-router-br/)** — Roteamento seguro de tarefas por risco/custo entre o agente principal, Codex worker (login ChatGPT) e DeepSeek worker (API). Versão nativa Codex em [codex/ai-router-br](./codex/ai-router-br/).
 
 ## Instalando em uma máquina nova
@@ -93,11 +93,11 @@ BASELINE → RECONHECIMENTO → MAPA DO SISTEMA → TENANCY PROFILE
 Uso:
 
 ```text
-/saas-audit-br:audit                  # auditoria completa (modo padrão: --fix)
-/saas-audit-br:audit --audit-only     # audita, classifica e planeja — não edita código
+/saas-audit-br:audit                  # auditoria completa (modo padrão: --audit-only, não edita código)
+/saas-audit-br:audit --audit-only     # o mesmo, explícito
 /saas-audit-br:audit --fix            # audita e corrige P0/P1/P2 com testes
 /saas-audit-br:audit --full           # --fix + varredura aprofundada, hardening P3 e regressão ampliada
-/saas-audit-br:module Financeiro      # auditoria focada em um módulo
+/saas-audit-br:module Financeiro      # auditoria focada em um módulo (só audita)
 /saas-audit-br:module Agenda --fix
 /saas-audit-br:resume                 # retoma do estado em disco (após compactação ou nova sessão)
 /saas-audit-br:status                 # só mostra fase, P0–P3, bloqueantes e próxima ação
