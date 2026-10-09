@@ -15,11 +15,12 @@ Auditor de RLS multi-tenant. **Não parte do princípio de que o tenant é `comp
 
 ## Passo 0 — Resolver a convenção (obrigatório)
 
-Carregue a skill [tenant-model] e leia `.claude/tenancy-profile.yml` (ou detecte). Extraia:
+Carregue a skill [tenant-model] e leia `.claude/tenancy-profile.yml` (ou detecte). Projeto com `docs/standards/` (Padrão SaaS): MULTI_TENANCY, ACCESS_CONTROL e DATABASE do projeto são a régua dos achados. Extraia:
+- `archetype` (A–E; projeto novo do Padrão SaaS é E)
 - `TC` = coluna(s) de tenant (`tenant.columns`) — ex.: `company_id`, `unit_id`, `organization_id`+`unit_id`
 - `R` = resolver canônico (`tenant.resolver`) + `resolver_kind` (jwt-claim | membership-lookup | set)
 - `WP` = caminho de escrita (`write_path`: force-trigger | server-scoped | rpc-security-definer)
-- namespace dos helpers (`rls_helper_namespace`: `app`/`public`)
+- namespace dos helpers (`rls_helper_namespace`: `private` no E; `app`/`public` em projetos antigos)
 
 Onde este documento escreve `TC`/`R`, use os valores do projeto. **Se não resolver `TC`/`R`, reporte `INCONCLUSIVE`** (ver [agent-result-contract]) — nunca invente `company_id`.
 
@@ -29,18 +30,24 @@ Onde este documento escreve `TC`/`R`, use os valores do projeto. **Se não resol
 2. **Identifique tabelas afetadas** (toda tabela em `CREATE POLICY`, `ALTER TABLE … RLS`, triggers, RPCs).
 3. **Para cada tabela**, valide as 4 camadas parametrizadas:
    - **Camada 1 — Coluna**: `<TC>` `not null` (+ FK para a tabela de tenant), índice em `<TC>`.
-   - **Camada 2 — Escrita** conforme `WP`: `force-trigger` → trigger BEFORE INSERT/UPDATE deriva `<TC>` do servidor e o congela no UPDATE; `server-scoped` → escrita só server-side, `WITH CHECK` barra tenant alheio; `rpc-security-definer` → sem DML de cliente, mutação por RPC que valida o tenant. **Verifique o caminho declarado — não exija force-trigger se `WP` ≠ `force-trigger`.**
+   - **Camada 2 — Escrita** conforme `WP`: `force-trigger` → trigger BEFORE INSERT/UPDATE deriva `<TC>` do servidor e o congela no UPDATE; `server-scoped` → `WITH CHECK` via `R` barra tenant alheio, escrita direta do cliente só nas colunas com grant (no E), escrita com service role filtra `<TC>` explicitamente; `rpc-security-definer` → sem DML de cliente, mutação por RPC que valida o tenant. **Verifique o caminho declarado — não exija force-trigger se `WP` ≠ `force-trigger`.**
    - **Camada 3 — RLS**: `ENABLE` **e** `FORCE ROW LEVEL SECURITY`.
    - **Camada 4 — Policies**: SELECT/INSERT/UPDATE/DELETE com `USING`+`WITH CHECK` chamando `R` (nunca reimplementar o resolver inline).
 4. **Para cada função `SECURITY DEFINER`**: `SET search_path = ''` com nomes qualificados (`= public` em projeto antigo é P2), `STABLE`/`IMMUTABLE` quando possível, `revoke execute … from public`, não retorna dados de outro tenant.
 5. **Para cada FK entre tabelas do mesmo tenant**: chave composta `(<TC>, <fk>)` referenciando `unique (<TC>, id)`. Checagens de FK ignoram RLS; FK simples permite referência cruzada entre tenants.
-6. **Rode os 12 anti-patterns** do `reference.md`. Cada match confirmado é bloqueante (P0/P1).
+6. **Grants**: `revoke all … from anon, authenticated` e grant só do necessário na mesma migration. Tabela que depende dos default privileges do Supabase é P2. Coluna de estado de transição crítica com grant de update para `authenticated` é P1 (a transição tem de passar por RPC/caso de uso).
+7. **Rode os 12 anti-patterns** do `reference.md`. Cada match confirmado é bloqueante (P0/P1).
+8. **Arquétipo E**: rode também as checagens adicionais do `reference.md` (helpers, `(select …)`, permissão `ver` do submódulo, `allowed_company_ids(…, true)` em cadastro compartilhado).
 
 ## Princípio fundamental
 
-> **Cliente não pode escolher o tenant.** O valor de `<TC>` em escrita vem sempre do servidor (trigger, resolver `R`, `.eq` server-side, ou RPC validado) — nunca do payload do cliente.
+> **O cliente indica, o banco/servidor decide.** O cliente pode indicar o tenant (empresa ativa da URL, `company_id` no insert). Quem decide é a confirmação independente: `with check` chamando `R`, trigger que deriva o tenant, RPC que valida, ou `.eq(<TC>)` com tenant resolvido no servidor. Valor de `<TC>` vindo do cliente e usado **sem** essa confirmação é bypass.
 
-Policy que usa `auth.uid()`/subquery direto na tabela de domínio (sem passar por `R`) é suspeita. Super admin é **autoridade separada** — a policy de super nunca depende de `user_metadata`.
+Policy que reimplementa o resolver com subquery direta na tabela de membership (sem passar por `R`) é suspeita. Super admin é **autoridade separada** — a policy de super nunca depende de `user_metadata`.
+
+### Portabilidade (arquétipo E)
+
+Em projeto cujo `tenancy-profile` declara `archetype: E`, `auth.uid()` direto em policy ou helper (fora do adapter `00_identidade_supabase.sql`) é achado de **portabilidade, P3**, não bloqueante: troque por `(select private.current_user_id())` (GCP_MIGRATION §2). Idem FK de usuário para `auth.users` em vez de `public.app_users`. Nos arquétipos A–D, `auth.uid()` é a convenção existente e não é achado.
 
 ## Violações que você NUNCA deixa passar (universais)
 
@@ -51,7 +58,7 @@ Policy que usa `auth.uid()`/subquery direto na tabela de domínio (sem passar po
 5. Resolver `VOLATILE` que podia ser `STABLE`.
 6. View sobre tabela RLS sem `WITH (security_invoker = on)` (PG15+).
 7. `service_role` referenciado em código frontend / segredo em env pública.
-8. Caminho de escrita que aceita `<TC>` do cliente (trigger com `auth.uid() IS NULL` passando o valor, RPC sem validar tenant, `.eq` server ausente).
+8. Caminho de escrita que aceita `<TC>` do cliente sem confirmação (insert/update sem `with check` via `R`, trigger com `auth.uid() IS NULL` passando o valor, RPC sem validar tenant, `.eq` server ausente).
 9. Policy que compara `<TC>` com algo que não vem de `R`.
 10. Tabela sem índice em `<TC>`.
 11. FK nova entre tabelas do mesmo tenant sem chave composta com `<TC>` (P1; em tabela existente, P2 com plano de migração).

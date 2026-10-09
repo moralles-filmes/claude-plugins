@@ -1,320 +1,273 @@
-# Supabase Migrator — Templates
+# Supabase Migrator — Templates (Padrão SaaS v3.2, arquétipo E)
 
-6 templates prontos. Substitua `<placeholders>` e ajuste colunas.
+Templates do arquétipo E: `company_id` + `location_id`, membership consultada no banco e permissões `<modulo>.<submodulo>.<acao>`. A implementação de referência (helpers, tabelas de acesso e testes pgTAP) está em `padrao-saas/skills/aplicar/templates/sql/`; estes templates pressupõem que ela já foi aplicada.
 
-## Template 1: CRUD Table (multi-tenant padrão)
+**Se o projeto tem `docs/standards/`, as normas dele (DATABASE, MULTI_TENANCY, ACCESS_CONTROL e as "Particularidades") prevalecem sobre este arquivo.**
+
+Placeholders: `<tabela>`, `<modulo>`, `<sub>` (submódulo), `<acao>`. Troque `<…>` e ajuste as colunas. Cada template é uma migration completa: o hook `check-sql-antipattern.mjs` aceita todos.
+
+| # | Template | Quando |
+|---|---|---|
+| 0 | Catálogo de permissões | Módulo ou submódulo novo |
+| 1 | Tabela da empresa | Cadastro compartilhado por todas as filiais |
+| 2 | Tabela da filial | Dado operacional (pedido, caixa, conta, estoque) |
+| 3 | Transição crítica por RPC | Coluna de estado (baixar, aprovar, cancelar, estornar) |
+| 4 | Relação N:N no tenant | Junção entre duas tabelas da mesma empresa |
+| 5 | Audit log | Ações sensíveis (SECURITY §4.2) |
+| 6 | View | Leitura agregada que respeita a RLS |
+| — | Notas | Soft delete, materialized view, modelo A de RPC, arquétipos legados A–D |
+
+## Template 0 — Catálogo de permissões
+
+O catálogo é escrito só por migration. Toda chave usada em policy, RPC ou `can()` existe aqui antes.
 
 ```sql
--- ============================================================
--- Tabela: public.<NOME>
--- Descrição: <O QUE É>
--- ============================================================
+-- Migration: catálogo do módulo <modulo>
+insert into public.app_modules (key, name) values
+  ('<modulo>', '<Nome do módulo>')
+on conflict (key) do nothing;
 
-CREATE TABLE IF NOT EXISTS public.<NOME> (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id   uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+insert into public.permissions (key, module, description) values
+  ('<modulo>.<sub>.ver',    '<modulo>', 'Ver <…>'),
+  ('<modulo>.<sub>.criar',  '<modulo>', 'Lançar <…>'),
+  ('<modulo>.<sub>.editar', '<modulo>', 'Editar <…> em aberto'),
+  ('<modulo>.<sub>.<acao>', '<modulo>', '<Ação crítica sobre …>')
+on conflict (key) do nothing;
+```
 
-  -- ✏️ Domínio
-  <NOME_CAMPO> text NOT NULL,
-  -- adicione mais aqui
+Reutilize as ações padrão (`ver`, `criar`, `editar`, `excluir`, `aprovar`, `baixar`, `estornar`, `cancelar`, `exportar`) antes de inventar outra (ACCESS_CONTROL §2). Depois regenere o tipo TypeScript das chaves.
 
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now()
+## Template 1 — Tabela da empresa
+
+```sql
+-- Migration: <descrição PT-BR>
+-- Arquétipo: E | Módulo: <modulo> | Tabela da EMPRESA
+
+create table public.<tabela> (
+  id         uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies (id) on delete restrict,
+  name       text not null,
+  -- … campos do domínio
+  created_at timestamptz not null default now(),
+  unique (company_id, id)  -- alvo das FKs compostas que apontam para esta tabela
 );
+create index <tabela>_company_idx on public.<tabela> (company_id);
 
-COMMENT ON TABLE  public.<NOME>             IS '<DESCRIÇÃO PT-BR>';
-COMMENT ON COLUMN public.<NOME>.company_id  IS 'Tenant proprietário (FK companies.id)';
+comment on table public.<tabela> is '<descrição PT-BR>';
 
--- Índices
-CREATE INDEX IF NOT EXISTS idx_<NOME>_company_id ON public.<NOME> (company_id);
--- adicione índices por queries comuns (status, datas, FKs, etc.)
+alter table public.<tabela> enable row level security;
+alter table public.<tabela> force row level security;
 
--- RLS
-ALTER TABLE public.<NOME> ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.<NOME> FORCE  ROW LEVEL SECURITY;
+create policy <tabela>_select on public.<tabela> for select to authenticated
+  using (company_id in (select private.allowed_company_ids('<modulo>.<sub>.ver')));
 
--- Policies
-CREATE POLICY "<NOME>_select_own_tenant" ON public.<NOME>
-  FOR SELECT TO authenticated
-  USING (company_id = public.get_current_company_id());
+-- true = exige concessão para a empresa inteira: usuário restrito a uma filial
+-- não altera cadastro compartilhado por todas as filiais.
+create policy <tabela>_insert on public.<tabela> for insert to authenticated
+  with check (company_id in (select private.allowed_company_ids('<modulo>.<sub>.criar', true)));
 
-CREATE POLICY "<NOME>_insert_own_tenant" ON public.<NOME>
-  FOR INSERT TO authenticated
-  WITH CHECK (company_id = public.get_current_company_id());
+create policy <tabela>_update on public.<tabela> for update to authenticated
+  using      (company_id in (select private.allowed_company_ids('<modulo>.<sub>.editar', true)))
+  with check (company_id in (select private.allowed_company_ids('<modulo>.<sub>.editar', true)));
 
-CREATE POLICY "<NOME>_update_own_tenant" ON public.<NOME>
-  FOR UPDATE TO authenticated
-  USING (company_id = public.get_current_company_id())
-  WITH CHECK (company_id = public.get_current_company_id());
+-- Sem policy de delete: exclusão é rara (prefira status + cancelar). Se precisar,
+-- policy for delete com a ação `excluir` e grant de delete.
 
-CREATE POLICY "<NOME>_delete_own_tenant" ON public.<NOME>
-  FOR DELETE TO authenticated
-  USING (company_id = public.get_current_company_id());
-
--- Trigger force_company_id
-CREATE OR REPLACE FUNCTION public.<NOME>_force_company_id()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF TG_OP = 'INSERT' THEN
-      NEW.company_id := public.get_current_company_id_strict();
-    ELSIF TG_OP = 'UPDATE' THEN
-      NEW.company_id := OLD.company_id;
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER <NOME>_force_company_id
-  BEFORE INSERT OR UPDATE ON public.<NOME>
-  FOR EACH ROW EXECUTE FUNCTION public.<NOME>_force_company_id();
-
--- Trigger updated_at (assume set_updated_at() existe)
-CREATE TRIGGER <NOME>_set_updated_at
-  BEFORE UPDATE ON public.<NOME>
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
--- Grants
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.<NOME> TO authenticated;
-
--- Realtime (opcional)
--- ALTER PUBLICATION supabase_realtime ADD TABLE public.<NOME>;
+-- Grants explícitos: não dependa dos default privileges do Supabase.
+revoke all on public.<tabela> from anon, authenticated;
+grant select, insert, update on public.<tabela> to authenticated;
 ```
 
-## Template 2: Junction Table (N-N)
+O cliente pode **indicar** `company_id` no insert (a empresa ativa vem da URL). O `with check` confirma que o usuário tem a permissão naquela empresa; valor de outra empresa é rejeitado.
+
+## Template 2 — Tabela da filial
 
 ```sql
--- Junction entre <A> e <B>, com tenant
-CREATE TABLE IF NOT EXISTS public.<A>_<B> (
-  company_id  uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  <A>_id      uuid NOT NULL REFERENCES public.<A>(id) ON DELETE CASCADE,
-  <B>_id      uuid NOT NULL REFERENCES public.<B>(id) ON DELETE CASCADE,
-  created_at  timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (company_id, <A>_id, <B>_id)
+-- Migration: <descrição PT-BR>
+-- Arquétipo: E | Módulo: <modulo> | Tabela da FILIAL
+
+create table public.<tabela> (
+  id           uuid primary key default gen_random_uuid(),
+  company_id   uuid not null,
+  location_id  uuid not null,
+  <ref>_id     uuid not null,
+  amount_cents bigint not null check (amount_cents > 0),
+  status       text not null default 'open' check (status in ('open', 'done', 'canceled')),
+  created_at   timestamptz not null default now(),
+  unique (company_id, id),
+  -- FK composta: filial e referência precisam ser da MESMA empresa da linha.
+  -- Checagens de FK ignoram RLS; sem isto, uma linha de A pode apontar para filial de B.
+  foreign key (company_id, location_id) references public.locations (company_id, id),
+  foreign key (company_id, <ref>_id) references public.<tabela_ref> (company_id, id)
 );
+create index <tabela>_location_idx on public.<tabela> (location_id);
+create index <tabela>_company_idx  on public.<tabela> (company_id);
 
-COMMENT ON TABLE public.<A>_<B> IS 'Relação N-N entre <A> e <B> (tenant-scoped)';
+alter table public.<tabela> enable row level security;
+alter table public.<tabela> force row level security;
 
-CREATE INDEX IF NOT EXISTS idx_<A>_<B>_<A>_id ON public.<A>_<B> (<A>_id);
-CREATE INDEX IF NOT EXISTS idx_<A>_<B>_<B>_id ON public.<A>_<B> (<B>_id);
+-- A policy olha só location_id: a FK composta amarra company_id à empresa da filial.
+create policy <tabela>_select on public.<tabela> for select to authenticated
+  using (location_id in (select private.allowed_location_ids('<modulo>.<sub>.ver')));
 
-ALTER TABLE public.<A>_<B> ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.<A>_<B> FORCE  ROW LEVEL SECURITY;
+create policy <tabela>_insert on public.<tabela> for insert to authenticated
+  with check (location_id in (select private.allowed_location_ids('<modulo>.<sub>.criar')));
 
-CREATE POLICY "<A>_<B>_all_own_tenant" ON public.<A>_<B>
-  FOR ALL TO authenticated
-  USING (company_id = public.get_current_company_id())
-  WITH CHECK (company_id = public.get_current_company_id());
+create policy <tabela>_update on public.<tabela> for update to authenticated
+  using      (location_id in (select private.allowed_location_ids('<modulo>.<sub>.editar')))
+  with check (location_id in (select private.allowed_location_ids('<modulo>.<sub>.editar')));
 
--- Trigger force_company_id (mesmo padrão)
-CREATE OR REPLACE FUNCTION public.<A>_<B>_force_company_id()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF TG_OP = 'INSERT' THEN
-      NEW.company_id := public.get_current_company_id_strict();
-    END IF;
-    -- UPDATE em PK não comum, mas se ocorrer não muda tenant
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER <A>_<B>_force_company_id
-  BEFORE INSERT ON public.<A>_<B>
-  FOR EACH ROW EXECUTE FUNCTION public.<A>_<B>_force_company_id();
-
-GRANT SELECT, INSERT, DELETE ON public.<A>_<B> TO authenticated;
+-- Escrita direta só nas colunas editáveis. status, empresa e filial nunca mudam pelo cliente:
+-- a transição de status é o Template 3.
+revoke all on public.<tabela> from anon, authenticated;
+grant select on public.<tabela> to authenticated;
+grant insert (company_id, location_id, <ref>_id, amount_cents) on public.<tabela> to authenticated;
+grant update (<ref>_id, amount_cents) on public.<tabela> to authenticated;
 ```
 
-## Template 3: Audit Log (append-only)
+## Template 3 — Transição crítica por RPC
+
+Modelo B de DATABASE §4: o usuário chama a função direto; ela confere a ação no próprio `where`. Use quando não há servidor próprio (SPA + Supabase) ou a regra cabe numa função.
 
 ```sql
-CREATE TABLE IF NOT EXISTS public.<ENTIDADE>_audit (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id   uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  <entidade>_id uuid REFERENCES public.<ENTIDADE>(id) ON DELETE SET NULL,
-  actor_id     uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  action       text NOT NULL CHECK (action IN ('insert','update','delete')),
-  before       jsonb,
-  after        jsonb,
-  created_at   timestamptz NOT NULL DEFAULT now()
+-- Migration: <acao> de <entidade> por RPC
+-- Arquétipo: E | Transição crítica: status open → done
+
+create or replace function public.<acao>_<entidade>(p_id uuid)
+returns public.<tabela>
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row public.<tabela>;
+begin
+  update public.<tabela> t
+     set status = 'done'
+   where t.id = p_id
+     and t.status = 'open'
+     and t.location_id in (select private.allowed_location_ids('<modulo>.<sub>.<acao>'))
+  returning t.* into v_row;
+
+  if not found then
+    -- Mesma mensagem para "não existe", "já processado" e "sem permissão": não revela existência.
+    raise exception '<ENTIDADE>_INDISPONIVEL' using errcode = 'P0002';
+  end if;
+
+  -- Na mesma transação: audit log (Template 5) e outbox, quando houver efeito externo.
+  return v_row;
+end;
+$$;
+
+revoke all on function public.<acao>_<entidade>(uuid) from public, anon;
+grant execute on function public.<acao>_<entidade>(uuid) to authenticated;
+```
+
+Funções `security definer` ficam em `public` só quando são a API intencional (RPC). Helpers internos vão em `private`.
+
+## Template 4 — Relação N:N no tenant
+
+```sql
+-- Migration: relação <a> × <b>
+create table public.<a>_<b> (
+  company_id uuid not null,
+  <a>_id     uuid not null,
+  <b>_id     uuid not null,
+  created_at timestamptz not null default now(),
+  primary key (company_id, <a>_id, <b>_id),
+  foreign key (company_id, <a>_id) references public.<a> (company_id, id) on delete cascade,
+  foreign key (company_id, <b>_id) references public.<b> (company_id, id) on delete cascade
 );
+create index <a>_<b>_<b>_idx on public.<a>_<b> (<b>_id);
 
-COMMENT ON TABLE public.<ENTIDADE>_audit IS 'Log append-only de mudanças em <ENTIDADE>';
+alter table public.<a>_<b> enable row level security;
+alter table public.<a>_<b> force row level security;
 
-CREATE INDEX IF NOT EXISTS idx_<ENTIDADE>_audit_company_id ON public.<ENTIDADE>_audit (company_id);
-CREATE INDEX IF NOT EXISTS idx_<ENTIDADE>_audit_<entidade>_id ON public.<ENTIDADE>_audit (<entidade>_id);
-CREATE INDEX IF NOT EXISTS idx_<ENTIDADE>_audit_created_at ON public.<ENTIDADE>_audit (created_at DESC);
+create policy <a>_<b>_select on public.<a>_<b> for select to authenticated
+  using (company_id in (select private.allowed_company_ids('<modulo>.<sub>.ver')));
+create policy <a>_<b>_insert on public.<a>_<b> for insert to authenticated
+  with check (company_id in (select private.allowed_company_ids('<modulo>.<sub>.editar', true)));
+create policy <a>_<b>_delete on public.<a>_<b> for delete to authenticated
+  using (company_id in (select private.allowed_company_ids('<modulo>.<sub>.editar', true)));
 
-ALTER TABLE public.<ENTIDADE>_audit ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.<ENTIDADE>_audit FORCE  ROW LEVEL SECURITY;
-
--- Append-only — só SELECT para users; INSERT só via trigger
-CREATE POLICY "<ENTIDADE>_audit_select_own_tenant" ON public.<ENTIDADE>_audit
-  FOR SELECT TO authenticated
-  USING (company_id = public.get_current_company_id());
-
--- Sem policy INSERT/UPDATE/DELETE para authenticated → nem cliente, nem service_role nessa role
--- Trigger roda como SECURITY DEFINER (dono da função pode INSERT)
-
-CREATE OR REPLACE FUNCTION public.<ENTIDADE>_audit_log()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_company_id uuid;
-BEGIN
-  v_company_id := COALESCE(NEW.company_id, OLD.company_id);
-  INSERT INTO public.<ENTIDADE>_audit (company_id, <entidade>_id, actor_id, action, before, after)
-  VALUES (
-    v_company_id,
-    COALESCE(NEW.id, OLD.id),
-    auth.uid(),
-    LOWER(TG_OP),
-    CASE TG_OP WHEN 'INSERT' THEN NULL ELSE to_jsonb(OLD) END,
-    CASE TG_OP WHEN 'DELETE' THEN NULL ELSE to_jsonb(NEW) END
-  );
-  RETURN COALESCE(NEW, OLD);
-END;
-$$;
-
-CREATE TRIGGER <ENTIDADE>_audit_log
-  AFTER INSERT OR UPDATE OR DELETE ON public.<ENTIDADE>
-  FOR EACH ROW EXECUTE FUNCTION public.<ENTIDADE>_audit_log();
-
-GRANT SELECT ON public.<ENTIDADE>_audit TO authenticated;
+revoke all on public.<a>_<b> from anon, authenticated;
+grant select, insert, delete on public.<a>_<b> to authenticated;
 ```
 
-## Template 4: Soft Delete
+## Template 5 — Audit log de negócio
 
-Adicione coluna `deleted_at` e ajuste policies para filtrar.
+Formato de SECURITY §4.2. Só inserção; quem grava é a RPC ou o caso de uso, **na mesma transação** da mudança.
 
 ```sql
-ALTER TABLE public.<NOME> ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
-CREATE INDEX IF NOT EXISTS idx_<NOME>_not_deleted ON public.<NOME> (company_id) WHERE deleted_at IS NULL;
+-- Migration: audit log
+create table public.audit_log (
+  id          uuid primary key default gen_random_uuid(),
+  company_id  uuid not null references public.companies (id) on delete restrict,
+  location_id uuid,
+  actor_type  text not null check (actor_type in ('user', 'api_key', 'system', 'platform')),
+  actor_id    uuid,
+  action      text not null,                  -- chave de permissão ou evento
+  entity      text not null,
+  entity_id   uuid,
+  summary     jsonb not null default '{}',    -- antes/depois resumido, sem segredo
+  request_id  text,
+  created_at  timestamptz not null default now(),
+  foreign key (company_id, location_id) references public.locations (company_id, id)
+);
+create index audit_log_company_created_idx on public.audit_log (company_id, created_at desc);
 
--- Substitua a policy SELECT padrão:
-DROP POLICY IF EXISTS "<NOME>_select_own_tenant" ON public.<NOME>;
-CREATE POLICY "<NOME>_select_own_tenant_active" ON public.<NOME>
-  FOR SELECT TO authenticated
-  USING (
-    company_id = public.get_current_company_id()
-    AND deleted_at IS NULL
-  );
+alter table public.audit_log enable row level security;
+alter table public.audit_log force row level security;
 
--- Policy admin pra ver deletados (se aplicável):
-CREATE POLICY "<NOME>_select_own_tenant_admin_deleted" ON public.<NOME>
-  FOR SELECT TO authenticated
-  USING (
-    company_id = public.get_current_company_id()
-    AND public.is_admin()  -- assume função existe
-  );
+create policy audit_log_select on public.audit_log for select to authenticated
+  using (company_id in (select private.allowed_company_ids('<permissao_de_auditoria>.ver')));
 
--- Função soft delete (RPC):
-CREATE OR REPLACE FUNCTION public.soft_delete_<NOME>(p_id uuid)
-RETURNS void LANGUAGE plpgsql SECURITY INVOKER
-SET search_path = public
-AS $$
-BEGIN
-  UPDATE public.<NOME>
-  SET deleted_at = now()
-  WHERE id = p_id
-    AND company_id = public.get_current_company_id();
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.soft_delete_<NOME>(uuid) TO authenticated;
+-- Nenhum papel de aplicação altera ou apaga. Inserção só pelas funções/casos de uso.
+revoke all on public.audit_log from anon, authenticated;
+grant select on public.audit_log to authenticated;
 ```
 
-## Template 5: Materialized View (com refresh trigger-aware)
+Dentro da RPC (Template 3), depois da mudança:
 
 ```sql
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.<NOME>_summary AS
-SELECT
-  company_id,
-  date_trunc('day', created_at)::date AS day,
-  count(*)                            AS total,
-  sum(<numeric_col>)                  AS total_value
-FROM public.<NOME>
-WHERE deleted_at IS NULL  -- se aplicável
-GROUP BY company_id, date_trunc('day', created_at);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_<NOME>_summary_pk
-  ON public.<NOME>_summary (company_id, day);
-
--- Materialized views NÃO suportam RLS direto. Acesso só via função wrapper:
-CREATE OR REPLACE FUNCTION public.get_<NOME>_summary(p_from date, p_to date)
-RETURNS TABLE (day date, total bigint, total_value numeric)
-LANGUAGE sql STABLE SECURITY INVOKER
-SET search_path = public
-AS $$
-  SELECT day, total, total_value
-  FROM public.<NOME>_summary
-  WHERE company_id = public.get_current_company_id()
-    AND day BETWEEN p_from AND p_to
-  ORDER BY day;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.get_<NOME>_summary(date, date) TO authenticated;
-
--- Refresh job (cron via pg_cron ou Edge Function):
--- REFRESH MATERIALIZED VIEW CONCURRENTLY public.<NOME>_summary;
+insert into public.audit_log (company_id, location_id, actor_type, actor_id, action, entity, entity_id, summary)
+values (v_row.company_id, v_row.location_id, 'user', (select private.current_user_id()),
+        '<modulo>.<sub>.<acao>', '<tabela>', v_row.id, jsonb_build_object('status', 'done'));
 ```
 
-⚠️ Não use `GRANT SELECT ON public.<NOME>_summary TO authenticated` — isso bypassa RLS. Use só a função.
-
-## Template 6: Function (RPC ou Trigger)
-
-### RPC (chamável do cliente via `supabase.rpc()`)
+## Template 6 — View
 
 ```sql
-CREATE OR REPLACE FUNCTION public.<NOME>(p_arg1 text, p_arg2 int)
-RETURNS TABLE (id uuid, output text)
-LANGUAGE plpgsql STABLE SECURITY INVOKER  -- INVOKER respeita RLS do caller
-SET search_path = public
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT t.id, t.<col>::text
-  FROM public.<TABELA> t
-  WHERE t.company_id = public.get_current_company_id()  -- defesa adicional
-    AND t.<col> = p_arg1;
-END;
-$$;
+-- Migration: resumo diário de <tabela>
+create view public.<tabela>_resumo
+with (security_invoker = true) as   -- sem isto a view roda como o dono e ignora a RLS
+select company_id, location_id, date_trunc('day', created_at)::date as dia, count(*) as total
+  from public.<tabela>
+ group by company_id, location_id, date_trunc('day', created_at)::date;
 
-COMMENT ON FUNCTION public.<NOME>(text, int) IS '<O QUE FAZ>';
-GRANT EXECUTE ON FUNCTION public.<NOME>(text, int) TO authenticated;
+revoke all on public.<tabela>_resumo from anon, authenticated;
+grant select on public.<tabela>_resumo to authenticated;
 ```
 
-### Function que precisa de privilégio (`SECURITY DEFINER`)
+A RLS libera todas as empresas do usuário: a tela filtra pela empresa ativa (ACCESS_CONTROL §7).
 
-```sql
-CREATE OR REPLACE FUNCTION public.<NOME>(p_arg uuid)
-RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_company uuid := public.get_current_company_id_strict();  -- 403 se não logado
-BEGIN
-  -- toda query deve filtrar por v_company manualmente
-  -- (RLS não roda como o user em SECURITY DEFINER)
-  UPDATE public.<TABELA>
-  SET <col> = ...
-  WHERE id = p_arg
-    AND company_id = v_company;
+## Notas
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Registro não encontrado ou sem permissão' USING ERRCODE = '42501';
-  END IF;
-END;
-$$;
+**Soft delete.** Prefira `status` + RPC `cancelar` (o lançamento confirmado não some; corrige-se por estorno, DATABASE §7). Se precisar de `deleted_at`, a policy de select ganha `and deleted_at is null`, a coluna sai do grant de update e a marcação passa por RPC.
 
-GRANT EXECUTE ON FUNCTION public.<NOME>(uuid) TO authenticated;
-```
+**Materialized view.** Não tem RLS. Não dê `select` a `authenticated`; leia por função `security definer` com `set search_path = ''` que filtra `company_id in (select private.allowed_company_ids('<…>.ver'))`. Refresh por pg_cron.
+
+**RPC chamada pelo servidor (modelo A de DATABASE §4).** O caso de uso autentica, resolve o tenant e autoriza; depois chama a função passando o `company_id` resolvido. A função é `security invoker`, `set search_path = ''`, filtra `company_id = p_company_id` em toda query e tem `execute` revogado de `public, anon, authenticated`. Exemplo completo com idempotência e outbox em DATABASE §4.
+
+**updated_at.** O Padrão não exige. Se o projeto usa, o trigger é `security invoker` e a função tem `set search_path = ''`.
+
+### Arquétipos legados (A–D)
+
+Só para projeto que já declara outro arquétipo no profile. Os invariantes não mudam: `enable` + `force`, policies `to authenticated` com `with check`, `set search_path = ''`, grants explícitos, FK composta com a coluna de tenant, helpers dentro de `(select …)`.
+
+- **A** — `company_id` + claim de JWT: policies com `company_id = (select public.get_current_company_id())`; trigger `force_company_id` deriva o tenant no insert e o congela no update.
+- **B** — `unit_id` + membership: `public.is_unit_member((select auth.uid()), unit_id)`; escrita server-scoped, sem trigger.
+- **C** — `organization_id` + `unit_id` + RBAC: `has_permission('<chave>', organization_id, unit_id)`; tabelas sensíveis sem policy de escrita, mutação só por RPC.
+- **D** — `unit_id` + conjunto: `unit_id in (select app.current_unit_ids())`; escrita server-scoped com `.eq('unit_id')`.
+
+Nesses projetos, `auth.uid()` direto é a convenção existente: mantenha. Trocar por `private.current_user_id()` é migração planejada, não efeito colateral. Templates de resolver de cada um: `reference.md` da skill [tenant-model].

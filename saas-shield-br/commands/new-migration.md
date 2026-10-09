@@ -1,5 +1,5 @@
 ---
-description: Gera nova migration Supabase no arquétipo de tenant do projeto (tenancy-profile) — invoca skill supabase-migrator
+description: Gera nova migration Supabase no arquétipo do projeto (padrão E do Padrão SaaS) — conduz a skill supabase-migrator, único gerador de migration dos plugins
 argument-hint: "<descrição da mudança em PT-BR>"
 ---
 
@@ -7,39 +7,31 @@ Crie uma nova migration Supabase.
 
 ## Como proceder
 
-1. **Invoque a skill `supabase-migrator`** com a descrição em `$ARGUMENTS`.
+1. **Use a skill `supabase-migrator`** com a descrição em `$ARGUMENTS`. Ela é o único template de migration: não escreva SQL de outro modelo aqui.
+   - Projeto com `docs/standards/`: a skill lê DATABASE, MULTI_TENANCY e ACCESS_CONTROL do projeto, que prevalecem.
+   - Ela resolve o `.claude/tenancy-profile.yml` (skill `tenant-model`). Projeto novo sem profile: arquétipo E, confirmado com o usuário.
 
-2. **Se não houver descrição** ou for genérica demais, pergunte:
-   - Nome da tabela (ou alteração)?
-   - Tipo: `crud-table`, `junction`, `audit-log`, `soft-delete`, `materialized-view`, `function`, `alter-only`?
-   - Colunas adicionais?
-   - Relacionamentos (FKs)?
-   - Soft delete necessário?
+2. **Se a descrição faltar ou for vaga**, pergunte só o que a skill pede: tabela, módulo/submódulo, dado da empresa ou da filial, colunas e FKs, transições de estado críticas, chaves de permissão novas.
 
-3. **Gere o SQL completo** no arquétipo do projeto (resolva `.claude/tenancy-profile.yml` via skill `tenant-model` primeiro): coluna de tenant + resolver + caminho de escrita + RLS, índice e comentários PT-BR.
+3. **Apresente** o que a skill devolve: SQL, nome do arquivo, resumo em 3 bullets, autovalidação contra o `rls-reviewer` e o teste pgTAP dos cenários de isolamento.
 
-4. **Auto-valide** mentalmente contra o checklist de 24 itens do `rls-reviewer`.
+4. **Próximos passos — sempre locais:**
+   ```bash
+   supabase migration new <descricao>   # cria supabase/migrations/<timestamp>_<descricao>.sql; cole o SQL
+   supabase db reset                    # aplica as migrations no banco LOCAL (Docker)
+   supabase test db                     # pgTAP, incluindo os testes de isolamento
+   supabase db lint                     # e os Advisors de segurança/desempenho no Studio local
+   ```
+   Depois: `/check-rls <arquivo>`, commit e PR.
 
-5. **Apresente**:
-   - Nome de arquivo sugerido (com timestamp UTC)
-   - SQL completo pronto para colar
-   - Resumo em 3 bullets do que faz
-   - Próximos passos:
-     ```
-     1. Salvar em supabase/migrations/<timestamp>_<descr>.sql
-     2. supabase db reset (testar local)
-     3. supabase db push (aplicar local)
-     4. Verificar policies no Studio
-     5. Após validação, commit + PR
-     6. Após merge, supabase db push --linked
-     ```
+5. **Remoto não é passo de teste.** `supabase db push` aplica no projeto **linkado** (staging/produção). Só acontece depois do merge, pelo pipeline ou com **autorização explícita** do usuário, conferindo antes com `supabase db push --dry-run`. Não rode nem sugira `db push` para "aplicar local".
 
-6. **Antes de finalizar**, ofereça invocar `migration-validator` para validação independente do SQL gerado.
+6. **Antes de finalizar**, ofereça o agente `migration-validator` para validação independente.
 
 ## Entrada do usuário
 
 `$ARGUMENTS` — descrição em PT-BR. Exemplos:
-- "Tabela invoices com customer_id, total_cents, status"
-- "Junction entre users e teams"
-- "Soft delete em customers"
-- "RPC para arquivar invoice"
+- "Contas a pagar da filial com fornecedor, valor e vencimento"
+- "Cadastro de fornecedores da empresa"
+- "Baixa de conta a pagar só por RPC"
+- "Relação N:N entre produtos e etiquetas"

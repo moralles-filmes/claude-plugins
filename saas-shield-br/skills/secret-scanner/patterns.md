@@ -2,18 +2,44 @@
 
 Padrões organizados por provedor. Severidade: 🚨 = expôs key real | 🟡 = padrão suspeito | 🔵 = informativo.
 
+## Lista do hook pré-commit (fonte única)
+
+O hook `pre-commit-secret-scan.mjs` bloqueia o `git commit` com a lista de **`hooks/scripts/secret-patterns.mjs`**. Aquele módulo é a lista canônica do hook: não copie as regex para outro lugar. Para incluir um padrão, adicione lá e documente o `id` aqui (o teste `tests/secret-scan.test.mjs` confere).
+
+Só entra no hook o que é incidente num commit. O resto desta página é para o `/secret-scan`.
+
+| `id` | O que bloqueia | Observação |
+|---|---|---|
+| `supabase-service-role-jwt` | JWT legado do Supabase com `"role":"service_role"` e `iss` do Supabase | O hook decodifica o payload (base64url do segmento do meio). JWT `anon` passa; a chave demo do `supabase start` (`"iss":"supabase-demo"`) é pública e passa |
+| `supabase-secret-key` | Chave nova `sb_secret_…` | `sb_publishable_…` é pública e passa |
+| `stripe-live-secret` | `sk_live_…` | |
+| `stripe-live-restricted` | `rk_live_…` | |
+| `stripe-webhook-secret` | `whsec_…` | |
+| `aws-access-key-id` | `AKIA…` (16 caracteres) | Ignora os exemplos da documentação da AWS (terminados em `EXAMPLE`) |
+| `anthropic-api-key` | `sk-ant-api…` / `sk-ant-admin…` | |
+| `openai-api-key` | `sk-…`, `sk-proj-…`, `sk-svcacct-…`, `sk-admin-…` | Exclui `sk-ant-` para não contar a chave Anthropic duas vezes |
+| `github-token` | `ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_` | |
+| `github-fine-grained-pat` | `github_pat_…` | |
+| `slack-token` | `xoxb-`, `xoxa-`, `xoxp-`, `xoxr-`, `xoxs-` | |
+| `private-key-block` | `-----BEGIN … PRIVATE KEY-----` | |
+
+O hook varre o índice (`git cat-file --batch`), os arquivos que um `git add` anterior no mesmo comando vai adicionar e o working tree em `commit -a`/pathspec. A mensagem mostra só os primeiros caracteres do match.
+
 ## Supabase
 
 | Pattern | O que é | Severidade |
 |---|---|---|
-| `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS[^"]{40,}` | JWT Supabase (anon ou service_role) | 🚨 se service_role |
+| `eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}` | JWT (anon, service_role ou de usuário) | 🚨 só se o payload tiver `"role":"service_role"` |
+| `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS[^"]{40,}` | Grep mais estreito: JWT HS256 com `"iss":"supabase"` | 🚨 se service_role |
+| `sb_secret_[A-Za-z0-9_-]{20,}` | Secret key nova do Supabase (substitui a service_role) | 🚨 |
+| `sb_publishable_[A-Za-z0-9_-]{20,}` | Publishable key nova (substitui a anon) | 🔵 (pode ir ao browser) |
 | `service_role` (qualquer match em src/) | Referência a service role no client | 🚨 |
 | `SUPABASE_SERVICE_ROLE_KEY\s*=\s*["']eyJ[^"']+` | Service role hardcoded | 🚨 |
 | `VITE_.*SERVICE_ROLE` | Service role com prefixo público (vai pro bundle) | 🚨 |
 | `NEXT_PUBLIC_.*SERVICE_ROLE` | Mesmo no Next | 🚨 |
 | `supabaseUrl\s*=\s*["']https://[a-z0-9]+\.supabase\.co` | URL Supabase hardcoded fora de env | 🟡 |
 
-**Como diferenciar anon de service_role**: decode o JWT (base64 do meio). Tem `"role":"service_role"` ou `"role":"anon"`.
+**Como diferenciar anon de service_role**: decode o segmento do meio do JWT (base64url). Tem `"role":"service_role"` ou `"role":"anon"`. Para as chaves novas, o prefixo já diz: `sb_secret_` nunca sai do servidor; `sb_publishable_` pode ir ao cliente.
 
 ## Stripe
 
@@ -100,8 +126,8 @@ Padrões organizados por provedor. Severidade: 🚨 = expôs key real | 🟡 = p
 ```env
 # ✅ valores PLACEHOLDER, nunca reais
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here  # backend only
+VITE_SUPABASE_ANON_KEY=your-anon-key-here            # ou a publishable key (sb_publishable_…)
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here  # backend only (ou sb_secret_…)
 STRIPE_SECRET_KEY=sk_live_xxx
 DATABASE_URL=postgresql://user:password@host:5432/db
 ```

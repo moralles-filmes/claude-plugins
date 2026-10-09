@@ -9,7 +9,7 @@ Você compara o schema **declarado em migrations locais** vs o **schema real no 
 
 ## Convenção de tenant
 
-Resolva primeiro o `.claude/tenancy-profile.yml` (skill `tenant-model`). Abaixo, `<TC>` é a coluna de tenant do arquétipo (`company_id`, `unit_id`, `organization_id`, …), `R` é o resolver (`get_current_company_id()`, `is_member_of(unit_id)`, …) e `WP` é o predicado de policy. Os exemplos de saída usam nomes do arquétipo A apenas como ilustração.
+Resolva primeiro o `.claude/tenancy-profile.yml` (skill `tenant-model`). Abaixo, `<TC>` é a coluna de tenant do arquétipo (`company_id`, `unit_id`, `organization_id`, …), `R` é o resolver (`private.allowed_company_ids(…)` no E, `get_current_company_id()` no A, `is_unit_member(…)` no B, …) e `WP` é o predicado de policy. Os exemplos de saída usam nomes do arquétipo A apenas como ilustração.
 
 ## Quando ativa
 
@@ -47,7 +47,7 @@ Para cada CREATE TABLE em schema-remote.sql:
 
 - [ ] Tem RLS habilitado? (`pg_tables.rowsecurity = true`)
 - [ ] Tem `FORCE RLS`? (`pg_class.relforcerowsecurity = true`)
-- [ ] Tem o mecanismo de preenchimento de tenant do arquétipo (trigger `*_force_<TC>` nos arquétipos A/B; nos demais, o que o tenancy-profile declarar)?
+- [ ] Tem o caminho de escrita do arquétipo (trigger `*_force_<TC>` só no arquétipo A; nos demais, o `write_path` do tenancy-profile — no E, policies com `with check` + coluna de estado fora do grant de update)?
 - [ ] Tem policies SELECT/INSERT/UPDATE/DELETE usando `WP`?
 - [ ] Tem índice em `<TC>` (ou índice composto começando por `<TC>`)?
 
@@ -57,7 +57,7 @@ Para cada item ausente → bloqueante.
 
 Liste policies remotas vs locais. Diferenças comuns:
 - Policy local tem `WITH CHECK`, remota não (alguém editou no Studio)
-- Policy remota usa `auth.uid()` direto, local usa o resolver `R` (ex.: `get_current_company_id()`)
+- Policy remota usa `auth.uid()` direto, local usa o resolver `R` (ex.: `private.allowed_company_ids(…)` ou `get_current_company_id()`)
 - Policy remota tem `USING (true)` (alguém debugando esqueceu)
 
 ### Passo 5 — Comparar funções `SECURITY DEFINER`
@@ -85,8 +85,9 @@ Comparando: supabase/migrations/ vs schema-remote.sql
   2. public.invoices
      └ Migration local: policy "invoices_update_own_tenant" tem USING + WITH CHECK
      └ Remoto: policy "invoices_update_own_tenant" só tem USING
-     🔧 Fix: rodar `supabase db push` para reaplicar policy local
-        ou alguém editou no Studio — confirmar qual é a verdade
+     🔧 Fix: confirmar qual é a verdade (alguém editou no Studio?). Se for a local,
+        migration nova que recria a policy (skill supabase-migrator) → supabase db reset
+        local → PR → aplicação no remoto depois do merge, com autorização explícita
 
   3. public.subscriptions
      └ Existe no remoto, sem trigger force_<TC> (ex.: force_company_id)
@@ -96,13 +97,14 @@ Comparando: supabase/migrations/ vs schema-remote.sql
 🟡 ATENÇÃO (<N>)
 
   - Resolver R (ex.: get_current_company_id) no remoto é VOLATILE (local é STABLE)
-    → impacto em performance — rodar `supabase db push`
+    → impacto em performance — migration nova com `create or replace function` (mesmo fluxo)
 
 ═══════════════════════════════════════════
 📋 RECOMENDAÇÕES
 
-  1. Aplicar migrations locais primeiro:
-     supabase db push
+  1. Migrations locais que o remoto ainda não tem (`supabase migration list --linked`):
+     aplicar é etapa de deploy — depois do merge, pelo pipeline ou com autorização
+     explícita do usuário. Confira antes com `supabase db push --dry-run`.
 
   2. Para tabelas remotas órfãs (sem migration local):
      - Decida: era pra existir? Se sim, gere migration retroativa (use supabase-migrator)

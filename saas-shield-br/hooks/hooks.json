@@ -1,4 +1,5 @@
 {
+  "description": "saas-shield-br: bloqueia anti-patterns de RLS em migrations SQL e secrets em git commit (Bash e PowerShell); sugere /check-rls depois de editar migration.",
   "hooks": {
     "PreToolUse": [
       {
@@ -6,18 +7,28 @@
         "hooks": [
           {
             "type": "command",
-            "description": "Bloqueia Edit/Write em arquivos *.sql que contenham anti-patterns RLS críticos",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-sql-antipattern.mjs"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-sql-antipattern.mjs"],
+            "timeout": 10
           }
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
-            "description": "Em commits git, roda secret-scan rápido nos arquivos staged",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-commit-secret-scan.mjs"
+            "if": "Bash(*git*)",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-commit-secret-scan.mjs"],
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*git*)",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-commit-secret-scan.mjs"],
+            "timeout": 15
           }
         ]
       }
@@ -28,8 +39,9 @@
         "hooks": [
           {
             "type": "command",
-            "description": "Após Edit/Write em supabase/migrations/*.sql, sugere rodar /check-rls",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-migration-edit.mjs"
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-migration-edit.mjs"],
+            "timeout": 10
           }
         ]
       }

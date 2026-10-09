@@ -1,6 +1,6 @@
 # tenant-model — arquétipos de referência
 
-Quatro arquétipos reais, extraídos de projetos em produção. Todos satisfazem os **invariantes universais** do `SKILL.md`; divergem no formato do tenant, no resolver e no caminho de escrita. Use-os para (a) reconhecer o padrão do projeto ao detectar, (b) escolher template ao gerar em greenfield.
+Cinco arquétipos. A–D foram extraídos de projetos em produção e valem para **projetos existentes**; o E é o padrão do Padrão SaaS v3.2 para **projeto novo**. Todos satisfazem os **invariantes universais** do `SKILL.md`; divergem no formato do tenant, no resolver e no caminho de escrita. Use-os para (a) reconhecer o padrão do projeto ao detectar, (b) escolher template ao gerar (greenfield → E; templates na skill `supabase-migrator`).
 
 Legenda do profile em cada bloco: `columns / resolver_kind / write_path / membership`.
 
@@ -14,7 +14,7 @@ O tenant vem de um claim de JWT (com fallback para a membership ativa). Trigger 
 
 ```sql
 create or replace function public.get_current_company_id()
-returns uuid language sql stable security definer set search_path = public as $$
+returns uuid language sql stable security definer set search_path = '' as $$
   select coalesce(
     (current_setting('request.jwt.claims', true)::jsonb -> 'app_metadata' ->> 'company_id')::uuid,
     (select company_id from public.user_company_memberships
@@ -25,13 +25,13 @@ $$;
 create trigger t_force before insert or update on public.<tabela>
   for each row execute function public.force_company_id();   -- deriva no INSERT, imutável no UPDATE
 
-create policy p_sel on public.<tabela> for select
-  using (company_id = public.get_current_company_id());
-create policy p_ins on public.<tabela> for insert
-  with check (company_id = public.get_current_company_id());
+create policy p_sel on public.<tabela> for select to authenticated
+  using (company_id = (select public.get_current_company_id()));
+create policy p_ins on public.<tabela> for insert to authenticated
+  with check (company_id = (select public.get_current_company_id()));
 ```
 
-**Quando escolher**: SaaS B2B onde o usuário opera 1 empresa por vez, claim de tenant no token. **Cuidado**: o claim precisa vir de `app_metadata` (não `user_metadata`, que o usuário edita).
+**Quando aparece**: SaaS B2B legado onde o usuário opera 1 empresa por vez, claim de tenant no token. **Cuidado**: o claim precisa vir de `app_metadata` (não `user_metadata`, que o usuário edita) e fica velho até o refresh do token. Projeto novo não usa claim como fonte do tenant ativo (MULTI_TENANCY §2): use o E.
 
 ---
 
@@ -43,15 +43,15 @@ Sem claim de tenant. O resolver é um **predicado** que verifica se o usuário �
 
 ```sql
 create or replace function public.is_unit_member(p_user uuid, p_unit uuid)
-returns boolean language sql stable security definer set search_path = public as $$
+returns boolean language sql stable security definer set search_path = '' as $$
   select exists (select 1 from public.unit_members
                  where user_id = p_user and unit_id = p_unit)
 $$;
 
-create policy p_sel on public.<tabela> for select
-  using (public.is_unit_member(auth.uid(), unit_id));
-create policy p_ins on public.<tabela> for insert
-  with check (public.is_unit_member(auth.uid(), unit_id));
+create policy p_sel on public.<tabela> for select to authenticated
+  using (public.is_unit_member((select auth.uid()), unit_id));
+create policy p_ins on public.<tabela> for insert to authenticated
+  with check (public.is_unit_member((select auth.uid()), unit_id));
 -- super admin: policy separada usando is_platform_admin()
 ```
 
@@ -119,9 +119,11 @@ create policy p_wr on public.<tabela> for all
 
 ## Arquétipo E — `company_id` + `location_id` + permissões por módulo (Padrão SaaS)
 
-`[company_id] (+ location_id) / set / server-scoped / multi`
+`[company_id] (+ location_id) / set / server-scoped / multi / active_source: url`
 
-Padrão do plugin `padrao-saas` para projeto novo (norma em `docs/standards/ACCESS_CONTROL.md`). Usuário em várias empresas, papel por empresa, concessões diretas, escopo por filial, permissões `<modulo>.<submodulo>.<acao>` com concessão por prefixo, módulos contratados por empresa (`company_modules`) e status `read_only`/`suspended`. A empresa ativa vem da URL; a RLS libera todas as empresas do usuário e a aplicação filtra pela ativa. Tabelas de acesso sem escrita do cliente.
+Padrão do plugin `padrao-saas` para projeto novo (normas em `docs/standards/MULTI_TENANCY.md`, `ACCESS_CONTROL.md`, `DATABASE.md`). Usuário em várias empresas, papel por empresa, concessões diretas, escopo por filial, permissões `<modulo>.<submodulo>.<acao>` com concessão por prefixo, módulos contratados por empresa (`company_modules`) e status `read_only`/`suspended`. A empresa ativa vem da URL; o cliente a indica (slug, header `x-company-id`) e o servidor confirma a membership ativa a cada requisição; nunca vem de claim do JWT. A RLS libera todas as empresas do usuário e a aplicação filtra pela ativa. Tabelas de acesso sem escrita do cliente.
+
+Portabilidade: policies e helpers usam `(select private.current_user_id())`, nunca `auth.uid()` direto; FKs de usuário apontam para `public.app_users`. Só o adapter `00_identidade_supabase.sql` conhece o schema `auth` (GCP_MIGRATION §2).
 
 ```sql
 -- helpers (fora do schema exposto), avaliados uma vez por consulta dentro de (select …)
@@ -136,7 +138,7 @@ create policy p_sel on public.<tabela> for select to authenticated
   using (location_id in (select private.allowed_location_ids('<modulo>.<sub>.ver')));
 ```
 
-Implementação completa e testes pgTAP: `padrao-saas/skills/aplicar/templates/sql/`. **Ao auditar**: exija FORCE RLS, FK composta com a coluna de tenant (e de filial), coluna de estado sem grant de update nas transições críticas, ausência de grant de escrita de `authenticated` nas tabelas de acesso, e policy de leitura usando a permissão `ver` do submódulo dono da tabela.
+Implementação completa e testes pgTAP: `padrao-saas/skills/aplicar/templates/sql/`. Templates de módulo: skill `supabase-migrator`. No servidor, o contexto carrega `public.my_permissions(company_id)` uma vez por requisição e `can(ctx, perm, locationId?)` é função pura sobre essa lista (ACCESS_CONTROL §4). **Ao auditar**: exija FORCE RLS, grants explícitos, FK composta com a coluna de tenant (e de filial), coluna de estado sem grant de update nas transições críticas, ausência de grant de escrita de `authenticated` nas tabelas de acesso, e policy de leitura usando a permissão `ver` do submódulo dono da tabela. `auth.uid()` direto em policy é P3 de portabilidade.
 
 ---
 
@@ -148,6 +150,6 @@ Implementação completa e testes pgTAP: `padrao-saas/skills/aplicar/templates/s
 | `is_unit_member(uid, unit)` boolean, `unit_members`, `organizations`+`units` | **B** |
 | `has_permission(key, org, unit)`, `roles`/`permissions`/`role_permissions`, escrita por RPC | **C** |
 | `current_unit_ids()` setof, `= any(...)`, helpers `app.*`, `user_profiles.is_super_admin` | **D** |
-| `private.allowed_company_ids(perm)` / `allowed_location_ids(perm)`, `member_permissions`, `company_modules`, `locations` | **E** |
+| `private.allowed_company_ids(perm)` / `allowed_location_ids(perm)`, `private.current_user_id()`, `public.app_users`, `member_permissions`, `company_modules`, `locations` | **E** |
 
 Se o projeto não bate exatamente com nenhum, é um **híbrido** — descreva-o no `tenancy-profile` combinando os campos. O profile é a autoridade; os arquétipos são só atalhos de reconhecimento.

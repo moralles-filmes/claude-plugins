@@ -22,7 +22,7 @@ Você valida configuração Vercel antes de deploy ir pra produção. Foca em: s
 - [ ] Variáveis sensíveis NÃO têm prefixo `VITE_` (Vite) ou `NEXT_PUBLIC_` (Next)?
 - [ ] No painel Vercel, env vars marcadas como "Production" / "Preview" / "Development" corretamente?
 - [ ] Secrets de prod NÃO estão em "Preview" (PRs vazariam)?
-- [ ] `SUPABASE_SERVICE_ROLE_KEY` só em "Production" e "Preview" do branch principal — nunca em PRs?
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` / secret key `sb_secret_…` só em "Production" e "Preview" do branch principal — nunca em PRs? A anon/publishable key (`sb_publishable_…`) é a única chave do Supabase que pode ter prefixo público.
 
 ### Headers de segurança (6)
 
@@ -58,8 +58,9 @@ Você valida configuração Vercel antes de deploy ir pra produção. Foca em: s
   ```ts
   // vite.config.ts
   build: { sourcemap: mode === 'production' ? 'hidden' : true }  // 'hidden' gera mas não linka (Sentry); false não gera
+  // next.config: productionBrowserSourceMaps fica false (padrão); suba os mapas só para o Sentry
   ```
-- [ ] Bundle gzipped < 250 KB inicial? (rolup-plugin-visualizer)
+- [ ] Bundle gzipped < 250 KB inicial? (`rollup-plugin-visualizer` no Vite; `@next/bundle-analyzer` no Next)
 - [ ] Code-split por rota (`React.lazy` + `Suspense`)?
 - [ ] Imagens otimizadas (`<img loading="lazy">`, formatos modernos)?
 
@@ -83,7 +84,9 @@ Você valida configuração Vercel antes de deploy ir pra produção. Foca em: s
 
 ## Configuração modelo `vercel.json`
 
-Esta é a configuração **canônica** dos plugins morallesfilms — o agente `devops-ci` do saas-builder-br gera exatamente este arquivo. Se um dos dois mudar, mude o outro.
+Fonte única; o `devops-ci` do saas-builder-br referencia esta skill. Não mantenha cópia em outro lugar: quem gera o `vercel.json` lê daqui.
+
+### Vite (SPA)
 
 ```json
 {
@@ -129,6 +132,34 @@ Esta é a configuração **canônica** dos plugins morallesfilms — o agente `d
 ```
 
 > Usa `npm`? Se o projeto for `bun`/`pnpm`, troque só `buildCommand` (e `installCommand`, se precisar). Stripe no front? Acrescente `https://js.stripe.com` a `script-src`/`frame-src` e `https://api.stripe.com` a `connect-src` (ver montagem de CSP abaixo). Usuários majoritariamente no Brasil com Vercel Functions? Adicione `"regions": ["gru1"]` (São Paulo).
+
+### Next.js (App Router)
+
+A Vercel detecta o framework: sem `buildCommand`, `outputDirectory`, rewrite de SPA nem cache de `/assets` (o Next cuida de `/_next/static`). Só os headers:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        }
+      ]
+    }
+  ]
+}
+```
+
+> No Next, a CSP começa em **report-only** (SECURITY §8.1) e só vira `Content-Security-Policy` depois de conferir os relatórios: o runtime do Next injeta scripts inline. Para CSP com nonce, gere o header no `middleware.ts` em vez do `vercel.json`. Em dev, o Next precisa de `'unsafe-eval'`; não leve isso para produção.
 
 ## CSP — montagem para SaaS Supabase + Stripe + React
 

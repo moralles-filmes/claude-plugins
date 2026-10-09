@@ -98,7 +98,7 @@ Cada dev que clonar o repo terá as skills automaticamente.
 
 Os hooks só ativam quando o plugin está instalado como **plugin global** (Opção A) — porque dependem de `${CLAUDE_PLUGIN_ROOT}`.
 
-Se você usa Opção B/C e quer hooks, copie manualmente para `~/.claude/hooks.json`:
+Se você usa Opção B/C e quer hooks, adicione o bloco `hooks` em `~/.claude/settings.json` (ou no `.claude/settings.json` do projeto), copiando de `hooks/hooks.json` e trocando `${CLAUDE_PLUGIN_ROOT}` pelo path absoluto:
 
 ```json
 {
@@ -108,15 +108,36 @@ Se você usa Opção B/C e quer hooks, copie manualmente para `~/.claude/hooks.j
         "matcher": "Edit|Write",
         "hooks": [{
           "type": "command",
-          "command": "node C:/Users/morae/Documents/claude-plugins/saas-shield-br/hooks/scripts/check-sql-antipattern.mjs"
+          "command": "node",
+          "args": ["C:/Users/morae/Documents/claude-plugins/saas-shield-br/hooks/scripts/check-sql-antipattern.mjs"],
+          "timeout": 10
         }]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(*git*)",
+            "command": "node",
+            "args": ["C:/Users/morae/Documents/claude-plugins/saas-shield-br/hooks/scripts/pre-commit-secret-scan.mjs"],
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*git*)",
+            "command": "node",
+            "args": ["C:/Users/morae/Documents/claude-plugins/saas-shield-br/hooks/scripts/pre-commit-secret-scan.mjs"],
+            "timeout": 15
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-(Substitua `${CLAUDE_PLUGIN_ROOT}` pelo path absoluto.)
+`args` passa o caminho sem shell: espaço no path não quebra. Para testar os hooks: `node --test saas-shield-br/tests/*.test.mjs` na raiz do marketplace.
 
 ---
 

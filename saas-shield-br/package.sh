@@ -3,13 +3,15 @@
 # Uso (Linux/macOS, na pasta do plugin):
 #   chmod +x package.sh && ./package.sh
 #
-# Saída: ../saas-shield-br-1.0.0.zip
+# Saída: ../saas-shield-br-<versão>.zip (versão lida do .claude-plugin/plugin.json)
+# Fica de fora: scripts de empacotamento e tests/ (os testes rodam no marketplace,
+# porque usam os SQL de referência do padrao-saas).
 
 set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME="saas-shield-br"
-VERSION="1.0.0"
+VERSION="$(node -p 'require(process.argv[1]).version' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
 OUT_ZIP="$(dirname "$PLUGIN_ROOT")/${PLUGIN_NAME}-${VERSION}.zip"
 
 if [ -f "$OUT_ZIP" ]; then
@@ -26,6 +28,7 @@ zip -r "$OUT_ZIP" "$(basename "$PLUGIN_ROOT")" \
   -x "*.git/*" \
   -x "*/package.sh" \
   -x "*/package.ps1" \
+  -x "*/tests/*" \
   > /dev/null
 
 SIZE=$(du -h "$OUT_ZIP" | cut -f1)
