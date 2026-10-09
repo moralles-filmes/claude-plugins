@@ -17,7 +17,8 @@ Stack assumida (se o usuário não disser o contrário):
 - Vite + React + TypeScript + Tailwind
 - Supabase (DB + Auth + Edge Functions + Storage)
 - Vercel deploy
-- Multi-tenant: arquétipo definido no .claude/tenancy-profile.yml (skill tenant-model do saas-shield-br); se não existir, o arquiteto-saas propõe um (A company_id/JWT é o default para SaaS B2B simples) e o db-schema-designer gera o profile
+- Multi-tenant: arquétipo E do Padrão SaaS (empresa → filial, usuário em várias empresas, permissões <modulo>.<submodulo>.<acao>, módulos contratados, empresa ativa na URL /app/:empresa). A–D só se o repo já tiver um .claude/tenancy-profile.yml que declare outro arquétipo (projeto existente)
+- Padrão SaaS: se o repo não tem docs/standards/, peça /padrao-saas:aplicar (modo B) antes da Fase 1
 - Idioma UI: PT-BR
 
 Ações esperadas:

@@ -1,23 +1,25 @@
 ---
 name: tanstack-query-supabase
-description: Padrões TanStack Query v5 + Supabase para SaaS multi-tenant — query keys com tenant, mutations com invalidação seletiva, optimistic updates seguros, infinite queries para listas grandes, suspense queries, cache RLS-aware. Use ao implementar qualquer feature que faz read/write em Supabase pelo frontend.
+description: Padrões TanStack Query v5 + Supabase para SaaS multi-tenant no Padrão SaaS — empresa ativa vinda da URL, adapter api.ts por módulo (único arquivo que fala com o Supabase), filtro pela empresa e pela filial em toda query de tela, query keys começando pelo companyId, transições críticas por RPC, Realtime filtrado e permissões só para UX. Use ao implementar qualquer feature que lê ou escreve no Supabase pelo frontend.
 ---
 
 # TanStack Query v5 + Supabase — receituário multi-tenant
 
-## Princípios
+## Regras
 
-1. **Toda query key inclui `company_id`** — separa cache por tenant.
-2. **Mutations invalidam o mínimo possível** — `qk.invoices.list(co, ...)` não `qk.all`.
-3. **Optimistic updates só em ações atômicas** — toggle, delete, edit simples.
-4. **Erros 401/403/404 não retentam** — RLS bloqueou, não vai melhorar.
-5. **`select:` para projeção** — evita re-render quando só uma parte mudou.
+1. **A empresa ativa vem da URL** (`/app/:empresa/...`) via `useActiveCompany()`. Nunca de claim do token nem de estado global.
+2. **A tela chama o adapter do módulo**, `src/features/<modulo>/api.ts`. Só ele importa `@/lib/supabase/client` e chama `.from()`, `.rpc()`, `.functions.invoke()` e `.channel()`. Hooks e componentes importam funções do `api.ts`; tipos do banco entram com `import type`.
+3. **Toda query de tela filtra pela empresa ativa** (`.eq("company_id", companyId)`) e pela filial quando a tela opera numa. A RLS é a cerca e libera **todas** as empresas do usuário; o filtro é o foco. Sem ele, quem é membro de X e Y vê linhas de Y na tela de X (ACCESS_CONTROL §7).
+4. **A query key começa pelo `companyId`.** Logout limpa o cache; sair de uma empresa remove as queries dela.
+5. **Transição crítica** (baixar, aprovar, estornar, enviar) vai por `supabase.rpc(...)` ou Edge Function **dentro do `api.ts`**, sem optimistic update. O banco não aceita update direto na coluna de estado.
+6. **401/403/404 não retentam.**
+7. **Permissões na tela são só UX** (menu, botões), a partir de `my_permissions`. Quem garante é RLS + RPC.
 
-> `company_id` nos exemplos é a coluna de tenant do arquétipo A. Use a coluna do `.claude/tenancy-profile.yml` do projeto.
+> Exemplos no arquétipo E com o módulo de referência do padrão: `bills` (contas a pagar, tabela da filial) e a RPC `baixar_conta_pagar`. Em projeto A–D, troque as colunas pelas do `.claude/tenancy-profile.yml` e mantenha adapter, filtro e chave.
 
 ## Setup base
 
-### `src/lib/query/client.ts` — QueryClient com defaults de SaaS
+### `src/lib/query/client.ts`
 
 ```ts
 import { QueryClient } from "@tanstack/react-query";
@@ -25,294 +27,296 @@ import { QueryClient } from "@tanstack/react-query";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60_000,           // 1min: evita refetch agressivo
+      staleTime: 60_000,
       gcTime: 5 * 60_000,
-      refetchOnWindowFocus: false, // padrão SaaS: não refetch ao trocar de aba
+      refetchOnWindowFocus: false,
       retry: (failureCount, error) => {
-        // não retenta 401/403/404 (RLS bloqueou)
         if (error && typeof error === "object" && "status" in error) {
           const s = (error as { status: number }).status;
-          if (s === 401 || s === 403 || s === 404) return false;
+          if (s === 401 || s === 403 || s === 404) return false; // RLS/permissão: não vai melhorar
         }
         return failureCount < 2;
       },
     },
-    mutations: {
-      retry: false,
-    },
+    mutations: { retry: false },
   },
 });
 ```
 
-### `src/lib/query/keys.ts` — factory hierárquica com tenant
+### `src/lib/query/keys.ts`
 
 ```ts
-// Invalida em qualquer nível
+import type { BillFilters } from "@/features/financeiro/api";
+
+// Toda chave começa pelo companyId: o cache de uma empresa nunca serve outra.
+const billsAll = (companyId: string) => [companyId, "financeiro", "contas_pagar"] as const;
+const billsLists = (companyId: string) => [...billsAll(companyId), "list"] as const;
+
 export const qk = {
-  all: ["app"] as const,
-  tenant: (companyId: string) => [...qk.all, "tenant", companyId] as const,
-
-  // por feature
-  invoices: {
-    all: (companyId: string) => [...qk.tenant(companyId), "invoices"] as const,
-    list: (companyId: string, filters: Record<string, unknown>) =>
-      [...qk.invoices.all(companyId), "list", filters] as const,
-    detail: (companyId: string, id: string) =>
-      [...qk.invoices.all(companyId), "detail", id] as const,
-  },
-
-  messages: {
-    all: (companyId: string) => [...qk.tenant(companyId), "messages"] as const,
-    thread: (companyId: string, threadId: string) =>
-      [...qk.messages.all(companyId), "thread", threadId] as const,
+  company: (companyId: string) => [companyId] as const,
+  permissions: (companyId: string) => [companyId, "permissions"] as const,
+  bills: {
+    all: billsAll,
+    lists: billsLists,
+    list: (companyId: string, filters: BillFilters, page: number) =>
+      [...billsLists(companyId), filters, page] as const,
   },
 };
 ```
 
-Tenant na key separa o cache se o usuário trocar de tenant.
-
-### `src/features/auth/use-session.ts` — sessão + tenant
+## Empresa ativa e permissões — `src/features/empresa/`
 
 ```ts
-import { useQuery } from "@tanstack/react-query";
+// src/features/empresa/api.ts — adapter: único arquivo do módulo que importa o cliente Supabase
 import { supabase } from "@/lib/supabase/client";
+import type { Tables } from "@/lib/supabase/types";
 
-export function useSession() {
-  return useQuery({
-    queryKey: ["session"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return null;
-      const company_id = (session.user.app_metadata as Record<string, unknown>)?.company_id as string | undefined;
-      if (!company_id) throw new Error("user_without_tenant");
-      return {
-        user: session.user,
-        company_id,
-        access_token: session.access_token,
-      };
-    },
-    staleTime: Infinity, // refetch só quando o auth event dispara
-  });
+export type ActiveCompany = Pick<Tables<"companies">, "id" | "slug" | "name" | "status">;
+export type MyPermission = { permission: string; location_id: string | null };
+
+// A RLS de companies só devolve empresas em que o usuário é membro ativo: slug alheio = null.
+export async function getCompanyBySlug(slug: string): Promise<ActiveCompany | null> {
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id, slug, name, status")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function listMyPermissions(companyId: string): Promise<MyPermission[]> {
+  const { data, error } = await supabase.rpc("my_permissions", { p_company_id: companyId });
+  if (error) throw error;
+  return data;
 }
 ```
 
-No `AuthProvider`, escute `supabase.auth.onAuthStateChange` e invalide `["session"]`.
-
-## Hook de query padrão
-
 ```ts
-// src/features/invoices/hooks/use-invoices.ts
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase/client";
+// src/features/empresa/use-active-company.ts
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { qk } from "@/lib/query/keys";
-import { useSession } from "@/features/auth/use-session";
+import { getCompanyBySlug, listMyPermissions } from "./api";
 
-interface Filters { status?: string; from?: string; to?: string }
+// Única chave sem companyId na frente: é ela que descobre o companyId.
+export const companyBySlugQuery = (slug: string) =>
+  queryOptions({ queryKey: ["empresa-por-slug", slug] as const, queryFn: () => getCompanyBySlug(slug) });
 
-export function useInvoices(filters: Filters = {}) {
-  const { data: session } = useSession();
-  const company_id = session?.company_id;
+export function useActiveCompany() {
+  const { empresa } = useParams();
+  if (!empresa) throw new Error("useActiveCompany fora de /app/:empresa");
+  const { data } = useSuspenseQuery(companyBySlugQuery(empresa));
+  if (!data) throw new Error("empresa_indisponivel"); // o loader da rota já redirecionou
+  return data;
+}
 
-  return useQuery({
-    queryKey: qk.invoices.list(company_id ?? "anon", filters),
-    enabled: !!company_id,
-    queryFn: async () => {
-      let q = supabase.from("invoices").select("id, amount, status, created_at").order("created_at", { ascending: false });
-      if (filters.status) q = q.eq("status", filters.status);
-      if (filters.from) q = q.gte("created_at", filters.from);
-      if (filters.to) q = q.lte("created_at", filters.to);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data;
-    },
+// /app/:empresa/f/:filial/... quando a tela opera numa filial
+export function useActiveLocationId(): string | undefined {
+  return useParams().filial;
+}
+
+// Só UX. my_permissions já aplica módulo contratado, status da empresa e padrões de concessão.
+// Sem locationId: tem a permissão em alguma filial (menu). Com locationId: vale para aquela filial.
+export function useCan(permission: string, locationId?: string): boolean {
+  const company = useActiveCompany();
+  const { data = [] } = useQuery({
+    queryKey: qk.permissions(company.id),
+    queryFn: () => listMyPermissions(company.id),
   });
+  return data.some(
+    (p) => p.permission === permission && (locationId === undefined || p.location_id === null || p.location_id === locationId),
+  );
 }
 ```
 
-**Notas**:
-- `enabled: !!company_id` evita query antes do session resolver.
-- RLS já filtra por `company_id` no banco — você NÃO precisa adicionar `.eq("company_id", ...)`. Mas a query KEY tem o tenant para isolar cache se o usuário trocar.
+Use o tipo gerado do catálogo de permissões (ACCESS_CONTROL §2) no lugar de `string` quando existir. A rota `/app/:empresa` e a limpeza de cache ao trocar de empresa estão na skill `vite-react-arquitetura`.
 
-## Hook de mutation padrão (com invalidação seletiva)
+## Adapter do módulo — `src/features/financeiro/api.ts`
 
 ```ts
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+// Único arquivo do módulo financeiro que importa o cliente Supabase.
+// Trocar o Supabase por API própria = reescrever este arquivo (GCP_MIGRATION §6).
 import { supabase } from "@/lib/supabase/client";
-import { qk } from "@/lib/query/keys";
-import { useSession } from "@/features/auth/use-session";
+import type { Tables, TablesInsert } from "@/lib/supabase/types";
 
-interface CreateInvoiceInput { amount: number; description: string }
+const BILL_COLUMNS = "id, company_id, location_id, supplier_id, amount_cents, due_date, status";
+export type Bill = Pick<
+  Tables<"bills">,
+  "id" | "company_id" | "location_id" | "supplier_id" | "amount_cents" | "due_date" | "status"
+>;
+export type NewBill = Pick<TablesInsert<"bills">, "location_id" | "supplier_id" | "amount_cents" | "due_date">;
+export interface BillFilters { locationId?: string | undefined; status?: string | undefined }
+export const PAGE_SIZE = 50;
 
-export function useCreateInvoice() {
-  const queryClient = useQueryClient();
-  const { data: session } = useSession();
-  const company_id = session!.company_id;
+export async function listBills(companyId: string, f: BillFilters, page: number): Promise<Bill[]> {
+  let q = supabase.from("bills").select(BILL_COLUMNS).eq("company_id", companyId); // foco na empresa ativa
+  if (f.locationId) q = q.eq("location_id", f.locationId);                          // e na filial da tela
+  if (f.status) q = q.eq("status", f.status);
+  const from = page * PAGE_SIZE;
+  const { data, error } = await q
+    .order("due_date", { ascending: true })
+    .order("id", { ascending: true }) // desempate estável
+    .range(from, from + PAGE_SIZE - 1);
+  if (error) throw error;
+  return data;
+}
 
-  return useMutation({
-    mutationFn: async (input: CreateInvoiceInput) => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .insert({ amount: input.amount, description: input.description }) // company_id é setado pelo trigger
-        .select("id, amount, status, created_at")
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      // Invalida só listas, não detalhes individuais (que ainda valem)
-      queryClient.invalidateQueries({ queryKey: qk.invoices.all(company_id), exact: false });
-    },
-  });
+export async function createBill(companyId: string, input: NewBill): Promise<Bill> {
+  // company_id e location_id são conferidos no banco: with check da policy + FK composta.
+  const { data, error } = await supabase
+    .from("bills")
+    .insert({ ...input, company_id: companyId })
+    .select(BILL_COLUMNS)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateBillDueDate(companyId: string, id: string, dueDate: string): Promise<void> {
+  const { error } = await supabase
+    .from("bills")
+    .update({ due_date: dueDate })
+    .eq("company_id", companyId)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// Transição crítica: a RPC confere "financeiro.contas_pagar.baixar". Update de status é negado pelo banco.
+export async function payBill(id: string): Promise<Bill> {
+  const { data, error } = await supabase.rpc("baixar_conta_pagar", { p_bill_id: id });
+  if (error) throw error; // CONTA_INDISPONIVEL: não existe, já baixada ou sem permissão
+  return data;
+}
+
+// A RLS entrega eventos de todas as empresas do usuário: o filtro de company_id não é opcional.
+export function subscribeBills(companyId: string, onChange: () => void): () => void {
+  const channel = supabase
+    .channel(`bills:${companyId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "bills", filter: `company_id=eq.${companyId}` }, onChange)
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
 }
 ```
 
-## Optimistic update — pattern seguro
-
-Use APENAS para ações reversíveis e atômicas (toggle, single-field edit, delete):
+## Hooks — não importam o cliente Supabase
 
 ```ts
-export function useToggleInvoicePaid() {
+// src/features/financeiro/hooks/use-bills.ts
+import { useEffect } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useActiveCompany } from "@/features/empresa/use-active-company";
+import { qk } from "@/lib/query/keys";
+import {
+  createBill, listBills, payBill, subscribeBills, updateBillDueDate,
+  PAGE_SIZE, type Bill, type BillFilters, type NewBill,
+} from "../api";
+
+export function useBills(filters: BillFilters, page = 0) {
+  const company = useActiveCompany();
+  return useQuery({
+    queryKey: qk.bills.list(company.id, filters, page),
+    queryFn: () => listBills(company.id, filters, page),
+    // Mantém a página anterior durante a paginação, nunca dados de OUTRA empresa.
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[0] === company.id ? prev : undefined),
+  });
+}
+
+export function useBillsInfinite(filters: BillFilters) {
+  const company = useActiveCompany();
+  return useInfiniteQuery({
+    queryKey: [...qk.bills.all(company.id), "infinite", filters] as const, // fora de "list": o dado é InfiniteData
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => listBills(company.id, filters, pageParam),
+    getNextPageParam: (lastRows, _pages, lastParam) => (lastRows.length === PAGE_SIZE ? lastParam + 1 : undefined),
+  });
+}
+
+export function useCreateBill() {
+  const company = useActiveCompany();
   const queryClient = useQueryClient();
-  const { data: session } = useSession();
-  const company_id = session!.company_id;
-
   return useMutation({
-    mutationFn: async ({ id, paid }: { id: string; paid: boolean }) => {
-      const { error } = await supabase.from("invoices").update({ paid }).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (input: NewBill) => createBill(company.id, input),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: qk.bills.all(company.id) }),
+  });
+}
 
-    // Optimistic
-    onMutate: async ({ id, paid }) => {
-      const listKey = qk.invoices.all(company_id);
-      await queryClient.cancelQueries({ queryKey: listKey });
+// Transição crítica: RPC no api.ts, sem optimistic update.
+export function usePayBill() {
+  const company = useActiveCompany();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (billId: string) => payBill(billId),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: qk.bills.all(company.id) }),
+  });
+}
 
-      const snapshots = queryClient.getQueriesData({ queryKey: listKey });
-      queryClient.setQueriesData({ queryKey: listKey }, (old: any) => {
-        if (!Array.isArray(old)) return old;
-        return old.map((inv) => (inv.id === id ? { ...inv, paid } : inv));
-      });
-
+// Optimistic só em edição simples e reversível.
+export function useUpdateBillDueDate() {
+  const company = useActiveCompany();
+  const queryClient = useQueryClient();
+  const lists = qk.bills.lists(company.id);
+  return useMutation({
+    mutationFn: ({ id, dueDate }: { id: string; dueDate: string }) => updateBillDueDate(company.id, id, dueDate),
+    onMutate: async ({ id, dueDate }) => {
+      await queryClient.cancelQueries({ queryKey: lists });
+      const snapshots = queryClient.getQueriesData<Bill[]>({ queryKey: lists });
+      queryClient.setQueriesData<Bill[]>({ queryKey: lists }, (old) =>
+        old?.map((b) => (b.id === id ? { ...b, due_date: dueDate } : b)),
+      );
       return { snapshots };
     },
-
-    // Rollback em erro
     onError: (_err, _vars, ctx) => {
-      ctx?.snapshots?.forEach(([key, data]) => queryClient.setQueryData(key, data));
-    },
-
-    // Sincronização com servidor
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: qk.invoices.all(company_id) });
-    },
-  });
-}
-```
-
-## Infinite query (listas grandes / scroll infinito)
-
-```ts
-import { useInfiniteQuery } from "@tanstack/react-query";
-
-const PAGE_SIZE = 50;
-
-export function useInvoicesInfinite() {
-  const { data: session } = useSession();
-  const company_id = session?.company_id;
-
-  return useInfiniteQuery({
-    queryKey: qk.invoices.list(company_id ?? "anon", { infinite: true }),
-    enabled: !!company_id,
-    initialPageParam: 0,
-    queryFn: async ({ pageParam }) => {
-      const from = pageParam * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      const { data, error, count } = await supabase
-        .from("invoices")
-        .select("id, amount, status, created_at", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .range(from, to);
-      if (error) throw error;
-      return { rows: data, nextPage: data.length === PAGE_SIZE ? pageParam + 1 : undefined, total: count };
-    },
-    getNextPageParam: (lastPage) => lastPage.nextPage,
-  });
-}
-```
-
-No componente:
-```tsx
-const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInvoicesInfinite();
-const all = data?.pages.flatMap(p => p.rows) ?? [];
-```
-
-## Realtime + TanStack Query (sem refetch desnecessário)
-
-```ts
-import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase/client";
-import { qk } from "@/lib/query/keys";
-import { useSession } from "@/features/auth/use-session";
-
-export function useInvoicesRealtimeSync() {
-  const queryClient = useQueryClient();
-  const { data: session } = useSession();
-
-  useEffect(() => {
-    if (!session?.company_id) return;
-    const channel = supabase
-      .channel(`invoices-${session.company_id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "invoices", filter: `company_id=eq.${session.company_id}` },
-        (payload) => {
-          // Atualiza cache cirurgicamente (ou invalida se for muita mudança)
-          if (payload.eventType === "INSERT") {
-            queryClient.setQueriesData({ queryKey: qk.invoices.all(session.company_id) }, (old: any) => {
-              if (!Array.isArray(old)) return old;
-              return [payload.new, ...old];
-            });
-          } else if (payload.eventType === "UPDATE" || payload.eventType === "DELETE") {
-            queryClient.invalidateQueries({ queryKey: qk.invoices.all(session.company_id) });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient, session?.company_id]);
-}
-```
-
-**Nota**: RLS aplica a Realtime — então mesmo sem o `filter: company_id=eq.X`, você só receberia eventos das próprias linhas. Mas filtrar reduz tráfego.
-
-## Mutations chamando Edge Function (LLM, WhatsApp)
-
-```ts
-export function useSendWhatsApp() {
-  const { data: session } = useSession();
-
-  return useMutation({
-    mutationFn: async (input: { to: string; message: string }) => {
-      const { data, error } = await supabase.functions.invoke("wa-send-zapi", {
-        body: { ...input, client_msg_id: crypto.randomUUID() }, // idempotência
+      ctx?.snapshots.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
       });
-      if (error) throw error;
-      return data;
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: lists }),
   });
+}
+
+export function useBillsRealtime() {
+  const company = useActiveCompany();
+  const queryClient = useQueryClient();
+  useEffect(
+    () => subscribeBills(company.id, () => void queryClient.invalidateQueries({ queryKey: qk.bills.all(company.id) })),
+    [company.id, queryClient],
+  );
 }
 ```
 
-`supabase.functions.invoke` adiciona automaticamente o JWT no Authorization header. Não chame `fetch()` direto.
+## Edge Function a partir do `api.ts` (WhatsApp, LLM)
+
+```ts
+// src/features/whatsapp/api.ts
+import { supabase } from "@/lib/supabase/client";
+
+export async function sendWhatsApp(
+  companyId: string,
+  input: { to: string; message: string; clientMsgId: string },
+): Promise<{ id: string } | null> {
+  const { data, error } = await supabase.functions.invoke<{ id: string }>("wa-send-zapi", {
+    headers: { "x-company-id": companyId }, // indica a empresa; a função confirma a membership
+    body: { to: input.to, message: input.message, client_msg_id: input.clientMsgId },
+  });
+  if (error) throw error;
+  return data;
+}
+```
+
+`functions.invoke` já manda o JWT. O `clientMsgId` nasce uma vez por intenção (no submit) e é reaproveitado se o usuário repetir, para a função deduplicar.
 
 ## Anti-padrões
 
-- ❌ Query key sem `company_id` em SaaS multi-tenant
-- ❌ `invalidateQueries({ queryKey: qk.all })` em mutation pequena (invalida tudo)
-- ❌ `staleTime: 0` por padrão (refetch sem necessidade, custa $)
-- ❌ Optimistic update em ação não-reversível (criar registro complexo)
-- ❌ `useQuery` em useEffect (fora do componente)
-- ❌ Esquecer `enabled` quando depende de session/company_id
-- ❌ `onSuccess` para fazer side effect que devia estar em onSettled
+- ❌ `supabase.from/.rpc/.functions.invoke/.channel` em hook ou componente — vai para o `api.ts`
+- ❌ Query de tela sem `.eq("company_id", companyId)` "porque a RLS já filtra"
+- ❌ Query key sem o `companyId` na primeira posição
+- ❌ Empresa ativa lida do token ou de store global em vez da URL
+- ❌ `keepPreviousData` direto em lista por empresa (mostra a empresa anterior durante a troca)
+- ❌ `update({ status })`/`update({ paid })` direto — transição crítica é RPC
+- ❌ Optimistic update em transição crítica
+- ❌ Realtime sem filtro de `company_id`
+- ❌ `invalidateQueries` sem chave em mutation pequena; `staleTime: 0` por padrão
+- ❌ Esconder botão como se fosse autorização

@@ -53,21 +53,21 @@ GATES AUTOMÁTICOS:
 |---|---|---|
 | **`arquiteto-chefe`** | todas | Orquestra fases, mantém `.claude/saas-state.json`, dispara gates |
 | `arquiteto-saas` | 1 — concept | Conceito → spec funcional em `.claude/spec/projeto.md` |
-| `db-schema-designer` | 2 — schema | Tabelas Postgres no arquétipo do `.claude/tenancy-profile.yml` (coluna de tenant + FORCE RLS + caminho de escrita + policies) |
-| `backend-supabase` | 3 — backend | Edge Functions Deno, fluxos de Auth, Storage, Realtime |
+| `db-schema-designer` | 2 — schema | Tabelas da empresa/filial, catálogo de permissões, RPCs e pgTAP — SQL pela skill `saas-shield-br:supabase-migrator` e templates do `padrao-saas` |
+| `backend-supabase` | 3 — backend | Casos de uso em Edge Function/RPC (ARCHITECTURE §5), provisionamento, Storage, Realtime |
 | `frontend-react` | 4 — frontend | Vite + React + TS scaffold (router, query, store, forms) |
 | `design-ux` | 4 — frontend | Tailwind tokens, Radix primitives, dark mode, a11y WCAG 2.1 AA |
 | `integrador-apis` | 5 — integrations | LLMs (OpenAI/Anthropic/Gemini) + WhatsApp (Z-API + Cloud API) |
-| `qa-testes` | qualquer | Vitest + Playwright + suite de RLS rodada pelo client SDK |
-| `devops-ci` | 8 — deploy | vercel.json, GitHub Actions, secrets categorizados, rollback |
+| `qa-testes` | qualquer | Vitest + Playwright + pgTAP; mesmo usuário em duas empresas, filial, submódulo, ação |
+| `devops-ci` | 8 — deploy | CI no PR com banco local, deploy em Environment protegido, secrets categorizados, rollback |
 
 ### 5 skills (templates reutilizáveis)
 
 | Skill | O que cobre |
 |---|---|
-| `vite-react-arquitetura` | Estrutura de pastas canônica, arquivos críticos (client, env, providers, router) + bootstrap em 5 comandos |
-| `tanstack-query-supabase` | QueryClient, query keys com tenant, `useSession`, query/mutation/optimistic |
-| `whatsapp-zapi-integracao` | Z-API + Cloud API Meta — schema, webhooks, HMAC, idempotência |
+| `vite-react-arquitetura` | Estrutura de pastas, arquivos críticos (client, env, providers, router com `/app/:empresa`) + bootstrap em 5 comandos |
+| `tanstack-query-supabase` | `useActiveCompany`, adapter `api.ts`, filtro por empresa/filial, keys pelo `companyId`, RPC em transição crítica |
+| `whatsapp-zapi-integracao` | Z-API + Cloud API Meta — conexão com tokens no Vault, webhooks, HMAC, idempotência |
 | `llm-multi-provider` | Roteador OpenAI/Anthropic/Gemini com fallback + tracking de custo |
 | `responsive-mobile-first` | Checklist Tailwind por tela: drawer mobile, tabela→card, safe-area |
 
@@ -128,9 +128,10 @@ Se um gate ou a auditoria encontrar bloqueante (P0/P1), a fase volta para o suba
 Cada agent tem seus próprios princípios documentados, mas alguns valem para todos:
 
 - **Frontend nunca chama API externa.** Sempre via Edge Function.
-- **Toda tabela de domínio tem a coluna de tenant do arquétipo** (`company_id`, `unit_id`, `organization_id`+`unit_id`…) + FORCE RLS + o caminho de escrita do profile (trigger force no arquétipo A).
-- **O tenant vem do JWT ou da membership (resolver do `tenancy-profile`).** Nunca do body.
-- **Chave de API só em Supabase secrets.** Frontend só vê `VITE_*`.
+- **Projeto novo segue o Padrão SaaS, arquétipo E**: `company_id` (+ `location_id` na tabela da filial), FK composta, FORCE RLS com `private.allowed_company_ids`/`allowed_location_ids`. Projeto existente mantém o arquétipo do profile.
+- **A empresa ativa vem da URL e o servidor confirma a membership.** Nunca do body nem de claim do JWT. Toda query de tela filtra pela empresa ativa; toda query key começa pelo `companyId`.
+- **A tela chama `src/features/<modulo>/api.ts`**, único arquivo do módulo que fala com o Supabase. Transição crítica vai por RPC ou Edge Function.
+- **Chave da plataforma em Supabase secrets; token de cada cliente no Vault.** Frontend só vê `VITE_*`.
 - **Webhook valida assinatura + dedupe.** Sempre.
 - **Mobile-first.** Toda tela funciona em 320px antes de pensar em desktop.
 
@@ -143,8 +144,8 @@ Frontend:    Vite + React + TypeScript + Tailwind + React Router v6
              + TanStack Query v5 + React Hook Form + Zod + Zustand
              + Radix UI + lucide-react + cva
 Backend:     Supabase (Postgres + Auth + Edge Functions Deno + Storage + Realtime)
-Multi-tenant: arquétipo do .claude/tenancy-profile.yml (A company_id/JWT+trigger, B unit_id/membership,
-             C org+unit/RBAC, D unit_id/set) — skill tenant-model do saas-shield-br
+Multi-tenant: Padrão SaaS, arquétipo E (empresa → filial, permissões <modulo>.<submodulo>.<acao>);
+             projeto existente: arquétipo A–D declarado no .claude/tenancy-profile.yml
 Tests:       Vitest + Testing Library + MSW + Playwright
 Deploy:      Vercel (frontend) + Supabase (DB + edge)
 CI:          GitHub Actions
@@ -203,20 +204,21 @@ saas-builder-br/
 │   ├── proximo-passo.md
 │   └── quem-faz.md
 ├── README.md
+├── CHANGELOG.md
 └── INSTALL.md
 ```
 
 ## Versionamento
 
-`1.0.0` — primeiro release. Veja [CHANGELOG](#changelog) abaixo.
+Versão atual: **1.5.0**. Histórico completo em [CHANGELOG.md](./CHANGELOG.md).
 
-## Changelog
+### O que mudou na 1.5.0
 
-### 1.0.0
-- Orquestrador `arquiteto-chefe` + 8 subagents
-- 5 skills de patterns reutilizáveis
-- 3 slash commands (`/novo-saas`, `/proximo-passo`, `/quem-faz`)
-- Integração explícita com `saas-shield-br` para gates de segurança
+- Projeto novo nasce no arquétipo E do Padrão SaaS em todos os agentes; A–D só para projeto existente.
+- Frontend: empresa ativa na URL, adapter `api.ts` por módulo, filtro por empresa/filial em toda query, chaves pelo `companyId`, transição crítica por RPC.
+- Sem cópias divergentes: SQL pelo `saas-shield-br:supabase-migrator`, Edge Function pelo `edge-function-guard`, `vercel.json` pelo `vercel-deploy-guard`.
+- CI com banco local e pgTAP no PR; produção só com aprovação manual num Environment protegido.
+- Tokens de WhatsApp de cada cliente no Supabase Vault.
 
 ## Licença
 

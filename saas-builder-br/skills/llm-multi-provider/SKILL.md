@@ -15,7 +15,7 @@ description: Padrão de roteador multi-provider para LLMs (OpenAI, Anthropic, Ge
 6. **Limite por tenant** (rate limit + budget mensal).
 7. **Timeout em toda chamada** — 30s, 60s em streaming (`AbortController`).
 
-> `company_id` nos exemplos é a coluna de tenant do arquétipo A. Use a coluna do `.claude/tenancy-profile.yml` do projeto. As Edge Functions seguem o template canônico do `edge-function-guard` (saas-shield-br): `Deno.serve` + `jsr:@supabase/supabase-js@2`.
+> Exemplos no arquétipo E (`company_id`). As Edge Functions seguem o template do `saas-shield-br:edge-function-guard`; `requireTenant`, `can`, `adminClient`, `json` e `cors` são os helpers de `_shared/` descritos no `backend-supabase`. As chaves de LLM são da plataforma (Supabase secrets); chave que o cliente traz é segredo por tenant e vai para o Vault (SECURITY §6).
 
 ## Catálogo de modelos (formato — NÃO copie os valores sem conferir)
 
@@ -63,8 +63,10 @@ export const FALLBACK_CHAINS = {
 ## Edge Function — `llm/index.ts`
 
 ```ts
-import { authenticate } from "../_shared/auth.ts";
-import { adminClient } from "../_shared/admin.ts";
+import { requireTenant, type TenantContext } from "../_shared/adapters/supabase/tenant.ts";
+import { adminClient } from "../_shared/adapters/supabase/clients.ts";
+import { can } from "../_shared/application/can.ts";
+import { toHttp } from "../_shared/http/to-http.ts";
 import { MODELS, FALLBACK_CHAINS, type ModelId } from "../_shared/llm-models.ts";
 
 interface LlmRequest {
@@ -83,22 +85,21 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method" }, 405);
 
   try {
-    const ctx = await authenticate(req);
-    const body: LlmRequest = await req.json();
+    const ctx = await requireTenant(req);                   // JWT + x-company-id + membership ativa
+    if (!can(ctx, "assistente.conversas.criar")) return json({ error: "forbidden" }, 403); // chave do módulo que usa IA
+    const body: LlmRequest = await req.json();             // valide com zod no projeto real
 
-    // Rate limit por tenant
-    if (await rateLimited(ctx.company_id)) {
+    // Rate limit e budget pela empresa resolvida no servidor
+    if (await rateLimited(ctx.companyId)) {
       return json({ error: "rate_limited" }, 429);
     }
-
-    // Budget check
-    if (await overBudget(ctx.company_id)) {
-      return json({ error: "budget_exceeded", contact: "billing@..." }, 402);
+    if (await overBudget(ctx.companyId)) {
+      return json({ error: "budget_exceeded" }, 402);
     }
 
     // Cache hit
     if (body.cache_key && (body.temperature ?? 0) === 0) {
-      const cached = await getCache(ctx.company_id, body.cache_key);
+      const cached = await getCache(ctx.companyId, body.cache_key);
       if (cached) return json({ ...cached, cached: true }, 200);
     }
 
@@ -111,18 +112,20 @@ Deno.serve(async (req) => {
 
     // Cache se aplicável
     if (body.cache_key && (body.temperature ?? 0) === 0) {
-      await putCache(ctx.company_id, body.cache_key, result);
+      await putCache(ctx.companyId, body.cache_key, result);
     }
 
     return json(result, 200);
   } catch (e) {
-    console.error("[llm]", e);
-    // Erro normalizado: a mensagem do provider não vai ao cliente.
+    // Erro normalizado (toHttp do backend-supabase): auth/permissão viram 401/403; falha de provider vira 502.
+    const { status, code } = toHttp(e);
+    if (status < 500) return json({ error: code }, status);
+    console.error("[llm] falha", e instanceof Error ? e.name : "unknown"); // sem mensagem/corpo do provider
     return json({ error: "llm_unavailable" }, 502);
   }
 });
 
-async function tryChain(chain: ModelId[], body: LlmRequest, ctx: AuthCtx) {
+async function tryChain(chain: ModelId[], body: LlmRequest, ctx: TenantContext) {
   let lastErr: unknown;
   for (const modelId of chain) {
     const start = Date.now();
@@ -132,8 +135,9 @@ async function tryChain(chain: ModelId[], body: LlmRequest, ctx: AuthCtx) {
       return { ...result, model_used: modelId };
     } catch (e) {
       lastErr = e;
-      console.warn(`[llm] ${modelId} failed, tentando próximo:`, e);
-      await logUsage(ctx, modelId, { input: 0, output: 0 }, "error", Date.now() - start, String(e));
+      const status = (e as { status?: number }).status;
+      console.warn(`[llm] ${modelId} falhou (${status ?? "transporte"}), tentando o próximo`); // sem corpo do provider
+      await logUsage(ctx, modelId, { input: 0, output: 0 }, "error", Date.now() - start, String(status ?? "transport"));
     }
   }
   throw lastErr;
@@ -243,11 +247,12 @@ async function callAnthropic(model: string, req: LlmRequest, signal: AbortSignal
 ### Google (Gemini)
 ```ts
 async function callGemini(model: string, req: LlmRequest, signal: AbortSignal) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${Deno.env.get("GOOGLE_API_KEY")}`;
+  // Chave no header, nunca na query string (vaza em log de proxy e mensagem de erro do fetch)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const r = await fetch(url, {
     method: "POST",
     signal,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": Deno.env.get("GOOGLE_API_KEY")! },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: req.prompt }] }],
       ...(req.system && { systemInstruction: { parts: [{ text: req.system }] } }),
@@ -280,7 +285,8 @@ Use quando o usuário precisa ver tokens chegando (chat). Na Edge Function:
 ```ts
 // supabase/functions/llm-stream/index.ts
 Deno.serve(async (req) => {
-  const ctx = await authenticate(req);
+  const ctx = await requireTenant(req);
+  if (!can(ctx, "assistente.conversas.criar")) return json({ error: "forbidden" }, 403);
   const { prompt } = await req.json();
 
   const stream = new ReadableStream({
@@ -307,21 +313,26 @@ Deno.serve(async (req) => {
 });
 ```
 
-No frontend (`fetch` + `getReader()`, não `EventSource`, que não envia Authorization):
+No frontend, dentro do adapter do módulo (`src/features/assistente/api.ts`), com `fetch` + `getReader()` (não `EventSource`, que não envia Authorization):
 
 ```ts
-// Cliente
-async function streamLlm(prompt: string, onChunk: (text: string) => void) {
+import { supabase } from "@/lib/supabase/client";
+import { env } from "@/lib/env";
+
+export async function streamLlm(companyId: string, prompt: string, onChunk: (text: string) => void) {
   const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("sem_sessao");
   const r = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/llm-stream`, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${session!.access_token}`,
+      "Authorization": `Bearer ${session.access_token}`,
+      "x-company-id": companyId, // empresa ativa da URL; a função confirma a membership
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ prompt, stream: true }),
   });
-  const reader = r.body!.getReader();
+  if (!r.ok || !r.body) throw new Error(`llm_stream_${r.status}`);
+  const reader = r.body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
   while (true) {
@@ -334,10 +345,8 @@ async function streamLlm(prompt: string, onChunk: (text: string) => void) {
       if (line.startsWith("data: ")) {
         const data = line.slice(6);
         if (data === "[DONE]") return;
-        try {
-          const { delta } = JSON.parse(data);
-          if (delta) onChunk(delta);
-        } catch {}
+        const chunk: { delta?: string } = JSON.parse(data); // linha malformada = erro visível, não engolido
+        if (chunk.delta) onChunk(chunk.delta);
       }
     }
   }
@@ -372,7 +381,7 @@ Uma linha por chamada externa — LLM, WhatsApp e qualquer terceiro. Peça ao `d
 create table public.api_usage (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  user_id uuid references auth.users(id) on delete set null,
+  user_id uuid references public.app_users (id) on delete set null,
   provider text not null check (provider in ('openai','anthropic','google','zapi','meta_cloud')),
   model text,
   input_tokens int,
@@ -385,20 +394,20 @@ create table public.api_usage (
   created_at timestamptz not null default now()
 );
 create index api_usage_company_id_created_at_idx on public.api_usage(company_id, created_at desc);
--- RLS no arquétipo do tenancy-profile
+-- RLS forçada; leitura com allowed_company_ids('<modulo>.consumo.ver'); escrita só pelo servidor
 ```
 
 Log de uso (chamado em `tryChain`, inclusive em erro):
 
 ```ts
 async function logUsage(
-  ctx: AuthCtx, model: ModelId, usage: { input: number; output: number },
+  ctx: TenantContext, model: ModelId, usage: { input: number; output: number },
   status: "success" | "error" | "timeout", latency_ms: number, error_code?: string,
 ) {
   const meta = MODELS[model];
   await adminClient().from("api_usage").insert({
-    company_id: ctx.company_id,
-    user_id: ctx.user_id,
+    company_id: ctx.companyId,
+    user_id: ctx.userId,
     provider: meta.provider,
     model,
     input_tokens: usage.input,
@@ -418,7 +427,7 @@ Com `api_usage`:
 ```ts
 async function rateLimited(company_id: string): Promise<boolean> {
   const since = new Date(Date.now() - 60_000).toISOString();
-  const { count } = await admin.from("api_usage")
+  const { count } = await adminClient().from("api_usage")
     .select("*", { count: "exact", head: true })
     .eq("company_id", company_id)
     .in("provider", ["openai", "anthropic", "google"])
@@ -428,6 +437,7 @@ async function rateLimited(company_id: string): Promise<boolean> {
 
 async function overBudget(company_id: string): Promise<boolean> {
   const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0,0,0,0);
+  const admin = adminClient();
   const { data } = await admin.from("api_usage")
     .select("cost_usd.sum()")
     .eq("company_id", company_id)
