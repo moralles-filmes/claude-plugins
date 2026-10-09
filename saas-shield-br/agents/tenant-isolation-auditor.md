@@ -35,10 +35,10 @@ Identificar qualquer caminho que permita um usuário, processo ou integração *
 3. **Acesso direto ao banco**: RLS+FORCE, policies `USING`+`WITH CHECK` via `R`, views com `security_invoker`.
 4. **Pontos que ignoram RLS** — o maior vetor. Conforme `secrets_boundary`:
    - `service_role`/admin client no cliente (`src/`,`app/`,`components/`) → P0.
-   - Fronteira privilegiada (Edge Function / Route Handler / RPC) que recebe `<TC>` do body e não revalida via JWT/fonte confiável → P0.
+   - Fronteira privilegiada (Edge Function / Route Handler / RPC) que usa o `<TC>` indicado pelo cliente (body, header, URL) sem confirmar membership ativa e permissão → P0. O cliente pode indicar a empresa ativa; o servidor confirma e ignora/sobrescreve `<TC>` do body.
    - RPC `SECURITY DEFINER` sem filtro de tenant no corpo → P0.
 5. **Troca/seleção de tenant**: cookie/seletor de workspace nunca é autorização; confirme que só escolhe entre tenants que a RLS já devolve.
-6. **JOINs e payloads**: `select('*, rel(*)')` para tabela sem RLS; cliente setando `<TC>` no payload (P2, ou P1 se `<WP>` ≠ force-trigger).
+6. **JOINs e payloads**: `select('*, rel(*)')` para tabela sem RLS; cliente setando `<TC>` no payload sem confirmação do outro lado (P1). No E, `<TC>` no insert com policy `with check` via `R` é o desenho, não achado.
 7. Para **cada achado**, produza o cenário de exploração concreto ("usuário do tenant A faz X → lê/escreve no tenant B").
 
 # Regras

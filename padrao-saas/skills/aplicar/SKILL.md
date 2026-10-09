@@ -1,9 +1,9 @@
 ---
 name: aplicar
-description: Instala, audita ou atualiza o Padrão SaaS v3.1 num repositório — AGENTS.md/CLAUDE.md enxutos, docs/standards normativos com manifest, regras por caminho, AGENTS.md aninhados para o Codex, permissões do Claude Code e o modelo de acesso (empresas, filiais, papéis e permissões por módulo/submódulo). Use quando o usuário pedir para aplicar, instalar, atualizar ou auditar o "padrão SaaS", inicializar o contexto de agentes de um projeto, reorganizar CLAUDE.md/AGENTS.md, ou implantar o controle de acesso por empresa/filial/módulo. Não use em tarefas comuns de código; para criar um módulo use padrao-saas:novo-modulo.
+description: Instala, audita ou atualiza o Padrão SaaS v3.2 num repositório — AGENTS.md/CLAUDE.md enxutos, docs/standards normativos com manifest, regras por caminho, AGENTS.md aninhados para o Codex, permissões do Claude Code e o modelo de acesso (empresas, filiais, papéis e permissões por módulo/submódulo). Use quando o usuário pedir para aplicar, instalar, atualizar ou auditar o "padrão SaaS", inicializar o contexto de agentes de um projeto, reorganizar CLAUDE.md/AGENTS.md, ou implantar o controle de acesso por empresa/filial/módulo. Não use em tarefas comuns de código; para criar um módulo use padrao-saas:novo-modulo.
 ---
 
-# Padrão SaaS v3.1 — aplicar num projeto
+# Padrão SaaS v3.2 — aplicar num projeto
 
 Você vai instalar ou alinhar o Padrão SaaS num repositório **sem reescrever o produto**. O resultado é uma camada de contexto que permite a qualquer agente (Claude Code ou Codex) trabalhar com segurança lendo só o necessário, e um plano para o modelo de acesso.
 
@@ -16,11 +16,15 @@ assets/repo/                    espelho da raiz de um projeto; copie daqui
   .claude/tenancy-profile.yml   contrato de tenancy e acesso (lido também pelos plugins shield/builder/audit)
   .claude/rules/*.md            regras por caminho (só o Claude Code lê)
   supabase/AGENTS.md            as mesmas regras para o Codex (gerado)
-  scripts/check-padrao.mjs      verificação para o CI
-  docs/standards/*.md           13 padrões normativos + .manifest.json
+  .claude/padrao.json           padrões opcionais não adotados (com motivo) e exceções de portabilidade
+  scripts/check-padrao.mjs      verificação do padrão para o CI
+  scripts/check-portabilidade.mjs  verificação de portabilidade para o CI (GCP_MIGRATION §6)
+  docs/standards/*.md           13 padrões normativos + .manifest.json (lista os obrigatórios e os opcionais)
   docs/modules|adr|runbooks/    modelos
   docs/integrations/providers/  _TEMPLATE, meta, zapi
-templates/sql/                  modelo de acesso testado (01 núcleo, 02 exemplo de módulo, 03 testes pgTAP)
+templates/sql/                  modelo de acesso testado nos adapters Supabase e Postgres puro:
+                                00 adapter de identidade (supabase | postgres), 01 núcleo, 02 exemplo de módulo,
+                                03 testes pgTAP do núcleo, 04 testes do adapter Supabase
 templates/settings/             regras ask dos MCPs Supabase e Vercel
 ```
 
@@ -67,17 +71,24 @@ Copie `docs/standards/*.md` **literalmente**, junto com `docs/standards/.manifes
 
 | Padrão | Copiar quando |
 |---|---|
-| ARCHITECTURE, SECURITY, TESTING, OPERATIONS, MODULES | sempre |
+| ARCHITECTURE, SECURITY, TESTING, OPERATIONS, MODULES, GCP_MIGRATION | sempre (obrigatórios no manifest) |
 | MULTI_TENANCY, ACCESS_CONTROL, TENANT_LIFECYCLE | o produto atende mais de uma empresa |
 | DATABASE | há banco relacional |
 | INTEGRATIONS | há ou haverá API externa, webhook, OAuth, e-mail, pagamento, IA com ferramentas ou MCP |
 | PUBLIC_API | o produto expõe API ou chaves aos clientes |
 | PERFORMANCE | há frontend ou API com usuários reais |
-| GCP_MIGRATION | a portabilidade para Google Cloud é objetivo |
+
+Padrão opcional que não se aplica **não** é copiado e vai em `.claude/padrao.json`, com motivo objetivo:
+
+```json
+{ "nao_adotados": { "PUBLIC_API.md": "o produto não emite chaves de API para clientes" } }
+```
+
+O `check-padrao.mjs` falha se um padrão do manifest sumir sem essa declaração, ou se um obrigatório for declarado.
 
 Provider docs: copie `meta.md` e `zapi.md` só se o projeto usa esses provedores; para outros, crie a partir de `_TEMPLATE.md` com o que foi verificado na documentação oficial.
 
-Copie também `docs/modules/_TEMPLATE.md`, `docs/adr/_TEMPLATE.md`, `docs/runbooks/_TEMPLATE.md`, `docs/runbooks/MAINTENANCE.md` e `scripts/check-padrao.mjs`. Acrescente `.tasks/` ao `.gitignore` (sem reescrever o arquivo).
+Copie também `docs/modules/_TEMPLATE.md`, `docs/adr/_TEMPLATE.md`, `docs/runbooks/_TEMPLATE.md`, `docs/runbooks/MAINTENANCE.md`, `scripts/check-padrao.mjs` e `scripts/check-portabilidade.mjs`. Acrescente `.tasks/` ao `.gitignore` (sem reescrever o arquivo).
 
 ### 4.2 Projeto novo (modo B)
 
@@ -94,6 +105,7 @@ Copie também `docs/modules/_TEMPLATE.md`, `docs/adr/_TEMPLATE.md`, `docs/runboo
 3. Regra existente que conflita com o padrão vira divergência no relatório, com pergunta. Não sobrescreva em silêncio.
 4. AGENTS.md vira a fonte única; CLAUDE.md passa a `@AGENTS.md` mais o específico do Claude Code. Se houver o bloco `ai-router-br` nos dois, mantenha só no AGENTS.md (o ai-router-br ≥ 1.3.4 faz isso sozinho).
 5. Declare o arquétipo atual no `.claude/tenancy-profile.yml` (A–D, ou E se já for o modelo do padrão). Não proponha trocar de arquétipo nesta execução; isso é projeto com ADR.
+6. Rode `node scripts/check-portabilidade.mjs --json` e registre no AUDIT.md o total por regra e os módulos com mais acesso direto ao Supabase. Grave a linha de base (`--write-baseline`) para o CI barrar só dívida nova. Não refatore nesta execução: a redução da linha de base entra no plano, módulo a módulo, começando pelos módulos que já vão ser alterados.
 
 ### 4.4 Permissões do Claude Code
 
@@ -114,8 +126,8 @@ O Codex lê AGENTS.md na raiz e em subdiretórios, mais instruções globais e `
 
 Leia `assets/repo/docs/standards/ACCESS_CONTROL.md` antes desta etapa.
 
-- **Modo B:** proponha no plano a Fase 1 = gerar as migrations a partir de `templates/sql/01_modelo_de_acesso.sql` (núcleo) com o catálogo real de módulos do produto, copiar `03_modelo_de_acesso.test.sql` para `supabase/tests/database/` adaptado, e rodar `supabase test db` localmente. O `02_exemplo_modulo_financeiro.sql` é referência para os módulos, não migration.
-- **Modo A/C:** faça a análise de lacunas entre o modelo atual e ACCESS_CONTROL (filial, usuário em várias empresas, permissões por submódulo, módulos contratados, anti-escalada, empresa ativa na URL, FK composta). Proponha o caminho expand → backfill → contract com riscos e rollback. Não gere migration nesta execução.
+- **Modo B:** proponha no plano a Fase 1 = gerar as migrations a partir de `templates/sql/00_identidade_supabase.sql` (adapter) e `01_modelo_de_acesso.sql` (núcleo) com o catálogo real de módulos do produto, copiar `03_modelo_de_acesso.test.sql` e `04_identidade_supabase.test.sql` para `supabase/tests/database/` adaptados, e rodar `supabase test db` localmente. O `02_exemplo_modulo_financeiro.sql` é referência para os módulos, não migration.
+- **Modo A/C:** faça a análise de lacunas entre o modelo atual e ACCESS_CONTROL (filial, usuário em várias empresas, permissões por submódulo, módulos contratados, anti-escalada, empresa ativa na URL, FK composta). Inclua a identidade portável: quantas policies e funções chamam `auth.uid()` direto, quantas FKs apontam para `auth.users`, e se as tabelas dependem dos default privileges do Supabase. Proponha o caminho expand → backfill → contract com riscos e rollback (primeiro `private.current_user_id()` e `public.app_users` com backfill; depois as policies e FKs, por módulo). Não gere migration nesta execução.
 
 Em ambos, confirme com o usuário a árvore de módulos, submódulos e ações e os papéis de sistema antes de escrever o catálogo. Não invente módulo.
 
@@ -131,7 +143,7 @@ O nível decide **quanta infraestrutura construir**. Ele nunca dispensa os contr
 
 ## 7. Quality gates (propor, não forçar)
 
-Se o projeto tem CI, proponha: `node scripts/check-padrao.mjs`, secret scan, `supabase test db` com os testes de isolamento, geração e conferência do tipo das permissões, e a regra de lint de imports de GCP_MIGRATION §6. Não crie limite cego de tamanho que force a remoção de regra crítica.
+Se o projeto tem CI, proponha: `node scripts/check-padrao.mjs`, `node scripts/check-portabilidade.mjs` (com linha de base em projeto legado), secret scan, lint, typecheck, testes, `supabase test db` com os testes de isolamento, e geração e conferência do tipo das permissões. Não crie limite cego de tamanho que force a remoção de regra crítica.
 
 ## 8. Entrega
 
@@ -154,6 +166,14 @@ Entregue nesta ordem e **pare** antes de qualquer alteração funcional, migrati
 4. Faça merge de `.claude/settings.json`, `.claude/rules/` e do tenancy-profile preservando os ajustes locais; regenere os AGENTS.md aninhados.
 5. Atualize o AGENTS.md só nas seções estruturais; mantenha os fatos do projeto.
 6. Relate o que mudou entre as versões e quais regras novas geram lacunas no projeto.
+
+**De 3.1 para 3.2:**
+
+- `GCP_MIGRATION.md` passou a ser obrigatório: copie se faltar (o check falha sem ele).
+- Padrão opcional não copiado precisa estar em `.claude/padrao.json` → `nao_adotados`, com motivo. Projetos que registravam isso só no AGENTS.md ("Padrões não adotados") passam a declarar no JSON.
+- Copie `scripts/check-portabilidade.mjs`, rode e grave a linha de base; inclua os dois scripts no CI.
+- SQL de referência: `auth.uid()` virou `private.current_user_id()` e as FKs de usuário apontam para `public.app_users`. Em projeto existente isso é **plano** (expand → backfill → contract), não migration nesta execução.
+- `.claude/rules/banco-de-dados.md` ganhou as regras de grants explícitos e de `current_user_id()`: faça o merge e regenere os AGENTS.md aninhados.
 
 ## 10. Depois da instalação
 

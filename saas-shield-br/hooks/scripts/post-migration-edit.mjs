@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Hook PostToolUse: depois de Edit/Write em supabase/migrations/*.sql,
- * sugere ao Claude rodar `/check-rls <arquivo>` ou invocar a skill rls-reviewer.
+ * Hook PostToolUse (Edit|Write): depois de editar supabase/migrations/*.sql, sugere ao
+ * Claude rodar `/check-rls <arquivo>` ou a skill rls-reviewer antes de aplicar.
  *
- * Não bloqueia — apenas adiciona contexto.
+ * Não bloqueia. A sugestão vai como hookSpecificOutput.additionalContext: stdout em texto
+ * puro de PostToolUse só aparece no log de debug, não chega ao Claude.
  */
 
 import { readFileSync } from 'node:fs'
@@ -16,14 +17,15 @@ try {
 }
 
 const filePath = payload?.tool_input?.file_path ?? ''
-if (!/supabase[\\/]migrations[\\/].+\.sql$/i.test(filePath)) process.exit(0)
+if (typeof filePath !== 'string' || !/supabase[\\/]migrations[\\/].+\.sql$/i.test(filePath)) process.exit(0)
 
 const msg = [
-  '💡 saas-shield-br: você editou uma migration.',
-  `   Considere rodar /check-rls ${filePath}`,
-  '   ou invocar a skill rls-reviewer para validar antes de aplicar.',
+  'saas-shield-br: você editou uma migration.',
+  `Antes de aplicar, rode /check-rls ${filePath} (ou a skill rls-reviewer).`,
+  'Aplicar é local: supabase db reset + supabase test db. db push no remoto só depois do merge e com autorização explícita.',
 ].join('\n')
 
-// stdout em PostToolUse vira contexto adicional para o Claude
-process.stdout.write(msg + '\n')
+process.stdout.write(JSON.stringify({
+  hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: msg },
+}))
 process.exit(0)

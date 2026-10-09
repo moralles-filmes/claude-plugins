@@ -1,6 +1,6 @@
 # Ciclo de vida da empresa e cobrança
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao tocar cadastro de empresa, convites, planos, cobrança da assinatura, suspensão, cancelamento, exportação ou exclusão de dados de um cliente.
 > Complementa: ACCESS_CONTROL.md (status e módulos contratados), INTEGRATIONS.md (gateway de pagamento), SECURITY.md §10 (LGPD).
 

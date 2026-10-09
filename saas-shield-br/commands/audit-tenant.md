@@ -16,13 +16,13 @@ Rode auditoria multi-tenant completa do projeto.
 3. **Dispare o agente `tenant-isolation-auditor`** (Agent tool com `subagent_type: tenant-isolation-auditor`), passando o escopo e o profile resolvido. Ele varre:
    - Tabelas órfãs (sem `TC`) vs globais legítimas
    - Acesso direto ao banco (RLS+FORCE, policies via `R`, views com `security_invoker`)
-   - Fronteira privilegiada (Edge Function / Route Handler / RPC) com `service_role` aceitando `TC` do body
+   - Fronteira privilegiada (Edge Function / Route Handler / RPC) com `service_role` usando o `TC` indicado pelo cliente sem confirmar membership
    - Troca/seleção de tenant, JOINs perigosos, payload com `TC` do cliente
    - Devolve o relatório no contrato padrão (`agent-result-contract`), com cenário de exploração por achado.
 
 4. **Consolide** o relatório num veredito único:
    ```
-   🛡️ AUDITORIA MULTI-TENANT — <projeto>  | Arquétipo: <A|B|C|D>
+   🛡️ AUDITORIA MULTI-TENANT — <projeto>  | Arquétipo: <A–E>
 
    📊 Resumo
      - Tabelas: X com <TC> ✅ | Y suspeitas ❌

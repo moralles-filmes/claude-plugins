@@ -1,6 +1,6 @@
 # Contexto do projeto para agentes
 
-> Entrada única para Claude Code (via `CLAUDE.md` → `@AGENTS.md`) e Codex. Padrão SaaS v3.1.
+> Entrada única para Claude Code (via `CLAUDE.md` → `@AGENTS.md`) e Codex. Padrão SaaS v3.2.
 > Contém só o que todo agente precisa antes de tocar no sistema. Detalhes ficam em `docs/standards/`.
 > Meta: menos de 200 linhas. Não transformar em diário, changelog ou plano de tarefa.
 
@@ -24,6 +24,7 @@
 
 - Monólito modular com Ports & Adapters. Módulos em `{{src/modules/<modulo> | src/features/<modulo>}}`.
 - Execução: interface → caso de uso → porta → adapter. Domínio e casos de uso não importam SDKs, `supabase-js` ou framework.
+- A tela chama só o adapter do módulo ({{src/features/<modulo>/api.ts | adapters/}}): nunca importa o cliente Supabase nem chama `.from()`/`.rpc()` direto (GCP_MIGRATION §6).
 - Mutações críticas passam por caso de uso no servidor ({{route handler/server action | Edge Function}} ou RPC). O banco bloqueia o caminho direto (SECURITY §5).
 - Trabalho assíncrono durável roda em: {{ex.: outbox + pg_cron acionando Edge Function | Supabase Queues | Vercel Cron}}. `after()`/`waitUntil` só para trabalho descartável.
 - Estado compartilhado (rate limit, locks, circuit breaker) fica no Postgres, salvo decisão registrada em ADR.
@@ -72,6 +73,7 @@ test:       {{pnpm test}}
 test db:    {{supabase test db}}
 build:      {{pnpm build}}
 padrão:     node scripts/check-padrao.mjs
+portável:   node scripts/check-portabilidade.mjs
 db local:   {{supabase start / supabase db reset}}   (nunca contra produção)
 ```
 

@@ -1,6 +1,6 @@
 # Multi-tenancy
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao tocar dados de mais de uma empresa, RLS, membership, cache, jobs, webhooks ou tools que agem em nome de um tenant.
 > Permissões por módulo, papéis e filiais: ACCESS_CONTROL.md.
 

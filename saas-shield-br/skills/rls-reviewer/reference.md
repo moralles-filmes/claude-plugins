@@ -2,7 +2,7 @@
 
 Referência completa do `rls-reviewer`. Carregue sob demanda.
 
-> **Convenção:** `<TC>` = a(s) coluna(s) de tenant do projeto, `<R>` = o resolver canônico, `<WP>` = o caminho de escrita — tudo vindo do `.claude/tenancy-profile.yml` (skill [tenant-model]). Nos exemplos abaixo usamos `company_id`/`get_current_company_id()` **como ilustração do Arquétipo A**; num projeto `unit_id`/`current_unit_ids()` (Arquétipo D), troque os identificadores. Os **anti-patterns** valem em qualquer arquétipo.
+> **Convenção:** `<TC>` = a(s) coluna(s) de tenant do projeto, `<R>` = o resolver canônico, `<WP>` = o caminho de escrita — tudo vindo do `.claude/tenancy-profile.yml` (skill [tenant-model]). Os exemplos corretos usam o **arquétipo E** (padrão do Padrão SaaS v3.2: `private.allowed_company_ids`/`allowed_location_ids`, `(select private.current_user_id())`). Os exemplos com `get_current_company_id()` ilustram o arquétipo A (legado). Os **anti-patterns** valem em qualquer arquétipo. Projeto com `docs/standards/`: as normas dele prevalecem.
 
 ## Modelo mental: as 4 camadas (parametrizado)
 
@@ -31,7 +31,7 @@ CAMADA 4 — POLICIES    USING (<TC> ~ <R>)  +  WITH CHECK (<TC> ~ <R>)
 
 ### Escrita — depende de `<WP>`
 - **Se `force-trigger`**: trigger `BEFORE INSERT OR UPDATE` deriva `<TC>` de `<R>` no INSERT e preserva `OLD.<TC>` no UPDATE; função `SECURITY DEFINER` + `SET search_path`; não deixa `<TC>` do cliente passar quando `auth.uid()` é NULL.
-- **Se `server-scoped`**: não há policy de INSERT permissiva demais; `WITH CHECK` amarra a `<R>`; a escrita real acontece no servidor com filtro de tenant explícito.
+- **Se `server-scoped`**: não há policy de INSERT permissiva demais; `WITH CHECK` amarra a `<R>`; no E, o cliente grava direto só nas colunas com grant (estado fora), e escrita com service role no servidor filtra o tenant explicitamente.
 - **Se `rpc-security-definer`**: a tabela **não** tem policy de escrita para `authenticated`; toda mutação passa por RPC `SECURITY DEFINER` que valida o tenant internamente.
 
 > Não penalize a ausência de force-trigger fora do Arquétipo A. Valide **o caminho declarado**.
@@ -51,9 +51,15 @@ CAMADA 4 — POLICIES    USING (<TC> ~ <R>)  +  WITH CHECK (<TC> ~ <R>)
 - [ ] Ramo de super-admin explícito (autoridade separada) OU super barrado?
 - [ ] Nomes descritivos (`<table>_select_own_tenant`)?
 
+### Grants (universal)
+- [ ] `revoke all … from anon, authenticated` e grant mínimo na mesma migration (não depende dos default privileges do Supabase)? Ausente → P2.
+- [ ] Coluna de estado de transição crítica sem grant de update para `authenticated` (grant por coluna)? Com grant → P1.
+- [ ] Funções com `revoke execute … from public` (e `anon`) e grant explícito?
+
 ### Resolver `<R>` (universal)
 - [ ] Existe e é `STABLE SECURITY DEFINER`?
-- [ ] `SET search_path` (`''`/`public`)?
+- [ ] `SET search_path = ''` com nomes qualificados? (`= public` → P2)
+- [ ] Fora do schema exposto (`private` no E)?
 - [ ] Autoridade correta ao `resolver_kind`: JWT `app_metadata` (nunca `user_metadata`) | membership-lookup | set-returning?
 - [ ] Para mutações críticas, há variante estrita que nega quando sem vínculo?
 
@@ -80,10 +86,17 @@ Permite mover linha entre tenants. Sempre `USING + WITH CHECK`.
 ### #4 — `SECURITY DEFINER` sem `search_path`
 Atacante cria schema com função homônima e sequestra o `search_path` da sessão.
 ```sql
--- ✅
-CREATE OR REPLACE FUNCTION public.get_current_company_id()
-RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
-AS $$ SELECT ... $$;
+-- ✅ search_path vazio + nomes qualificados
+create or replace function private.user_company_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.company_id from public.company_members m
+   where m.user_id = (select private.current_user_id()) and m.status = 'active'
+$$;
 ```
 
 ### #5 — Resolver `VOLATILE`
@@ -105,7 +118,7 @@ CREATE VIEW public.invoices_summary WITH (security_invoker = on) AS SELECT ...;
 ```sql
 USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()))  -- ❌
 ```
-Cada policy reimplementa a lógica; bug em uma não propaga fix. Sempre via `<R>`.
+Cada policy reimplementa a lógica; bug em uma não propaga fix. Sempre via `<R>`. No E, também não reimplemente a regra de concessão: use `private.allowed_company_ids`/`allowed_location_ids`.
 
 ### #9 — Caminho de escrita permissivo demais
 Trigger que passa `<TC>` do cliente quando `auth.uid()` é NULL; RPC `SECURITY DEFINER` que não valida o tenant; escrita server-side sem `.eq(<TC>)`. Qualquer um vira bypass.
@@ -122,9 +135,48 @@ A `service_role` ignora RLS. Se está no env do cliente (`VITE_*`/`NEXT_PUBLIC_*
 ### #12 — Policy sem role específico (`TO public`)
 Aplica até para anônimos. Sempre `TO authenticated` (ou role específico).
 
-## Template de policy correta (Arquétipo A — ilustração)
+## Arquétipo E — checagens adicionais
 
-Para os templates dos Arquétipos B (`unit_id`/membership), C (`org+unit`/RBAC) e D (`unit_id`/set), veja `reference.md` da skill [tenant-model]. Exemplo do Arquétipo A:
+| Checagem | Severidade se falhar |
+|---|---|
+| Policy de tabela da empresa usa `company_id in (select private.allowed_company_ids('<mod>.<sub>.<acao>'))` | P1 |
+| Policy de tabela da filial usa `location_id in (select private.allowed_location_ids('<mod>.<sub>.<acao>'))` + FK composta `(company_id, location_id)` → `locations (company_id, id)` | P1 |
+| Leitura usa a ação `ver` do submódulo dono da tabela | P2 |
+| Insert/update de cadastro compartilhado usa `allowed_company_ids('…', true)` | P2 |
+| Helper chamado dentro de `(select …)` | P2 (desempenho) |
+| Chave de permissão usada existe no catálogo `public.permissions` | P1 (concessão nunca casa) |
+| Tabelas de acesso (`company_members`, `member_roles`, `member_permissions`, `role_permissions`, `roles`) sem grant de escrita para `authenticated` | P0 |
+| `auth.uid()` direto em policy/helper fora do adapter de identidade | P3 (portabilidade) |
+| FK de usuário para `auth.users` em vez de `public.app_users` | P3 (portabilidade) |
+| Policy que libera o administrador da plataforma (`is_platform_admin()`) em tabela de tenant | P1 (super admin é barrado nas policies de tenant) |
+
+## Template de policy correta (arquétipo E)
+
+```sql
+alter table public.suppliers enable row level security;
+alter table public.suppliers force row level security;
+
+create policy suppliers_select on public.suppliers for select to authenticated
+  using (company_id in (select private.allowed_company_ids('financeiro.fornecedores.ver')));
+
+create policy suppliers_insert on public.suppliers for insert to authenticated
+  with check (company_id in (select private.allowed_company_ids('financeiro.fornecedores.editar', true)));
+
+create policy suppliers_update on public.suppliers for update to authenticated
+  using      (company_id in (select private.allowed_company_ids('financeiro.fornecedores.editar', true)))
+  with check (company_id in (select private.allowed_company_ids('financeiro.fornecedores.editar', true)));
+
+revoke all on public.suppliers from anon, authenticated;
+grant select, insert, update on public.suppliers to authenticated;
+
+create index suppliers_company_idx on public.suppliers (company_id);
+```
+
+Templates completos (empresa, filial, RPC de transição, N:N, audit log, view): `templates.md` da skill [supabase-migrator].
+
+## Template de policy correta (arquétipo A — legado)
+
+Para os arquétipos B (`unit_id`/membership), C (`org+unit`/RBAC) e D (`unit_id`/set), veja `reference.md` da skill [tenant-model]. Exemplo do arquétipo A:
 
 ```sql
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;

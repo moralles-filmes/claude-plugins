@@ -35,8 +35,8 @@ Em um projeto SaaS:
 
 ```text
 /saas-audit-br:status
-/saas-audit-br:audit --audit-only
+/saas-audit-br:audit
 ```
 
 O primeiro comando não deve modificar o projeto.
-O segundo deve iniciar baseline e criar o estado operacional `.saas-audit/`.
+O segundo roda em `--audit-only` (o padrão): inicia a baseline, cria o estado operacional `.saas-audit/` e não edita código. Para corrigir, rode `/saas-audit-br:audit --fix` explicitamente.

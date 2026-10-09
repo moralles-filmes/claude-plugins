@@ -1,6 +1,6 @@
 # Módulos: criação, evolução e remoção
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao criar módulo ou submódulo, ao mudar o contrato de um módulo existente ou ao desligar um. A skill `padrao-saas:novo-modulo` executa este procedimento.
 > Complementa: ARCHITECTURE.md (estrutura interna), ACCESS_CONTROL.md (permissões), DATABASE.md (migrations).
 
@@ -64,6 +64,7 @@ Marque cada item como APLICÁVEL, NÃO APLICÁVEL (com justificativa) ou PENDENT
 - [ ] testes de isolamento (empresa, filial, submódulo, ação) passando
 - [ ] casos de uso com `can()`, validação em runtime e erros classificados
 - [ ] queries filtrando pela empresa/filial ativa; chaves de cache com `company_id`
+- [ ] tela chama só o adapter do módulo; `check-portabilidade` sem dívida nova
 - [ ] UI com os quatro estados, menu por `my_permissions`, módulo não contratado tratado
 - [ ] integrações com a DoD de INTEGRATIONS §19
 - [ ] flag/rollout definidos

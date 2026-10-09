@@ -1,6 +1,6 @@
 # Arquitetura
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao criar módulo, refatorar, criar caso de uso com mutação crítica, fila/job ou nova dependência.
 > Níveis: [N1] base · [N2] operação crítica · [N3] escala (ver AGENTS.md §5).
 
@@ -47,7 +47,7 @@ O runtime é declarado no AGENTS.md §2 e no `framework` do tenancy-profile.
 | **Next.js (App Router)** | route handlers, server actions | Node, no próprio app; atomicidade em RPC quando há vários passos |
 | **Vite (SPA)** | não há servidor próprio | Edge Functions (Deno) ou RPC Postgres (modelo B de DATABASE §4) |
 
-Em SPA Vite, o browser fala com o Supabase direto para leituras e escritas simples protegidas por RLS. Toda mutação crítica, chamada a provedor e uso de segredo vai para Edge Function ou RPC. Domínio compartilhado entre Node e Deno fica em código sem dependência de runtime, importado pelos dois (import map no Deno).
+Em SPA Vite, o browser fala com o Supabase direto para leituras e escritas simples protegidas por RLS, **sempre através do adapter do módulo** (`src/features/<modulo>/api.ts`). Componentes e hooks de tela chamam o adapter: não importam o cliente Supabase nem chamam `.from()`/`.rpc()` direto. Essa fronteira é o que permite trocar o Supabase por uma API própria mudando só o adapter, sem servidor novo antes da hora (GCP_MIGRATION §6). Toda mutação crítica, chamada a provedor e uso de segredo vai para Edge Function ou RPC. Domínio compartilhado entre Node e Deno fica em código sem dependência de runtime, importado pelos dois (import map no Deno).
 
 ## 3. Aplicação proporcional [N1]
 
@@ -72,7 +72,7 @@ src/modules/<modulo>/
 Variante Vite (SPA + Edge Functions):
 
 ```text
-src/features/<modulo>/          páginas, componentes, hooks e api.ts (adapter de leitura via supabase-js)
+src/features/<modulo>/          páginas, componentes, hooks e api.ts (adapter: único arquivo do módulo que fala com o Supabase)
 src/lib/supabase/               único createClient do browser
 supabase/functions/<modulo>-*/  casos de uso com efeito: validam JWT, tenant e permissão
 supabase/functions/_shared/     domínio e portas sem dependência de runtime, adapters Deno

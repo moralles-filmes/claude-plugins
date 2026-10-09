@@ -1,6 +1,6 @@
 ---
 name: vite-react-arquitetura
-description: Estrutura de pastas + arquivos canônicos para iniciar um novo SaaS Vite + React + TypeScript multi-tenant. Use ao bootstrar projeto novo do zero, ou ao avaliar se um projeto existente segue a arquitetura padrão. Gera scaffold completo de src/, configs (vite, tailwind, tsconfig), e arquivos críticos (client Supabase único, env validado com Zod, query client, router com guards).
+description: Estrutura de pastas + arquivos canônicos para iniciar um novo SaaS Vite + React + TypeScript multi-tenant no Padrão SaaS. Use ao bootstrar projeto novo do zero, ou ao avaliar se um projeto existente segue a arquitetura padrão. Gera scaffold completo de src/, configs (vite, tailwind, tsconfig), e arquivos críticos (client Supabase único, adapter api.ts por módulo, env validado com Zod, query client, router com a empresa ativa em /app/[empresa]).
 ---
 
 # Vite + React + TypeScript — arquitetura canônica para SaaS multi-tenant
@@ -23,15 +23,17 @@ description: Estrutura de pastas + arquivos canônicos para iniciar um novo SaaS
 │   │   ├── root-layout.tsx          # AppShell (sidebar + header)
 │   │   └── error-boundary.tsx
 │   ├── features/                    # 1 pasta por módulo do projeto
-│   │   └── <feature>/
-│   │       ├── pages/               # rotas (LoginPage, DashboardPage)
-│   │       ├── components/          # componentes específicos da feature
-│   │       ├── hooks/               # useLogin, useInvoiceList
-│   │       ├── api.ts               # chamadas Supabase da feature
+│   │   ├── auth/api.ts              # sessão e login (adapter de auth)
+│   │   ├── empresa/                 # api.ts, use-active-company.ts, company-layout.tsx, seletor
+│   │   └── <modulo>/
+│   │       ├── pages/               # rotas (lazy, exportam `Component`)
+│   │       ├── components/          # componentes do módulo
+│   │       ├── hooks/               # useBills, usePayBill — chamam o api.ts
+│   │       ├── api.ts               # ADAPTER: único arquivo do módulo que importa o cliente Supabase
 │   │       └── types.ts
 │   ├── components/
 │   │   ├── ui/                      # primitives (Button, Input, Dialog) — design-ux povoa
-│   │   └── shared/                  # cross-feature (TenantSwitcher, Avatar)
+│   │   └── shared/                  # cross-feature (CompanySwitcher, Avatar)
 │   ├── lib/
 │   │   ├── supabase/
 │   │   │   ├── client.ts            # ÚNICO createClient
@@ -195,20 +197,13 @@ dist-ssr
 supabase/.branches
 supabase/.temp
 
-# Tests
+# Tests e editor
 coverage
 playwright-report
 test-results
-
-# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 ```
 
 ### `src/lib/supabase/client.ts` — único cliente do app
@@ -231,7 +226,7 @@ export const supabase = createClient<Database>(
 );
 ```
 
-**Regra**: nenhum outro arquivo cria cliente Supabase. `createClient(` fora deste arquivo → recuse e importe `supabase` daqui.
+**Regra**: nenhum outro arquivo cria cliente Supabase, e só `src/features/*/api.ts` importa este. Fora deles, tipos do banco entram com `import type { Tables } from "@/lib/supabase/types"`. Só `@supabase/supabase-js`: os pacotes `auth-helpers` estão descontinuados.
 
 ### `src/lib/env.ts` — env validado com Zod
 
@@ -249,62 +244,113 @@ export const env = schema.parse(import.meta.env);
 
 Toda variável de frontend tem prefixo `VITE_`. **Nunca** `VITE_SUPABASE_SERVICE_ROLE_KEY` ou similar — service role só vive em Edge Function.
 
+### `src/features/auth/api.ts` — adapter de auth
+
+```ts
+import { supabase } from "@/lib/supabase/client";
+
+export async function getSession() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  return data.session;
+}
+
+export function onSignedOut(cb: () => void): () => void {
+  const { data } = supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") cb();
+  });
+  return () => data.subscription.unsubscribe();
+}
+```
+
 ### `src/app/providers.tsx`
 
 ```tsx
+import { useEffect, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { queryClient } from "@/lib/query/client";
-import { AuthProvider } from "@/features/auth/auth-provider";
+import { onSignedOut } from "@/features/auth/api";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
+  useEffect(() => onSignedOut(() => queryClient.clear()), []); // logout descarta todo o cache privado
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        {children}
-      </AuthProvider>
+      {children}
       {import.meta.env.DEV && <ReactQueryDevtools />}
     </QueryClientProvider>
   );
 }
 ```
 
-`queryClient` e query keys: skill `tanstack-query-supabase`.
+`queryClient`, query keys, `useActiveCompany` e o padrão de `api.ts`: skill `tanstack-query-supabase`.
 
-### `src/app/router.tsx` — rotas lazy + guard de auth/tenant
+### `src/app/router.tsx` — empresa ativa na URL + rotas lazy
 
 ```tsx
 import { createBrowserRouter, redirect } from "react-router-dom";
-import { supabase } from "@/lib/supabase/client";
+import { queryClient } from "@/lib/query/client";
+import { getSession } from "@/features/auth/api";
+import { companyBySlugQuery } from "@/features/empresa/use-active-company";
 
-async function requireAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw redirect("/login");
-  // Arquétipo A (tenant no JWT). Em membership/RBAC, resolva o tenant ativo conforme o tenancy-profile.
-  const company_id = (session.user.app_metadata as Record<string, unknown>)?.company_id;
-  if (!company_id) throw redirect("/onboarding"); // ainda não tem tenant
-  return { user_id: session.user.id, company_id };
+async function requireSession() {
+  if (!(await getSession())) throw redirect("/login");
+  return null;
 }
 
 export const router = createBrowserRouter([
+  { path: "/login", lazy: () => import("@/features/auth/pages/login.page") },
   {
-    path: "/login",
-    lazy: () => import("@/features/auth/pages/login.page"),
-  },
-  {
-    path: "/",
-    loader: requireAuth,
-    element: <AppShell />,
+    path: "/app",
+    loader: requireSession,
     children: [
-      { index: true, lazy: () => import("@/features/dashboard/pages/dashboard.page") },
-      { path: "messages", lazy: () => import("@/features/messages/pages/messages.page") },
-      // ...
+      // Sem empresa na URL: seletor com as empresas do usuário (ou cadastro da primeira)
+      { index: true, lazy: () => import("@/features/empresa/pages/selecionar-empresa.page") },
+      {
+        path: ":empresa",
+        // A URL só indica a empresa. A RLS de companies devolve null se o usuário não é membro ativo.
+        loader: async ({ params }) => {
+          await requireSession();
+          const company = await queryClient.ensureQueryData(companyBySlugQuery(params.empresa ?? ""));
+          if (!company) throw redirect("/app");
+          return null;
+        },
+        lazy: () => import("@/features/empresa/company-layout"),
+        children: [
+          { index: true, lazy: () => import("@/features/dashboard/pages/dashboard.page") },
+          { path: "financeiro/contas-pagar", lazy: () => import("@/features/financeiro/pages/contas-pagar.page") },
+          { path: "f/:filial/caixa", lazy: () => import("@/features/caixa/pages/caixa.page") }, // tela da filial
+        ],
+      },
     ],
   },
 ]);
 ```
 
-`lazy:` faz code splitting por rota — bundle inicial menor.
+Trocar de empresa é navegar para outro `/app/:empresa`; duas abas em empresas diferentes funcionam. `lazy:` faz code splitting por rota (cada módulo exporta `Component`).
+
+### `src/features/empresa/company-layout.tsx` — sair da empresa limpa o cache dela
+
+```tsx
+import { useEffect } from "react";
+import { Outlet } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query/keys";
+import { AppShell } from "@/app/root-layout";
+import { useActiveCompany } from "./use-active-company";
+
+export function Component() {
+  const company = useActiveCompany();
+  const queryClient = useQueryClient();
+  // Trocou de empresa ou desmontou: remove as queries que começam pelo companyId anterior.
+  useEffect(() => () => queryClient.removeQueries({ queryKey: qk.company(company.id) }), [company.id, queryClient]);
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  );
+}
+```
 
 ## Bootstrap em 5 comandos
 
@@ -338,8 +384,19 @@ npx supabase gen types typescript --linked > src/lib/supabase/types.ts
 Rode esses Greps. Cada match é red flag:
 
 ```bash
+# Fronteira de portabilidade (o padrão traz o check completo, com linha de base)
+node scripts/check-portabilidade.mjs
+
 # Múltiplos createClient (deveria ser só 1)
 grep -rn "createClient" src/ | grep -v "src/lib/supabase/client.ts"
+
+# Supabase fora do adapter do módulo
+grep -rnE "supabase\.(from|rpc|channel|storage)|functions\.invoke" src/ | grep -vE "src/features/[^/]+/api\.ts|src/lib/supabase/"
+
+# Empresa lida do token (no arquétipo E ela vem da URL)
+grep -rn "app_metadata" src/
+
+# Revise à mão: toda query de tela no api.ts tem .eq("company_id", companyId)
 
 # Service role no client
 grep -rn "service_role\|SERVICE_ROLE_KEY" src/

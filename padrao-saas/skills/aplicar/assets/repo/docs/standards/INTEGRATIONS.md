@@ -1,6 +1,6 @@
 # Integrações, webhooks, OAuth, IA com ferramentas e MCP
 
-> Padrão SaaS v3.1 — documento normativo e **fonte única** deste assunto. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo e **fonte única** deste assunto. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia em qualquer tarefa com API externa, webhook, OAuth/OIDC, fila de integração, Meta, Z-API, Datafy, pagamento, e-mail, ERP, storage externo, IA com tools ou MCP.
 > Particularidades de cada provedor ficam em `docs/integrations/providers/<provider>.md`. Esses documentos complementam este padrão e não podem enfraquecê-lo.
 

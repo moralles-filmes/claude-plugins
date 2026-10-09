@@ -11,7 +11,7 @@
                     {
                         "name":  "padrao-saas",
                         "source":  "./padrao-saas",
-                        "description":  "Padrão SaaS v3.1 — fonte normativa dos projetos: arquitetura, segurança, multi-tenancy, controle de acesso (empresas, filiais, permissões por módulo/submódulo), banco, integrações, API pública, ciclo de vida da empresa, testes e operação. Skills aplicar (instala/audita/atualiza o padrão num projeto) e novo-modulo (criação de módulo com DoD). Lido pelos plugins saas-builder-br, saas-shield-br e saas-audit-br."
+                        "description":  "Padrão SaaS v3.2 — fonte normativa dos projetos: arquitetura, segurança, multi-tenancy, controle de acesso (empresas, filiais, permissões por módulo/submódulo), banco, integrações, API pública, ciclo de vida da empresa, testes, operação e portabilidade (check-portabilidade com linha de base; SQL de referência testado no Supabase e em Postgres puro). Skills aplicar (instala/audita/atualiza o padrão num projeto) e novo-modulo (criação de módulo com DoD). Lido pelos plugins saas-builder-br, saas-shield-br e saas-audit-br."
                     },
                     {
                         "name":  "saas-shield-br",
@@ -31,7 +31,7 @@
                     {
                         "name":  "saas-builder-br",
                         "source":  "./saas-builder-br",
-                        "description":  "Orquestrador central + 8 subagents especializados para construir SaaS multi-tenant em Vite + React + TypeScript / Supabase / Vercel. Pipeline de 8 fases (concept → schema → backend → frontend → integrations → code_health → security_audit → deploy) com gates pontuais do saas-shield-br (segurança) e auditoria completa delegada ao saas-audit-br (code-health + shield + processo/dados/IA). Inclui 5 skills (vite-react-arquitetura, tanstack-query-supabase, whatsapp-zapi-integracao, llm-multi-provider, responsive-mobile-first) e 3 commands (/novo-saas, /proximo-passo, /quem-faz)."
+                        "description":  "Orquestrador central + 8 subagents especializados para construir SaaS multi-tenant em Vite + React + TypeScript / Supabase / Vercel. Gera no arquétipo E do padrao-saas (empresa ativa na URL, tela → adapter api.ts, RPC para transições críticas). Pipeline de 8 fases (concept → schema → backend → frontend → integrations → code_health → security_audit → deploy) com gates pontuais do saas-shield-br (segurança) e auditoria completa delegada ao saas-audit-br (code-health + shield + processo/dados/IA). Inclui 5 skills (vite-react-arquitetura, tanstack-query-supabase, whatsapp-zapi-integracao, llm-multi-provider, responsive-mobile-first) e 3 commands (/novo-saas, /proximo-passo, /quem-faz)."
                     },
                     {
                         "name":  "turbo",
@@ -41,7 +41,7 @@
                     {
                         "name":  "saas-audit-br",
                         "source":  "./saas-audit-br",
-                        "description":  "Orquestrador de auditoria ponta a ponta para SaaS. Reutiliza saas-shield-br + code-health, adiciona auditoria de processo/IA/resiliência, classifica P0-P3, corrige em fases com testes e mantém estado em disco para retomada após compactação/sessão. Inclui auditoria completa e por módulo."
+                        "description":  "Orquestrador de auditoria ponta a ponta para SaaS. Reutiliza saas-shield-br + code-health, adiciona auditoria de processo/IA/resiliência, classifica P0-P3 e mede portabilidade. Por padrão só audita (--audit-only); corrige em fases com testes quando pedido (--fix/--full). Mantém estado em disco para retomada após compactação/sessão. Inclui auditoria completa e por módulo."
                     },
                     {
                         "name":  "ai-router-br",

@@ -1,6 +1,6 @@
 # Segurança
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao tocar auth, sessão, permissões, RLS/grants, credenciais, dados pessoais, uploads, IA no produto ou ferramentas de agente.
 > Complementa: MULTI_TENANCY.md (isolamento), DATABASE.md (policies e funções), INTEGRATIONS.md (credenciais de provedor).
 

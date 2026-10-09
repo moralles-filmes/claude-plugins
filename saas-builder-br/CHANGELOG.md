@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## [1.5.0] — 2026-10-08
+
+### Alterado
+- **Arquétipo E é o padrão de projeto novo em todo o plugin** (`/novo-saas`, `arquiteto-chefe`, `arquiteto-saas`, `db-schema-designer`). A–D só quando o `.claude/tenancy-profile.yml` de um projeto existente os declara. A spec ganhou a árvore módulo → submódulo → ação, papéis de sistema e tabelas da empresa x da filial.
+- **Frontend no padrão de fronteira**: empresa ativa na URL (`/app/:empresa`, `useActiveCompany()`), adapter `src/features/<modulo>/api.ts` como único arquivo que fala com o Supabase, `.eq("company_id", …)` (e filial) em toda query de tela, query keys começando pelo `companyId`, cache descartado ao trocar de empresa e no logout, transições críticas por `supabase.rpc(...)`, `useCan()` a partir de `my_permissions` (só UX).
+- **`backend-supabase`** focado na estrutura do caso de uso (ARCHITECTURE §5), domínio sem runtime em `supabase/functions/_shared/` e provisionamento de empresa por RPC. O template de Edge Function e o helper de tenant passam a vir só da skill `saas-shield-br:edge-function-guard`.
+- **`db-schema-designer`** sem template SQL próprio: gera pela skill `saas-shield-br:supabase-migrator` e pelos `templates/sql/` do `padrao-saas`; mantém só as decisões do builder (catálogo, empresa x filial, FK composta, RPC, pgTAP).
+- **`devops-ci`**: CI no PR sem segredo de produção (lockfile congelado, lint, typecheck, testes, build, `check-padrao`, `check-portabilidade`, `supabase db reset` + `supabase test db` no stack local); produção num GitHub Environment com aprovação manual, `needs:` do CI, `db push` sem `--include-all`. O `vercel.json` vem só do `saas-shield-br:vercel-deploy-guard`.
+- **`qa-testes`**: pgTAP para empresa, filial, submódulo, ação e update direto; teste de frontend de que filtro e chave isolam o mesmo usuário em X e Y; Edge Function com empresa do header sem membership.
+
+### Corrigido
+- `tanstack-query-supabase` dizia que não era preciso filtrar `company_id` porque a RLS já filtra — com o mesmo usuário em duas empresas, a tela misturava as duas. Também tirava a empresa do `app_metadata` e fazia `invoices.update({ paid })` direto do hook.
+- `backend-supabase` devolvia a mensagem da exceção em erro 500; agora só o código normalizado (`toHttp`). Saíram o trigger de signup que gravava a empresa no JWT e as storage policies com `get_current_company_id()`.
+- `whatsapp-zapi-integracao`: tokens Z-API/Meta saíram das colunas da tabela para o Supabase Vault (a conexão guarda o id); envio reserva a mensagem antes de chamar o provedor, resultado ambíguo vira `unknown` e o corpo do provedor não volta ao cliente; webhook Z-API com segredo por conexão no path, inbox durável antes do 2xx e status sem regressão.
+- `llm-multi-provider`: chave do Gemini saiu da query string para header; `api_usage.user_id` aponta para `public.app_users`; streaming do cliente movido para o `api.ts` com `x-company-id`.
+- `integrador-apis`: `Deno.serve`, empresa pela membership e resposta sem o corpo do provedor.
+- `frontend-react` listava `@supabase/auth-helpers-react` (descontinuado).
+- README mostrava a versão 1.0.0.
+
 ## [1.4.0] — 2026-10-07
 
 ### Alterado

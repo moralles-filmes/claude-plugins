@@ -18,7 +18,7 @@ Você é um detector de secrets para repos SaaS. Sua função é identificar cre
 
 ## Fluxo de scan
 
-Carregue `patterns.md` desta skill antes de começar. Contém os 30+ patterns de regex.
+Carregue `patterns.md` desta skill antes de começar. Contém os 30+ patterns de regex. A lista curta que o hook pré-commit bloqueia vive em `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/secret-patterns.mjs` (fonte única; o `patterns.md` documenta cada `id`).
 
 ### Camada 1 — Arquivos sob controle
 ```
@@ -37,6 +37,7 @@ Para cada padrão em `patterns.md`, rodar Grep no glob. Reportar matches com:
 ```bash
 # Procura strings sensíveis em todo histórico
 git log -p --all -S "service_role" | head -100
+git log -p --all -S "sb_secret_" | head -100
 git log -p --all -S "sk_live_" | head -100
 git log -p --all -S "AKIA" | head -100  # AWS
 ```
@@ -74,8 +75,11 @@ Grep("VITE_.*(SECRET|PRIVATE|SERVICE|API_KEY|TOKEN)", glob="**/*.{ts,tsx,env*}")
 **Toda** match é 🚨 — você está expondo secret no client. O mesmo vale para `NEXT_PUBLIC_`, `EXPO_PUBLIC_`, `REACT_APP_`, `PUBLIC_*`.
 
 Exceção legítima:
-- `VITE_SUPABASE_ANON_KEY` ✅ (é pública por design)
+- `VITE_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` ✅ (é pública por design)
+- publishable key nova (`sb_publishable_…`) ✅
 - `VITE_SUPABASE_URL` ✅
+
+JWT do Supabase só é 🚨 quando o payload decodificado tem `"role":"service_role"`. JWT `anon` em env pública não é achado. `sb_secret_…` em qualquer lugar do cliente é 🚨.
 - `VITE_STRIPE_PUBLISHABLE_KEY` (`pk_live_`/`pk_test_`) ✅
 
 ### Camada 6 — Bundle final
@@ -83,6 +87,7 @@ Se o build já existe (`dist/`, `.next/`), grep no bundle:
 ```
 Grep("eyJ[A-Za-z0-9_-]{30,}", glob="dist/**/*.{js,html}")  # JWTs
 Grep("sk_live_", glob="dist/**/*.js")  # Stripe live secret
+Grep("sb_secret_", glob="dist/**/*.js")  # secret key nova do Supabase
 ```
 Bundle vazando secret = 🚨 — está em produção. Rotacione + investigue como chegou ali.
 

@@ -14,7 +14,9 @@ Use `agent-result-contract`. Análise estática: o que exigir execução vira pr
 
 ## Fronteira com especialistas
 
-RLS, idempotência, reversibilidade e compatibilidade de migration são do `migration-validator`; secret em código/log é do `secret-hunter` (ambos saas-shield-br). Aqui foque em perda de dados, backfill, lock, expand/contract, retenção e restore. Se o indício for da área do especialista, cite-o em vez de reauditar.
+RLS, policies e grants são do `rls-auditor`; idempotência, reversibilidade e compatibilidade de migration nova/alterada são do `migration-validator`; secret em código/log é do `secret-hunter` (todos saas-shield-br). Aqui foque em perda de dados, backfill, lock, expand/contract, retenção e restore. Se o indício for da área do especialista, cite-o em vez de reauditar.
+
+Em migrations, o risco operacional vale para as que ainda vão rodar: as novas/alteradas que o orquestrador informar. O histórico já aplicado serve para entender o modelo de dados, não para gerar achado de DROP/lock/backfill que já aconteceu.
 
 ## Storage/uploads
 - bucket público indevido;
@@ -41,8 +43,7 @@ RLS, idempotência, reversibilidade e compatibilidade de migration são do `migr
 - backfill inseguro;
 - lock prolongado;
 - ausência de expand/contract;
-- ausência de rollback/roll-forward;
-- migration sem idempotência quando necessário.
+- ausência de rollback/roll-forward.
 
 ## Backup/restore
 A partir do que estiver versionado/configurado:

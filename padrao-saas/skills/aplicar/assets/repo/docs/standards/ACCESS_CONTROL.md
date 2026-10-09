@@ -1,6 +1,6 @@
 # Controle de acesso: empresas, filiais, papéis e permissões por módulo
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao criar módulo, tela, rota, RPC ou policy; ao mexer em convites, papéis, permissões, filiais ou planos.
 > Complementa: MULTI_TENANCY.md (isolamento entre empresas), SECURITY.md (autenticação), TENANT_LIFECYCLE.md (planos e status da empresa).
 > Níveis: [N1] base · [N2] operação crítica · [N3] escala (ver AGENTS.md §5).
@@ -122,11 +122,13 @@ As tabelas de acesso não aceitam escrita direta do cliente (o banco bloqueia). 
 
 A skill `padrao-saas:aplicar` traz em `templates/sql/`:
 
-- `01_modelo_de_acesso.sql` — tabelas, validações, helpers, RLS, grants e seed de exemplo;
+- `00_identidade_supabase.sql` ou `00_identidade_postgres.sql` — adapter de identidade: `private.current_user_id()` e, no Supabase, o espelho `auth.users` → `public.app_users`. É o único arquivo que muda ao sair do Supabase Auth;
+- `01_modelo_de_acesso.sql` — usuários da aplicação (`app_users`), tabelas, validações, helpers, RLS, grants e seed de exemplo, sem referência ao schema `auth`;
 - `02_exemplo_modulo_financeiro.sql` — tabela da empresa, tabela da filial e transição crítica por RPC;
-- `03_modelo_de_acesso.test.sql` — 29 cenários em pgTAP.
+- `03_modelo_de_acesso.test.sql` — 33 cenários em pgTAP, que passam nos dois adapters;
+- `04_identidade_supabase.test.sql` — o espelho de usuários do adapter Supabase.
 
-Adapte nomes ao projeto; não aplique em massa num projeto existente (DATABASE §1).
+Adapte nomes ao projeto; não aplique em massa num projeto existente (DATABASE §1). Projeto com FKs para `auth.users`: crie `public.app_users`, faça o backfill (comentado no `00_identidade_supabase.sql`) e troque as FKs em migrations expand → contract.
 
 ## 10. Testes obrigatórios [N1]
 

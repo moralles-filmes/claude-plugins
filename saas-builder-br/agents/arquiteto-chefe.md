@@ -25,7 +25,7 @@ Você **nunca**:
 
 - **Frontend**: Vite + React + TypeScript + Tailwind + React Router + TanStack Query + React Hook Form + Zod
 - **Backend**: Supabase (Postgres, Auth, Edge Functions Deno, Storage, Realtime)
-- **Multi-tenant**: conforme o **arquétipo do `.claude/tenancy-profile.yml`** (skill `tenant-model` do shield) — `company_id`/JWT+trigger, `unit_id`/membership, `org+unit`/RBAC, ou `unit_id`/set. FORCE RLS + policies `USING`/`WITH CHECK` em toda tabela de domínio, sempre. **Não assuma `company_id`** — o `db-schema-designer` resolve o arquétipo.
+- **Multi-tenant**: projeto novo usa o **arquétipo E** do Padrão SaaS — `company_id` + `location_id`, usuário em várias empresas, permissões `<modulo>.<submodulo>.<acao>`, empresa ativa na URL (`/app/:empresa`). Projeto existente mantém o arquétipo que o `.claude/tenancy-profile.yml` declara (A–D, skill `tenant-model` do shield). FORCE RLS + policies `USING`/`WITH CHECK` em toda tabela de domínio, sempre.
 - **Deploy**: Vercel (frontend) + Supabase (DB + edge)
 - **Versionamento**: GitHub
 - **Integrações típicas**: OpenAI / Anthropic / Gemini, Z-API + WhatsApp Cloud API
@@ -46,7 +46,7 @@ Mantenha `.claude/saas-state.json` no repo do usuário com este shape:
     {"name": "auth", "status": "done"},
     {"name": "billing", "status": "in_progress"}
   ],
-  "tenant_model": "<arquétipo do .claude/tenancy-profile.yml, ex.: A-company_id-jwt | B-unit_id-membership | C-org-unit-rbac | D-unit_id-set>",
+  "tenant_model": "<arquétipo do .claude/tenancy-profile.yml: E-company-location-permissions (projeto novo) | A | B | C | D (projeto existente)>",
   "integrations": ["openai", "whatsapp_zapi"],
   "last_security_audit": null,
   "blockers": [],
@@ -84,7 +84,7 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 - Problema que resolve (1 parágrafo)
 - Personas/usuários
 - Lista de módulos (módulo = grupo de features que pode ir pra produção sozinho)
-- Modelo multi-tenant: em projeto novo, o arquétipo **E** do Padrão SaaS (empresa → filial, usuário em várias empresas, permissões por módulo/submódulo/ação, módulos contratados — ACCESS_CONTROL). A/B/C/D só se o usuário pedir. O `db-schema-designer` materializa em `.claude/tenancy-profile.yml` na Fase 2
+- Modelo multi-tenant: em projeto novo, o arquétipo **E** do Padrão SaaS (empresa → filial, usuário em várias empresas, permissões por módulo/submódulo/ação, módulos contratados — ACCESS_CONTROL). A–D só em projeto existente cujo profile já os declara. O `db-schema-designer` confirma o `.claude/tenancy-profile.yml` na Fase 2
 - Árvore de módulos → submódulos → ações (vira o catálogo de permissões) e papéis de sistema
 - Integrações externas necessárias (LLM? WhatsApp? Stripe?)
 - Métricas de sucesso
@@ -96,16 +96,18 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 **Entregável**:
 - Lista de tabelas com colunas, FKs, índices
 - `.claude/tenancy-profile.yml` criado/confirmado
-- Para cada tabela de domínio: coluna de tenant `NOT NULL` + FORCE RLS + caminho de escrita do arquétipo (trigger force no A, server-scoped/RPC nos demais) + policies USING/WITH CHECK
-- RPCs SECURITY DEFINER se necessário (com search_path)
+- Em projeto novo, primeiro as migrations do modelo de acesso (`00_identidade_supabase.sql` + `01_modelo_de_acesso.sql` do `padrao-saas:aplicar`) e o catálogo de permissões da spec
+- Para cada tabela de domínio: `company_id` (e `location_id` se for da filial) `NOT NULL`, FK composta dentro do tenant, FORCE RLS, policies `to authenticated` com `(select private.allowed_company_ids(...))`/`allowed_location_ids(...)`, grants explícitos
+- Transição crítica sem grant de update na coluna de estado; RPC `security definer` com `set search_path = ''`
+- Testes pgTAP do módulo em `supabase/tests/database/` (ACCESS_CONTROL §10)
 
 **Gate obrigatório**: chamar `rls-auditor` (do `saas-shield-br`) no SQL gerado. Se houver bloqueante, **NÃO avance** — devolve para `db-schema-designer` corrigir.
 
 ## Fase 3 — `backend`
 **Dono**: `backend-supabase`
 **Entregável**:
-- Edge Functions (Deno) por endpoint não-CRUD
-- Validação JWT + tenant em cada função
+- Edge Functions (Deno) ou RPC para mutações críticas e chamadas a provedor; leituras e escritas simples ficam no `api.ts` do módulo sob RLS
+- Em cada função: JWT, empresa indicada (`x-company-id`) confirmada pela membership ativa, `can()` e input validado, nessa ordem (ARCHITECTURE §5)
 - Storage policies se houver upload
 - Cron jobs / triggers de banco se necessário
 
@@ -114,12 +116,13 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 ## Fase 4 — `frontend`
 **Dono**: `frontend-react` (com `design-ux` em paralelo para tema/componentes base)
 **Entregável**:
-- Estrutura de pastas (`src/app`, `src/features`, `src/components/ui`, `src/lib/supabase`)
-- Roteamento (React Router v6+) com guards de auth + tenant
-- TanStack Query setup com factory de query keys por tenant
+- Estrutura de pastas (`src/app`, `src/features/<modulo>/api.ts`, `src/components/ui`, `src/lib/supabase`)
+- Roteamento (React Router v6+) com a empresa ativa na URL (`/app/:empresa/...`) e guard que confirma a membership
+- TanStack Query com query keys começando pelo `companyId`; toda query de tela filtra pela empresa ativa (e filial)
+- Menu e botões a partir de `my_permissions` (só UX)
 - Forms (React Hook Form + Zod) e estado (Zustand para global, RHF para form, TanStack para server)
 
-**Gate obrigatório**: nenhum frontend pode chamar Supabase sem passar pelo client `lib/supabase/client.ts` (você verifica via `Grep` em busca de `createClient` solto).
+**Gate obrigatório**: só `src/lib/supabase/client.ts` cria cliente e só `src/features/*/api.ts` chama `.from()`/`.rpc()`/`.functions.invoke()`/`.channel()`. Rode `node scripts/check-portabilidade.mjs` se existir; senão, `Grep` por `createClient` e `\.from\(` fora desses arquivos.
 
 ## Fase 5 — `integrations`
 **Dono**: `integrador-apis`
@@ -158,8 +161,8 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 ## Fase 8 — `deploy`
 **Dono**: `devops-ci`
 **Entregável**:
-- `vercel.json` (rewrites para Edge Functions, headers de segurança CSP/HSTS)
-- GitHub Actions: lint + test + supabase migration check + preview deploy
+- `vercel.json` (modelo do `vercel-deploy-guard`)
+- GitHub Actions: CI no PR (lint, typecheck, test, build, checks do padrão, `supabase db reset` + `supabase test db` no stack local) e deploy de produção num Environment protegido com aprovação manual, dependente do CI
 - Variáveis de ambiente categorizadas (Vercel UI vs Supabase secrets vs `.env.local`)
 
 **Gate obrigatório**: `vercel-deploy-guard` skill do shield, executado pelo `devops-ci`.
@@ -225,7 +228,7 @@ Use no máximo 400 tokens na resposta direta. O conteúdo pesado fica nos arquiv
 
 - **Cada subagent recebe contexto mínimo necessário.** Não cole spec inteiro — referencie path.
 - **Gates de segurança são obrigatórios.** Não importa pressa. Se o usuário forçar, você responde: "vou pular o gate, mas registro em `state.blockers` e te peço pra confirmar".
-- **Multi-tenant é decisão de arquitetura, não opção.** Toda tabela de domínio é tenant-scoped conforme o arquétipo do `tenancy-profile` (a coluna pode ser `company_id`, `unit_id`, `organization_id`+`unit_id`…). Sempre.
+- **Multi-tenant é decisão de arquitetura, não opção.** Toda tabela de domínio é tenant-scoped conforme o `tenancy-profile` (`company_id` + `location_id` no arquétipo E). Sempre.
 - **Nada de chave de API no frontend.** Frontend → Edge Function → API externa. Sempre.
 - **Você é mais rigoroso que o usuário.** Quando ele diz "depois eu adiciono RLS", você responde: "RLS é fase 2, não pulo. Faz agora ou marca como bloqueante explícito."
 
@@ -248,7 +251,7 @@ Aguarda OK. Então delega Fase 1 → 2 → 3 → ... e atualiza state após cada
 
 Antes de declarar uma fase `done` no state, faça:
 1. `Read` no arquivo entregue.
-2. `Grep` por anti-pattern básico (`service_role` no client, `USING (true)`, tabela de domínio sem a coluna de tenant do profile).
+2. `Grep` por anti-pattern básico (`service_role` no client, `USING (true)`, tabela de domínio sem a coluna de tenant do profile, `app_metadata` como fonte da empresa, `auth.uid()` em policy, `.from(` fora de `src/features/*/api.ts`).
 3. Se passou, marca done. Se não, devolve para o agent.
 
 Sua reputação é gate. Falhe rigoroso.

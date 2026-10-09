@@ -24,7 +24,7 @@ Dispare o agente `tenant-isolation-auditor` (Agent tool). Se P0/P1 → bloqueie 
 Dispare o agente `identity-access-auditor` (Agent tool): memberships, RBAC, convites, troca de tenant, super admin, anti-lockout. Escalonamento de privilégio = bloqueante.
 
 ### Etapa 4 — Integrações (se houver webhook/fila/API externa)
-Dispare o agente `integration-reliability-auditor` (Agent tool): assinatura de webhook, idempotência, dedup, claim de fila, retry. Webhook sem assinatura ou confiando no tenant do body = bloqueante.
+Dispare o agente `integration-reliability-auditor` (Agent tool): assinatura de webhook, idempotência, dedup, claim de fila, retry. Webhook sem assinatura ou que lê o tenant do conteúdo (em vez da conexão vinculada à conta externa) = bloqueante.
 
 ### Etapa 5 — Schema diff
 Invoque a skill `schema-diff`. Tabela no remoto sem migration local → bloqueio; policies divergentes → confirme a fonte da verdade.
@@ -41,7 +41,7 @@ Invoque a skill `edge-function-guard` em cada função em `supabase/functions/*`
 ## Saída final consolidada
 
 ```
-🚀 PRE-DEPLOY — <staging|production>  | Arquétipo: <A|B|C|D>
+🚀 PRE-DEPLOY — <staging|production>  | Arquétipo: <A–E>
 
 1. 🔐 Secrets:            <PASS|FAIL>
 2. 🛡️ Isolamento tenant:  <PASS|FAIL>
@@ -57,7 +57,7 @@ Invoque a skill `edge-function-guard` em cada função em `supabase/functions/*`
 🟡 Atenções: <lista>
 
 📋 Próximos passos:
-  Se aprovado: tag de release → aplicar migrations → deploy → smoke test → monitorar logos 30min
+  Se aprovado: tag de release → aplicar migrations no remoto (pipeline ou autorização explícita; `supabase db push --dry-run` antes) → deploy → smoke test → monitorar logs 30min
   Se bloqueado: resolver bloqueantes em ordem → re-rodar /pre-deploy
 ```
 

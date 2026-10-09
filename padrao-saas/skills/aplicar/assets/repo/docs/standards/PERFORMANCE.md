@@ -1,6 +1,6 @@
 # Desempenho e cache
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia em tarefas de lentidão, otimização, cache, bundle, carregamento de módulo ou query lenta.
 
 ## 1. Ciclo obrigatório [N1]

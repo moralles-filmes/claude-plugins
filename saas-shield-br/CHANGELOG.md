@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [2.4.0] — 2026-10-08
+
+Alinhamento com o Padrão SaaS v3.2 e hooks reescritos.
+
+### Hooks
+- **`pre-commit-secret-scan.mjs`**: detecta `git commit` em comando composto (`git add -A && git commit`, `git -C dir commit`, `cd x; git commit`, `bash -c "…"`, PowerShell `git add .; git commit`) sem pegar `git commit-tree` nem `git log --grep commit`. Varre o índice (`git cat-file --batch`), o que um `git add` anterior no mesmo comando vai adicionar e o working tree em `commit -a`/pathspec. Sem string de shell: `spawnSync` com array e listas `-z` (nome com espaço funciona).
+- JWT do Supabase só bloqueia quando o payload decodificado tem `"role":"service_role"` e emissor do Supabase (antes, a anon key pública também casava). A chave demo do `supabase start` (`iss: supabase-demo`) é pública e passa. Nova detecção da secret key `sb_secret_…`; `sb_publishable_…` passa.
+- Lista de padrões do hook em módulo único, `hooks/scripts/secret-patterns.mjs` (`id`, `name`, `regex`, `validate`). O `patterns.md` do `secret-scanner` documenta cada `id` e aponta o módulo: acabou a cópia sincronizada à mão.
+- **`check-sql-antipattern.mjs`**: avalia o arquivo como vai ficar (Edit aplica `old_string → new_string` sobre o arquivo atual, respeitando `replace_all`; arquivo novo usa o texto novo), não só o trecho. Bloqueia só o que a mudança introduz; problema antigo vira aviso. Tabela em `public` sem RLS passa a bloquear; FORCE é conferido por tabela. `security definer` com `search_path` em qualquer ordem de cláusula (antes, `security definer language … set search_path` era falso-positivo e o `search_path` de uma função podia "cobrir" a seguinte). Comentários, strings e corpos `$$` não disparam regra. Os arquivos de referência do padrao-saas (`00_identidade_*`, `01_modelo_de_acesso`, `02_exemplo_modulo_financeiro`) passam.
+- `hooks.json`: `command: "node"` + `args`, `timeout`, sem `description` por handler, secret scan também no `PowerShell`, com filtro `if` (`Bash(*git*)`/`PowerShell(*git*)`) para nem subir o processo fora de comando git.
+- Avisos dos hooks saem como `additionalContext` (stdout em texto puro de PreToolUse/PostToolUse não chega ao Claude).
+- Testes: `node --test saas-shield-br/tests/*.test.mjs` (sem dependências).
+
+### Corrigido (instrução perigosa)
+- `/new-migration`, `migration-validator` e `schema-diff` mandavam rodar `supabase db push` como passo "local" (e `db push --db-url … --yes` para validar). `db push` aplica no projeto **remoto** linkado. Agora o fluxo é local (`supabase migration new` → `supabase db reset` → `supabase test db` → `supabase db lint`/Advisors) e o remoto só depois do merge, pelo pipeline ou com autorização explícita, conferindo antes com `db push --dry-run`.
+
+### Alterado
+- **`supabase-migrator` é o gerador único de migration** dos plugins. `templates.md` reescrito no arquétipo E do Padrão SaaS v3.2: catálogo de permissões, tabela da empresa, tabela da filial, transição crítica por RPC, N:N, audit log, view — com `(select private.current_user_id())`, helpers `private.*`, `search_path = ''`, `to authenticated`, grants explícitos, FK composta e FORCE RLS com a nota de BYPASSRLS. A–D viram notas para projeto legado. Projeto com `docs/standards/` tem as normas dele prevalecendo. `/new-migration` só conduz a skill (saiu o segundo template).
+- **`edge-function-guard`**: template canônico no arquétipo E — usuário validado com `auth.getUser()`/`getClaims()`, empresa ativa pelo header `x-company-id` confirmada por `public.my_permissions`, `can()` puro, service role só depois de tenant e permissão com filtro explícito, erro sem `e.message`, `Deno.env` só no `index.ts`. A regra "nunca receber a coluna de tenant" virou "o cliente indica; o servidor confirma a membership e ignora/sobrescreve o tenant do body". Webhook Stripe com `constructEventAsync` (Deno).
+- **`vercel-deploy-guard`**: fonte única do `vercel.json` (o `devops-ci` do saas-builder-br referencia, sem cópia). Variante Next.js com CSP em report-only.
+- `rls-reviewer`, `multi-tenant-auditor`, `tenant-model`: `search_path = ''` nos exemplos; grants explícitos e coluna de estado entram no checklist; "cliente nunca escolhe o tenant" virou "o cliente indica, o banco/servidor confirma"; empresa ativa de claim do JWT em projeto `active_source: url` é P1; `auth.uid()` direto em policy de projeto arquétipo E é achado de portabilidade P3 (não bloqueia).
+
 ## [2.3.0] — 2026-10-07
 
 ### Adicionado

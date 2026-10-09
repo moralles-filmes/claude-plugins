@@ -18,7 +18,7 @@ Rode revisão de RLS.
 
 4. **Para mais de um arquivo, sumário consolidado**:
    ```
-   📋 SUMÁRIO MULTI-ARQUIVO  | Arquétipo: <A|B|C|D>
+   📋 SUMÁRIO MULTI-ARQUIVO  | Arquétipo: <A–E>
    - <arquivo1>: PASS / FAIL (N bloqueantes)
    - <arquivo2>: ...
    Total: X bloqueantes / Y atenções

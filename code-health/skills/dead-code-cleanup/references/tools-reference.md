@@ -2,6 +2,8 @@
 
 Carregue este arquivo apenas quando precisar de comandos exatos. Não está no SKILL.md base para economizar context.
 
+> **Arquivos intermediários:** os exemplos gravam em `.code-health/work/dead-code-cleanup/`, na raiz do projeto, nunca em `/tmp` com nome fixo (dois projetos auditados ao mesmo tempo se sobrescrevem). Antes, rode o Passo 0 dos agentes do plugin: `.code-health/` entra no `.git/info/exclude` e o diretório é criado com `mkdir -p .code-health/work/dead-code-cleanup`.
+
 ## knip (ferramenta primária — preferida sobre ts-prune)
 
 `ts-prune` foi para modo manutenção; `knip` é o sucessor recomendado pelo próprio autor da Effective TypeScript.
@@ -90,7 +92,7 @@ Limitações conhecidas:
 ## depcheck (cobertura adicional para package.json)
 
 ```bash
-npx depcheck --json > /tmp/depcheck.json
+npx depcheck --json > .code-health/work/dead-code-cleanup/depcheck.json
 npx depcheck --skip-missing  # mais rápido
 ```
 
@@ -99,13 +101,13 @@ depcheck é melhor que knip para uma coisa: detecta `require()` com strings din�
 ### Combinando knip + depcheck
 
 ```bash
-npx knip --include dependencies --reporter json > /tmp/knip-deps.json
-npx depcheck --json > /tmp/depcheck.json
+npx knip --include dependencies --reporter json > .code-health/work/dead-code-cleanup/knip-deps.json
+npx depcheck --json > .code-health/work/dead-code-cleanup/depcheck.json
 
 # Dependências sinalizadas pelos DOIS = altíssima confiança
-jq -r '.unused.devDependencies[]' /tmp/depcheck.json | sort > /tmp/depcheck-dev.txt
-jq -r '.issues[] | select(.devDependencies != null) | .devDependencies[].name' /tmp/knip-deps.json | sort > /tmp/knip-dev.txt
-comm -12 /tmp/depcheck-dev.txt /tmp/knip-dev.txt   # interseção = altíssima confiança
+jq -r '.unused.devDependencies[]' .code-health/work/dead-code-cleanup/depcheck.json | sort > .code-health/work/dead-code-cleanup/depcheck-dev.txt
+jq -r '.issues[] | select(.devDependencies != null) | .devDependencies[].name' .code-health/work/dead-code-cleanup/knip-deps.json | sort > .code-health/work/dead-code-cleanup/knip-dev.txt
+comm -12 .code-health/work/dead-code-cleanup/depcheck-dev.txt .code-health/work/dead-code-cleanup/knip-dev.txt   # interseção = altíssima confiança
 ```
 
 ## eslint para imports/variáveis não usados (granular por arquivo)
@@ -117,7 +119,7 @@ npx eslint --no-eslintrc \
   --parser '@typescript-eslint/parser' \
   --plugin '@typescript-eslint' \
   --rule '{"@typescript-eslint/no-unused-vars": "error"}' \
-  'src/**/*.{ts,tsx}' --format json > /tmp/eslint.json
+  'src/**/*.{ts,tsx}' --format json > .code-health/work/dead-code-cleanup/eslint.json
 
 # Com config do projeto + auto-fix dos imports
 npx eslint --fix --rule '{"unused-imports/no-unused-imports": "error"}' src/
@@ -147,7 +149,7 @@ Regra prática: se ripgrep não encontrar nenhuma referência mesmo procurando e
 
 ```bash
 # Listar todos os assets
-find public -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.svg' -o -name '*.webp' -o -name '*.gif' -o -name '*.ico' -o -name '*.pdf' \) > /tmp/all-assets.txt
+find public -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.svg' -o -name '*.webp' -o -name '*.gif' -o -name '*.ico' -o -name '*.pdf' \) > .code-health/work/dead-code-cleanup/all-assets.txt
 
 # Para cada um, ver se aparece em algum lugar
 while read asset; do
@@ -160,7 +162,7 @@ while read asset; do
       echo "ORPHAN: $asset"
     fi
   fi
-done < /tmp/all-assets.txt
+done < .code-health/work/dead-code-cleanup/all-assets.txt
 ```
 
 **Atenção:** assets podem ser referenciados por nome construído dinamicamente (`/icons/${type}.svg`), em CMS, ou em variáveis de ambiente. Sempre classifique como 🔴 baixa confiança.

@@ -1,6 +1,6 @@
 # Banco de dados
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao criar ou alterar migration, policy, função/RPC, view, índice, query pesada, backup ou operação em produção.
 > Complementa: MULTI_TENANCY.md (RLS e FK composta), SECURITY.md §5 (bloqueio de escrita direta).
 
@@ -53,7 +53,7 @@ Verificar em uma requisição e gravar em outra não protege: duas requisições
 O `supabase-js` não mantém transação entre chamadas. Operação de vários passos vira função Postgres. Escolha **um** de dois modelos e registre em "Particularidades":
 
 - **A — servidor chama com service role.** O caso de uso no servidor autentica, resolve o tenant e autoriza. Depois chama a função passando o `company_id` resolvido. `execute` fica revogado de `anon` e `authenticated`.
-- **B — usuário chama direto.** A função é `security definer`, verifica membership e permissão internamente via `auth.uid()` e ignora qualquer `company_id` que não pertença ao usuário.
+- **B — usuário chama direto.** A função é `security definer`, verifica membership e permissão internamente via `private.current_user_id()` e ignora qualquer `company_id` que não pertença ao usuário.
 
 Exemplo do modelo A, com idempotência, invariante e outbox na mesma transação:
 
@@ -115,7 +115,8 @@ revoke execute on function public.baixar_estoque(uuid, uuid, integer, uuid, text
   - checagem de tenant interna;
   - ficar fora de schema exposto, salvo intenção explícita.
 - **Funções novas** recebem `execute` para `PUBLIC` por padrão. Revogue (`revoke execute … from public, anon, authenticated`) e conceda só a quem deve chamar.
-- **Policies** usam `(select auth.uid())` em vez de `auth.uid()` direto, para avaliar uma vez por consulta e não por linha. Indexe as colunas usadas.
+- **Policies** usam `(select private.current_user_id())`, dentro de `(select …)` para avaliar uma vez por consulta e não por linha. Nunca `auth.uid()` direto: só o adapter de identidade conhece o provedor (GCP_MIGRATION §2). Indexe as colunas usadas.
+- **Default privileges do Supabase** dão todos os privilégios em tabela, função e sequence novas de `public` para `anon` e `authenticated`. Na mesma migration, revogue tudo (`revoke all … from anon, authenticated`) e conceda só o necessário. Assim a tabela fica correta no Supabase e num Postgres sem esses defaults.
 - **Checagens de FK, unique e PK ignoram RLS.** Use FK composta para manter o tenant e não confie em RLS para impedir referência cruzada.
 - **Tabela sem RLS** em schema exposto está pública para quem tem a anon key.
 - **`force row level security`** faz a RLS valer também para o dono da tabela. Os helpers `security definer` dependem de o dono das funções ter `BYPASSRLS` (no Supabase, o papel `postgres` tem). Confira com `select rolname, rolbypassrls from pg_roles where rolname = current_user;` antes de forçar nas tabelas de membership e permissões: sem `BYPASSRLS`, os helpers passam pela RLS dessas tabelas e as policies entram em recursão.

@@ -1,6 +1,6 @@
 # Operações
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia em tarefas de Git, ambientes, deploy, produção, logs, monitoramento, incidentes ou configuração das ferramentas de agentes.
 
 ## 1. Git [N1]

@@ -547,6 +547,60 @@ if (existsSync(padraoCheck)) {
   }
 }
 
+// ─── 10. Versão do plugin.json = topo do CHANGELOG ──────────────────
+
+step('Validando versão do plugin.json contra o CHANGELOG')
+
+for (const dir of pluginDirs) {
+  const pj = join(REPO_ROOT, dir, '.claude-plugin', 'plugin.json')
+  const cl = join(REPO_ROOT, dir, 'CHANGELOG.md')
+  if (!existsSync(pj) || !existsSync(cl)) continue
+  let version
+  try { version = JSON.parse(readFileSync(pj, 'utf8')).version } catch { continue }
+  const top = readFileSync(cl, 'utf8').match(/^##\s*\[?v?(\d+\.\d+\.\d+)/m)
+  if (!top) warn(`${dir}/CHANGELOG.md: nenhuma versão no formato "## x.y.z"`)
+  else if (top[1] !== version) err(`${dir}: plugin.json v${version} ≠ CHANGELOG v${top[1]} (registre a versão nova no CHANGELOG)`)
+  else ok(`${dir}: v${version} registrada no CHANGELOG`)
+}
+
+// ─── 11. Testes dos plugins (node:test) ─────────────────────────────
+// Plugins com package.json (ai-router-br) rodam os próprios testes via npm no CI.
+
+step('Rodando testes dos plugins (node --test)')
+
+for (const dir of pluginDirs) {
+  const testsDir = join(REPO_ROOT, dir, 'tests')
+  if (!existsSync(testsDir) || existsSync(join(REPO_ROOT, dir, 'package.json'))) continue
+  const files = readdirSync(testsDir).filter(f => f.endsWith('.test.mjs')).map(f => join(testsDir, f))
+  if (!files.length) continue
+  try {
+    const out = execSync(`node --test ${files.map(f => `"${f}"`).join(' ')}`, { stdio: 'pipe', encoding: 'utf8' })
+    const pass = out.match(/^# pass (\d+)/m)?.[1] ?? '?'
+    ok(`${dir}: ${pass} teste(s) passaram`)
+  } catch (e) {
+    const out = `${e.stdout ?? ''}${e.stderr ?? ''}`
+    const failed = out.split('\n').filter(l => /^\s*not ok /.test(l)).slice(0, 8).map(l => l.trim()).join(' | ')
+    err(`${dir}: testes falharam — ${failed || 'rode node --test ' + dir + '/tests/*.test.mjs'}`)
+  }
+}
+
+// ─── 12. SQL de referência do padrao-saas (pgTAP) ───────────────────
+// Local: sem psql/servidor vira aviso. CI: job próprio roda com --required.
+
+step('Rodando testes SQL do padrao-saas (pgTAP, dois adapters)')
+
+const sqlRunner = join(REPO_ROOT, 'padrao-saas', 'tests', 'run-sql-tests.mjs')
+if (existsSync(sqlRunner)) {
+  try {
+    const out = execSync(`node "${sqlRunner}"`, { stdio: 'pipe', encoding: 'utf8' })
+    if (/NÃO EXECUTADO/.test(out)) warn(out.trim())
+    else ok('padrao-saas: SQL de referência passou nos adapters supabase e postgres')
+  } catch (e) {
+    const out = `${e.stdout ?? ''}${e.stderr ?? ''}`.trim().split('\n').filter(l => /✗|not ok/.test(l)).slice(0, 8).join(' | ')
+    err(`padrao-saas: testes SQL falharam — ${out}`)
+  }
+}
+
 // ─── Resumo ──────────────────────────────────────────────────────────
 
 console.log('')

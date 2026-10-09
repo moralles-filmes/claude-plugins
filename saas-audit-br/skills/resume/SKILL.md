@@ -14,7 +14,7 @@ Depois:
 3. recarregue o procedimento pelo arquivo (`audit` é manual e não pode ser carregada pelo modelo; `module` também é lida pelo arquivo para seguir a fase registrada):
    - carregue `audit-state-protocol`; se a fase for `fix-*`, `hardening` ou `regression`, carregue também `security-fix-protocol`; se o escopo for módulo, carregue `module-scope`;
    - leia o procedimento em `${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md` (escopo completo) ou `${CLAUDE_PLUGIN_ROOT}/skills/module/SKILL.md` (escopo módulo) e siga a partir da fase registrada;
-   - respeite o `Mode` gravado no estado (`audit-only` não edita código);
+   - respeite o `Mode` gravado no estado (`audit-only` não edita código). Se o `Mode` for `fix`/`full` sem `(explicit)` — estado criado antes da 1.3.0, quando `--fix` era o padrão —, pergunte ao usuário antes de editar código; sem confirmação, continue como `audit-only`;
 4. continue exatamente da seção `Next`;
 5. não repita waves já concluídas sem evidência de que ficaram inválidas.
 

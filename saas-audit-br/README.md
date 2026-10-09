@@ -42,20 +42,22 @@ Sem uma delas o audit continua, mas a cobertura correspondente fica `INCONCLUSIV
 /saas-audit-br:audit
 ```
 
-Default: `--fix`.
+Default: `--audit-only` — audita, classifica e planeja, sem editar código. Correção só com modo explícito.
 
 Modos:
 
 ```text
-/saas-audit-br:audit --audit-only
-/saas-audit-br:audit --fix
-/saas-audit-br:audit --full
+/saas-audit-br:audit                # = --audit-only
+/saas-audit-br:audit --fix          # audita e corrige P0/P1/P2 com testes
+/saas-audit-br:audit --full         # --fix + hardening P3 relevante e regressão ampliada
 ```
+
+Depois de um `--audit-only` concluído, `--fix` reaproveita `FINDINGS.md`/`PLAN.md` se o código não mudou.
 
 ### Auditoria por módulo
 
 ```text
-/saas-audit-br:module Financeiro
+/saas-audit-br:module Financeiro        # = --audit-only
 /saas-audit-br:module Agenda --fix
 /saas-audit-br:module CRM --audit-only
 /saas-audit-br:module IA --full
@@ -74,11 +76,13 @@ Quando aplicável:
 - `tenant-model`
 - `agent-result-contract`
 - `secret-hunter`
-- `tenant-isolation-auditor`
 - `identity-access-auditor`
 - `integration-reliability-auditor`
-- `rls-auditor`
-- `migration-validator`
+- `rls-auditor` — dono de policies e grants: lê o conjunto de migrations uma vez
+- `tenant-isolation-auditor` — caminhos de código (frontend, Edge Functions, server code); não re-revisa policies SQL
+- `migration-validator` — só migrations novas/alteradas desde a última auditoria ou no PR, nunca o histórico inteiro
+
+Cada verificação roda uma vez: o mesmo achado de RLS não é pago três vezes.
 
 O tenancy real é resolvido antes da auditoria. O plugin não assume `company_id`.
 
@@ -89,6 +93,14 @@ O tenancy real é resolvido antes da auditoria. O plugin não assume `company_id
 - `supabase-auditor`
 
 O audit usa esses agentes principalmente em modo de descoberta/relatório. Dead-code não relacionado não vira refatoração automática.
+
+## Padrão SaaS e portabilidade
+
+Em projeto com o Padrão SaaS instalado, o audit roda os scripts do próprio projeto, sem flags de escrita:
+- `node scripts/check-padrao.mjs` — erros viram P3;
+- `node scripts/check-portabilidade.mjs --json` — totais por regra e top módulos/arquivos. Dívida nova (acima de `.claude/portabilidade-baseline.json`) é P2; dívida legada é P3 com o item de plano "reduzir linha de base por módulo".
+
+Com `docs/standards/` mas sem o script, o audit registra P3 e sugere `padrao-saas:aplicar`. O audit não grava linha de base e não refatora para portabilidade em `--audit-only`; em `--fix`, só a dívida nova.
 
 ## Auditores complementares deste plugin
 
@@ -154,4 +166,4 @@ O plugin deduplica findings por causa raiz e não transforma hipótese sem evid�
 
 ## Versão
 
-1.0.0
+1.3.0 — histórico em [CHANGELOG.md](CHANGELOG.md).

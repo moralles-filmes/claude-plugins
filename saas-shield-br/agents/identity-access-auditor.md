@@ -23,7 +23,7 @@ Auditor estático de **identidade e autorização**. Enquanto o RLS protege *lin
 # O que auditar
 
 ## 1. Autoridade e origem do papel
-- O papel/tenant vem de fonte confiável (`app_metadata`, tabela de membership, RBAC) e **nunca** de `user_metadata` (o usuário edita) — P0 se vier de `user_metadata`.
+- O papel/tenant vem de fonte confiável (tabela de membership, RBAC; `app_metadata` só no arquétipo A) e **nunca** de `user_metadata` (o usuário edita) — P0 se vier de `user_metadata`. No arquétipo E, a empresa ativa vem da URL e a membership é conferida a cada requisição; ler a empresa ativa de claim do JWT é P1.
 - O resolver de papel (`has_role`/`has_permission`/nível numérico) é `SECURITY DEFINER` + `search_path`.
 
 ## 2. Super admin = autoridade separada
