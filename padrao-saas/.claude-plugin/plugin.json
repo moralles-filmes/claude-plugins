@@ -1,7 +1,7 @@
 {
   "name": "padrao-saas",
-  "version": "3.1.0",
-  "description": "Padrão SaaS: normas de arquitetura, segurança, multi-tenancy, controle de acesso (empresas, filiais, papéis e permissões por módulo/submódulo), banco, integrações, API pública, ciclo de vida da empresa, testes, operação e portabilidade. Skill aplicar (instala/audita/atualiza o padrão num projeto, com AGENTS.md único, regras por caminho, AGENTS.md aninhados para o Codex, manifest e modelo de acesso SQL testado) e skill novo-modulo (procedimento de criação de módulo com DoD). É a fonte normativa lida pelos plugins saas-builder-br, saas-shield-br e saas-audit-br.",
+  "version": "3.2.0",
+  "description": "Padrão SaaS: normas de arquitetura, segurança, multi-tenancy, controle de acesso (empresas, filiais, papéis e permissões por módulo/submódulo), banco, integrações, API pública, ciclo de vida da empresa, testes, operação e portabilidade (verificada por script, com identidade portável no SQL de referência). Skill aplicar (instala/audita/atualiza o padrão num projeto, com AGENTS.md único, regras por caminho, AGENTS.md aninhados para o Codex, manifest e modelo de acesso SQL testado) e skill novo-modulo (procedimento de criação de módulo com DoD). É a fonte normativa lida pelos plugins saas-builder-br, saas-shield-br e saas-audit-br.",
   "author": {
     "name": "Yuri Moraes",
     "email": "morallesfilms@gmail.com"

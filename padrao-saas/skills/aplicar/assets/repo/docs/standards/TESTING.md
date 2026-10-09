@@ -1,6 +1,6 @@
 # Testes e CI
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia ao escrever ou alterar testes, corrigir bug, configurar CI ou definir quality gates.
 
 ## 1. Pirâmide [N1]
@@ -57,7 +57,8 @@ Monte o pipeline **aplicável** ao produto, preservando os controles que já exi
 | Testes de integração e de isolamento de tenant/RLS | N1, se há multi-tenancy |
 | Validação de migrations: aplicar do zero num banco limpo + Advisors/lint | N1, se há banco |
 | Build | N1 |
-| Checagem do padrão (`node scripts/check-padrao.mjs`): corpo dos padrões, `@AGENTS.md`, AGENTS aninhados, links | N1 |
+| Checagem do padrão (`node scripts/check-padrao.mjs`): manifest ↔ padrões nos dois sentidos, corpo dos padrões, `@AGENTS.md`, tenancy-profile, AGENTS aninhados, links | N1 |
+| Portabilidade (`node scripts/check-portabilidade.mjs`), com linha de base em projeto legado (GCP_MIGRATION §6) | N1 |
 | Tipo das permissões gerado do catálogo e atualizado | N1, se há controle de acesso |
 | Testes de contrato de integrações | N2 |
 | E2E smoke | N2 |

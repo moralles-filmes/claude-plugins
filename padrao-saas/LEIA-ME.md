@@ -1,4 +1,4 @@
-# Padrão SaaS v3.1
+# Padrão SaaS v3.2
 
 Substitui o kit avulso v3.0 e, antes dele, o `02_PROMPT_MESTRE_ARQUITETURA_SAAS_CLAUDE_CODEX.md` e o `03_PADRAO_UNIVERSAL_INTEGRACOES_API_WEBHOOK_MCP.md`.
 
@@ -25,13 +25,17 @@ padrao-saas/
       .claude/tenancy-profile.yml  modelo de tenant e de acesso do projeto
       .claude/rules/             regras carregadas por caminho de arquivo (Claude Code)
       supabase/AGENTS.md         as mesmas regras para o Codex (gerado)
-      scripts/check-padrao.mjs   verificação para o CI do projeto
+      .claude/padrao.json        padrões opcionais não adotados (com motivo) e exceções de portabilidade
+      scripts/check-padrao.mjs   verificação do padrão para o CI do projeto
+      scripts/check-portabilidade.mjs  mede o acoplamento ao Supabase (CI barra dívida nova)
       docs/standards/            13 padrões + .manifest.json
         ARCHITECTURE  SECURITY  MULTI_TENANCY  ACCESS_CONTROL  DATABASE  INTEGRATIONS
         PUBLIC_API  TENANT_LIFECYCLE  MODULES  PERFORMANCE  TESTING  OPERATIONS  GCP_MIGRATION
       docs/modules/_TEMPLATE.md  docs/adr/_TEMPLATE.md  docs/runbooks/{_TEMPLATE,MAINTENANCE}.md
       docs/integrations/providers/  _TEMPLATE, meta, zapi
-    templates/sql/               modelo de acesso testado (01 núcleo, 02 exemplo de módulo, 03 testes pgTAP)
+    templates/sql/               modelo de acesso testado nos adapters Supabase e Postgres puro
+                                 (00 identidade, 01 núcleo, 02 exemplo de módulo, 03–04 testes pgTAP)
+  tests/                         testes do kit: check-padrao, check-portabilidade e SQL (pgTAP)
     templates/settings/          regras dos MCPs Supabase e Vercel
   skills/novo-modulo/            cria, amplia ou remove um módulo, com Definition of Done
 ```
@@ -69,7 +73,7 @@ Apague também os arquivos `02_PROMPT_MESTRE…` e `03_PADRAO_UNIVERSAL…` de o
 3. Responda às dúvidas (regras de negócio, módulos, papéis) e aprove o nível de maturidade e o plano.
 4. Peça uma fase por vez. Migrations primeiro no Supabase local, com `supabase test db` passando.
 5. Abra uma sessão nova e rode `/context` (CLAUDE.md, AGENTS.md e as rules devem aparecer) e `/doctor`. Se o `/doctor` sugerir enxugar o AGENTS.md, as seções de segurança, acesso e invariantes ficam.
-6. No CI do projeto, acrescente `node scripts/check-padrao.mjs` e `supabase test db`.
+6. No CI do projeto, acrescente `node scripts/check-padrao.mjs`, `node scripts/check-portabilidade.mjs` e `supabase test db`. Em projeto existente, grave antes a linha de base da portabilidade (`--write-baseline`): o CI passa a barrar só dívida nova.
 
 Para cada módulo novo: `/padrao-saas:novo-modulo`.
 
@@ -101,10 +105,25 @@ Norma completa: `docs/standards/ACCESS_CONTROL.md`. Implementação: `skills/apl
      --root padrao-saas/skills/aplicar/assets/repo --write-manifest --write-nested
    ```
 3. Rode `node scripts/validate.mjs` (ele reprova o push se o manifest do kit estiver velho).
-4. Mexeu no SQL de referência? Rode o `03_modelo_de_acesso.test.sql` num Supabase local.
+4. Rode os testes do kit: `node --test padrao-saas/tests/*.test.mjs` e, com Postgres + pgTAP, `node padrao-saas/tests/run-sql-tests.mjs` (o `validate.mjs` já chama os dois; o CI roda o SQL com `--required`).
 5. Commit, push e `setup-claude` nas máquinas. Em cada projeto: "atualize o padrão SaaS".
 
 **Nunca edite o corpo de um padrão dentro de um projeto.** O `check-padrao.mjs` do projeto acusa; adaptações vão em "Particularidades deste projeto".
+
+## O que mudou da v3.1 para a v3.2
+
+| Mudança | Onde |
+|---|---|
+| `check-padrao` confere manifest ↔ padrões nos dois sentidos: padrão apagado não passa mais em silêncio | scripts/check-padrao.mjs |
+| Padrões obrigatórios × opcionais no manifest; opcional não adotado é declarado com motivo em `.claude/padrao.json` | .manifest.json, skill aplicar §4.1 |
+| Portabilidade obrigatória desde o N1 (`GCP_MIGRATION` não pode ser "não adotado"); a migração continua só com gatilho | GCP_MIGRATION §1 |
+| `check-portabilidade.mjs`: SDK/cliente Supabase e `.from()`/`.rpc()` fora dos adapters, `Deno.*` fora do entrypoint, empresa lida do token; linha de base para projeto legado | GCP_MIGRATION §6, TESTING §5 |
+| A tela chama só o adapter do módulo (`features/<m>/api.ts`) | ARCHITECTURE §2–3, AGENTS §3, MODULES §5 |
+| Identidade portável: `private.current_user_id()` no lugar de `auth.uid()`, FKs para `public.app_users`, adapters `00_identidade_supabase` e `00_identidade_postgres` | templates/sql, ACCESS_CONTROL §9, DATABASE §4–5 |
+| SQL de referência testado nos dois adapters (33 + 5 cenários) e grants explícitos (não depende dos default privileges do Supabase) | templates/sql, tests/run-sql-tests.mjs |
+| Testes automatizados do kit no CI do repositório | tests/, scripts/validate.mjs |
+
+Nos outros plugins, na mesma entrega: `saas-builder-br` 1.5.0 gera no arquétipo E (empresa ativa na URL, filtro por empresa em toda query de tela, tela → `api.ts`, transição crítica por RPC, tokens no Vault, deploy de produção só com aprovação) e usa os templates do shield em vez de cópias próprias; `saas-shield-br` 2.4.0 tem o gerador único de migrations, Edge Function e `vercel.json` canônicos, hooks corrigidos e testados (commit composto, JWT `service_role` de verdade, `sb_secret_`, PowerShell) e instruções de `db push` corrigidas; `saas-audit-br` 1.3.0 só audita por padrão, roda cada checagem de RLS uma vez e mede portabilidade; `code-health` 0.4.0 trata buckets do Storage, sai do `/tmp` e do gawk; `turbo` 1.0.4 corrige a porta do pooler (6543) e o conselho de claim no JWT.
 
 ## O que mudou da v3.0 para a v3.1
 
@@ -131,7 +150,8 @@ Nos outros plugins: `ai-router-br` 1.3.4 não duplica o bloco quando o CLAUDE.md
 
 ## Limites que você deve conhecer
 
-- **SQL de referência:** 29 testes pgTAP passando em Postgres 16 com um stub do Supabase, mais `EXPLAIN` com 100 mil linhas. Ainda não rodou num Supabase real: no primeiro projeto, rode `supabase test db` antes de qualquer outra coisa. Exige Postgres 15+.
+- **SQL de referência:** 33 testes pgTAP do núcleo passando em Postgres 16 nos dois adapters (stub do Supabase com os default privileges, e Postgres puro), mais 5 do adapter Supabase. A v3.1 também mediu `EXPLAIN` com 100 mil linhas. Ainda não rodou num Supabase real: no primeiro projeto, rode `supabase test db` antes de qualquer outra coisa. Exige Postgres 15+.
+- **check-portabilidade** é análise de texto (imports e chamadas), não de tipos: um cliente Supabase guardado em variável com outro nome e usado sem `.from()`/`.rpc()` passa despercebido. Ele mede a tendência; a revisão humana continua.
 - **settings.json** é aplicado pelo Claude Code, mas regras de leitura de arquivo não cobrem todo comando de shell. A proteção real é não ter segredo de produção na máquina de desenvolvimento.
 - **Provider docs da Meta e da Z-API** têm itens **[verificar]**: confirme na documentação vigente na primeira integração de cada projeto.
 - **Exemplos de SQL e TypeScript** são ilustrativos: o agente adapta ao esquema real, não aplica em massa.

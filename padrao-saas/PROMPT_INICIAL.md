@@ -1,4 +1,4 @@
-# Prompt inicial — Padrão SaaS v3.1
+# Prompt inicial — Padrão SaaS v3.2
 
 Cole o bloco abaixo como **primeira mensagem** num projeto, novo ou existente.
 
@@ -10,7 +10,7 @@ A primeira sessão termina num relatório e num plano. Nada de código de produt
 ---
 
 ```text
-Aplique o Padrão SaaS v3.1 neste projeto e prepare a implantação do modelo de acesso.
+Aplique o Padrão SaaS v3.2 neste projeto e prepare a implantação do modelo de acesso.
 
 ONDE ESTÁ O PADRÃO
 - Se a skill padrao-saas:aplicar estiver disponível, use-a.
@@ -33,7 +33,10 @@ ARQUITETURA-ALVO (detalhes em docs/standards/, depois de copiados)
   é a cerca; toda query de tela filtra pela empresa e filial ativas.
 - Ninguém escreve direto nas tabelas de acesso: concessão passa por caso de uso com regras
   anti-escalada (só concede o que tem, ninguém altera o próprio acesso, sempre há proprietário).
-- Implementação de referência testada: templates/sql (01 núcleo, 02 exemplo, 03 testes pgTAP).
+- Implementação de referência testada: templates/sql (00 adapter de identidade, 01 núcleo,
+  02 exemplo, 03–04 testes pgTAP). Policies usam private.current_user_id(), nunca auth.uid().
+- Portabilidade: a tela chama só o adapter do módulo (features/<m>/api.ts). Meça com
+  scripts/check-portabilidade.mjs e grave a linha de base em projeto existente.
 
 REGRAS DESTA SESSÃO
 - Rode git status primeiro. Crie a branch chore/padrao-saas. Commits locais pequenos; sem push.

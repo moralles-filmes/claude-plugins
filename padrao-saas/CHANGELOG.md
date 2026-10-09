@@ -1,5 +1,15 @@
 # Changelog — padrao-saas
 
+## 3.2.0
+
+- **check-padrao nos dois sentidos.** Padrão listado no manifest e ausente no projeto agora falha (na 3.1 passava em silêncio). O manifest separa obrigatórios e opcionais; opcional não adotado é declarado em `.claude/padrao.json` com motivo. Também confere o `.claude/tenancy-profile.yml` e avisa quando o AGENTS.md passa de 200 linhas.
+- **Portabilidade obrigatória desde o N1.** `GCP_MIGRATION` não pode mais ser "não adotado"; a migração de infraestrutura continua só com gatilho.
+- **`scripts/check-portabilidade.mjs`** (novo, sem dependências): acusa SDK ou cliente Supabase importado fora dos adapters, `.from()`/`.rpc()`/`.functions.invoke()`/`.storage`/`.channel()` fora dos adapters, `Deno.*` fora do entrypoint da Edge Function e empresa ativa lida do token. Linha de base para projeto legado: o CI barra só dívida nova.
+- **A tela chama só o adapter do módulo** (`src/features/<m>/api.ts`): ARCHITECTURE §2–3, AGENTS §3, MODULES §5, skill novo-modulo.
+- **Identidade portável no SQL de referência:** `private.current_user_id()` no lugar de `auth.uid()`, FKs para `public.app_users`, adapters `00_identidade_supabase.sql` e `00_identidade_postgres.sql`. O núcleo não referencia mais o schema `auth`.
+- **Grants explícitos** no exemplo de módulo e regra nova em DATABASE §5: não depender dos default privileges do Supabase (achado ao rodar o SQL num Postgres puro).
+- **Testes do kit:** 14 do check-padrao, 9 do check-portabilidade e o SQL em pgTAP nos dois adapters (33 + 5 cenários), rodando no CI do repositório.
+
 ## 3.1.0
 
 Primeira versão como plugin (antes: kit avulso v3.0 copiado para `~/.claude/skills`).

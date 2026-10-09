@@ -23,6 +23,8 @@ Pontos que mais causam vazamento ou perda de dados:
 - Views em schema exposto usam `with (security_invoker = true)`.
 - Funções `security definer`: `set search_path = ''`, nomes qualificados, fora de schema exposto salvo intenção explícita, checagem de tenant interna.
 - Funções novas são executáveis por `PUBLIC` por padrão. Revogue e conceda explicitamente.
+- Tabelas novas herdam os default privileges do Supabase (tudo para `anon` e `authenticated`). Revogue tudo e conceda só o necessário, na mesma migration.
+- Usuário da requisição: `(select private.current_user_id())`, nunca `auth.uid()` direto. FK de usuário aponta para `public.app_users`, nunca para `auth.users`.
 - Invariantes que dependem do estado atual (saldo, estoque, status) são garantidas na mesma transação da mutação.
 - Valores monetários em `numeric` ou centavos inteiros, nunca float.
 - Migration remota exige autorização explícita. Depois de aplicar localmente, rode os Advisors e `supabase test db`.

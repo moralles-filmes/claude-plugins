@@ -1,5 +1,5 @@
 -- =====================================================================================
--- Padrão SaaS v3.1 — Modelo de acesso
+-- Padrão SaaS v3.2 — Modelo de acesso
 -- Empresa (tenant) → Filial → Usuário, com usuário em várias empresas, papéis por empresa,
 -- concessões diretas e permissões por módulo / submódulo / ação.
 --
@@ -7,14 +7,25 @@
 -- (supabase/migrations/<YYYYMMDDHHMMSS>_modelo_de_acesso.sql). Não aplique às cegas
 -- num projeto existente: lá o caminho é expand → backfill → contract (DATABASE §1).
 --
--- Requisitos: Postgres 15+ (unique nulls not distinct) e Supabase Auth (auth.uid()).
--- Testado com o arquivo 03_modelo_de_acesso.test.sql (pgTAP).
+-- Requisitos: Postgres 15+ (unique nulls not distinct) e um adapter de identidade aplicado
+-- ANTES deste arquivo: 00_identidade_supabase.sql (Supabase Auth) ou 00_identidade_postgres.sql
+-- (API própria / Cloud SQL). Este arquivo não referencia o schema do Supabase Auth: o usuário
+-- vem de private.current_user_id() e o domínio referencia public.app_users (GCP_MIGRATION §2).
+-- Testado com 03_modelo_de_acesso.test.sql (pgTAP) nos dois adapters.
 -- Normas: docs/standards/ACCESS_CONTROL.md e MULTI_TENANCY.md.
 -- =====================================================================================
 
-create schema if not exists private;
-revoke all on schema private from public;
-grant usage on schema private to authenticated;  -- as policies chamam os helpers como authenticated
+-- -------------------------------------------------------------------------------------
+-- 0. Usuários da aplicação
+-- -------------------------------------------------------------------------------------
+-- Identidade interna. O id é o mesmo do provedor quando ele usa uuid (Supabase Auth); com
+-- outro provedor, a API mapeia o sujeito do token para este id. Toda FK de usuário aponta
+-- para cá, nunca para a tabela do provedor. Linhas criadas pelo adapter (sync) ou pelo cadastro.
+create table public.app_users (
+  id         uuid primary key,
+  email      text,
+  created_at timestamptz not null default now()
+);
 
 -- -------------------------------------------------------------------------------------
 -- 1. Empresas, filiais e membros
@@ -43,7 +54,7 @@ create index locations_company_idx on public.locations (company_id);
 
 create table public.company_members (
   company_id uuid not null references public.companies (id) on delete restrict,
-  user_id    uuid not null references auth.users (id) on delete cascade,
+  user_id    uuid not null references public.app_users (id) on delete cascade,
   status     text not null default 'invited' check (status in ('invited', 'active', 'disabled')),
   is_owner   boolean not null default false,  -- proprietário: acesso total aos módulos contratados
   created_at timestamptz not null default now(),
@@ -54,7 +65,7 @@ create index company_members_user_idx on public.company_members (user_id) where 
 -- Administradores da PLATAFORMA (você). Identidade separada: não entra nas policies de tenant.
 -- Acesso de suporte a dados de cliente segue SECURITY §4.1 (acesso de suporte auditado).
 create table public.platform_admins (
-  user_id    uuid primary key references auth.users (id) on delete cascade,
+  user_id    uuid primary key references public.app_users (id) on delete cascade,
   created_at timestamptz not null default now()
 );
 
@@ -206,7 +217,7 @@ as $$
   select m.company_id
     from public.company_members m
     join public.companies c on c.id = m.company_id
-   where m.user_id = (select auth.uid())
+   where m.user_id = (select private.current_user_id())
      and m.status = 'active'
      and c.status in ('active', 'read_only', 'suspended')
 $$;
@@ -222,7 +233,7 @@ security definer
 set search_path = ''
 as $$
   with me as (
-    select (select auth.uid()) as uid
+    select (select private.current_user_id()) as uid
   ),
   g as (
     select m.company_id, null::uuid as location_id, '*'::text as permission
@@ -303,7 +314,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select exists (select 1 from public.platform_admins a where a.user_id = (select auth.uid()))
+  select exists (select 1 from public.platform_admins a where a.user_id = (select private.current_user_id()))
 $$;
 
 -- Permissões efetivas do usuário numa empresa, para montar menu e esconder botões.
@@ -344,6 +355,7 @@ grant execute on function public.my_permissions(uuid) to authenticated;
 -- Sem BYPASSRLS, FORCE faz os helpers security definer passarem pela RLS destas tabelas
 -- e as policies entram em recursão. Ver DATABASE §5.
 
+alter table public.app_users          enable row level security;
 alter table public.companies          enable row level security;
 alter table public.locations          enable row level security;
 alter table public.company_members    enable row level security;
@@ -356,6 +368,7 @@ alter table public.role_permissions   enable row level security;
 alter table public.member_roles       enable row level security;
 alter table public.member_permissions enable row level security;
 
+alter table public.app_users          force row level security;
 alter table public.companies          force row level security;
 alter table public.locations          force row level security;
 alter table public.company_members    force row level security;
@@ -368,6 +381,16 @@ alter table public.role_permissions   force row level security;
 alter table public.member_roles       force row level security;
 alter table public.member_permissions force row level security;
 
+-- O próprio usuário e quem administra usuários de uma empresa em comum.
+create policy app_users_select on public.app_users for select to authenticated
+  using (
+    id = (select private.current_user_id())
+    or id in (
+      select m.user_id from public.company_members m
+       where m.company_id in (select private.allowed_company_ids('configuracoes.usuarios.ver'))
+    )
+  );
+
 create policy companies_select on public.companies for select to authenticated
   using (id in (select private.user_company_ids()));
 
@@ -376,15 +399,15 @@ create policy locations_select on public.locations for select to authenticated
 
 create policy company_members_select on public.company_members for select to authenticated
   using (
-    user_id = (select auth.uid())
+    user_id = (select private.current_user_id())
     or company_id in (select private.allowed_company_ids('configuracoes.usuarios.ver'))
   );
 
 -- Catálogo global, não sensível: qualquer usuário autenticado lê.
 create policy app_modules_select on public.app_modules for select to authenticated
-  using ((select auth.uid()) is not null);
+  using ((select private.current_user_id()) is not null);
 create policy permissions_select on public.permissions for select to authenticated
-  using ((select auth.uid()) is not null);
+  using ((select private.current_user_id()) is not null);
 
 create policy company_modules_select on public.company_modules for select to authenticated
   using (company_id in (select private.user_company_ids()));
@@ -403,13 +426,13 @@ create policy role_permissions_select on public.role_permissions for select to a
 
 create policy member_roles_select on public.member_roles for select to authenticated
   using (
-    user_id = (select auth.uid())
+    user_id = (select private.current_user_id())
     or company_id in (select private.allowed_company_ids('configuracoes.usuarios.ver'))
   );
 
 create policy member_permissions_select on public.member_permissions for select to authenticated
   using (
-    user_id = (select auth.uid())
+    user_id = (select private.current_user_id())
     or company_id in (select private.allowed_company_ids('configuracoes.usuarios.ver'))
   );
 
@@ -421,13 +444,13 @@ create policy member_permissions_select on public.member_permissions for select 
 -- Concessão de acesso é mutação crítica: passa por caso de uso no servidor que aplica
 -- as regras anti-escalada de ACCESS_CONTROL §6. O banco bloqueia o caminho direto.
 
-revoke all on public.companies, public.locations, public.company_members, public.platform_admins,
-              public.app_modules, public.permissions, public.company_modules, public.roles,
-              public.role_permissions, public.member_roles, public.member_permissions
+revoke all on public.app_users, public.companies, public.locations, public.company_members,
+              public.platform_admins, public.app_modules, public.permissions, public.company_modules,
+              public.roles, public.role_permissions, public.member_roles, public.member_permissions
   from anon;
 
 revoke insert, update, delete, truncate
-  on public.companies, public.locations, public.company_members, public.platform_admins,
+  on public.app_users, public.companies, public.locations, public.company_members, public.platform_admins,
      public.app_modules, public.permissions, public.company_modules, public.roles,
      public.role_permissions, public.member_roles, public.member_permissions
   from authenticated;
@@ -435,7 +458,7 @@ revoke insert, update, delete, truncate
 revoke select on public.platform_admins from authenticated;
 
 grant select
-  on public.companies, public.locations, public.company_members, public.app_modules,
+  on public.app_users, public.companies, public.locations, public.company_members, public.app_modules,
      public.permissions, public.company_modules, public.roles, public.role_permissions,
      public.member_roles, public.member_permissions
   to authenticated;

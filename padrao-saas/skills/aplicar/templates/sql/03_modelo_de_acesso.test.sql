@@ -1,8 +1,11 @@
 -- =====================================================================================
--- Padrão SaaS v3.1 — Testes do modelo de acesso (pgTAP)
+-- Padrão SaaS v3.2 — Testes do modelo de acesso (pgTAP)
 -- Rodar no Supabase local: copie para supabase/tests/database/ e execute `supabase test db`.
--- Pressupõe 01_modelo_de_acesso.sql e 02_exemplo_modulo_financeiro.sql aplicados
+-- Pressupõe um adapter de identidade (00_identidade_supabase.sql ou 00_identidade_postgres.sql),
+-- 01_modelo_de_acesso.sql e 02_exemplo_modulo_financeiro.sql aplicados
 -- (adapte junto com eles quando os nomes do projeto mudarem).
+-- O mesmo arquivo roda nos dois adapters: cada "login" define request.jwt.claims (Supabase)
+-- e app.user_id (Postgres puro). No kit, `node padrao-saas/tests/run-sql-tests.mjs` roda os dois.
 --
 -- Cenário:
 --   Empresa A (filiais A1, A2) contratou configuracoes + financeiro + estoque
@@ -17,10 +20,10 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(33);
 
 -- ---------- Dados (como dono das tabelas; ignora RLS) ----------
-insert into auth.users (id, email) values
+insert into public.app_users (id, email) values
   ('00000000-0000-0000-0000-0000000000a1', 'ana@teste.local'),
   ('00000000-0000-0000-0000-0000000000b1', 'bruno@teste.local'),
   ('00000000-0000-0000-0000-0000000000c1', 'carla@teste.local'),
@@ -94,12 +97,14 @@ select throws_ok(
 
 -- ---------- ana: proprietária de A ----------
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true),
+       set_config('app.user_id', '00000000-0000-0000-0000-0000000000a1', true);
 
 select is((select count(*)::int from public.bills), 2, 'ana vê as contas das duas filiais de A');
 select is((select count(*)::int from public.bills where company_id = '10000000-0000-0000-0000-00000000000b'), 0,
           'ana não vê contas da empresa B');
 select is((select count(*)::int from public.companies), 1, 'ana vê só a empresa A no seletor');
+select is((select count(*)::int from public.app_users), 4, 'ana (proprietária) vê os usuários da empresa A, e só eles');
 
 select throws_ok(
   $$ update public.bills set status = 'paid' where id = '40000000-0000-0000-0000-0000000000a1' $$,
@@ -114,7 +119,8 @@ select is((public.baixar_conta_pagar('40000000-0000-0000-0000-0000000000a1')).st
           'baixa pelo RPC funciona com a permissão');
 
 -- ---------- bruno: contas a pagar só na filial A1 ----------
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true),
+       set_config('app.user_id', '00000000-0000-0000-0000-0000000000b1', true);
 
 select is((select count(*)::int from public.bills), 1, 'bruno vê só a conta da filial A1');
 select lives_ok(
@@ -157,9 +163,11 @@ select throws_ok(
 );
 
 -- ---------- carla: só ver contas a pagar, empresa inteira ----------
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true),
+       set_config('app.user_id', '00000000-0000-0000-0000-0000000000c1', true);
 
 select is((select count(*)::int from public.bills), 3, 'carla vê as contas de A1 e A2');
+select is((select count(*)::int from public.app_users), 1, 'carla (sem configuracoes.usuarios.ver) vê só o próprio usuário');
 select throws_ok(
   $$ insert into public.bills (company_id, location_id, supplier_id, amount_cents, due_date)
      values ('10000000-0000-0000-0000-00000000000a', '20000000-0000-0000-0000-0000000000a1',
@@ -174,18 +182,21 @@ select throws_ok(
 );
 
 -- ---------- davi: só .editar implica .ver ----------
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d1","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000d1","role":"authenticated"}', true),
+       set_config('app.user_id', '00000000-0000-0000-0000-0000000000d1', true);
 select is((select count(*)::int from public.bills), 3, 'davi vê contas porque qualquer ação do submódulo implica .ver');
 
 -- ---------- eva: proprietária de B, que não contratou financeiro ----------
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated"}', true),
+       set_config('app.user_id', '00000000-0000-0000-0000-0000000000e1', true);
 select is((select count(*)::int from public.bills), 0, 'eva não vê contas: módulo financeiro não contratado por B');
 
 -- ---------- empresa A em somente leitura ----------
 reset role;
 update public.companies set status = 'read_only' where id = '10000000-0000-0000-0000-00000000000a';
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true),
+       set_config('app.user_id', '00000000-0000-0000-0000-0000000000a1', true);
 
 select is((select count(*)::int from public.bills), 3, 'empresa em read_only: proprietária ainda lê');
 select throws_ok(
@@ -210,7 +221,8 @@ update public.company_members set status = 'disabled'
  where company_id = '10000000-0000-0000-0000-00000000000a'
    and user_id = '00000000-0000-0000-0000-0000000000b1';
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true),
+       set_config('app.user_id', '00000000-0000-0000-0000-0000000000b1', true);
 select is((select count(*)::int from public.bills), 0, 'bruno desativado em A perde o acesso sem esperar token expirar');
 
 -- ---------- filial desativada ----------
@@ -221,6 +233,12 @@ update public.company_members set status = 'active'
 update public.locations set status = 'inactive' where id = '20000000-0000-0000-0000-0000000000a1';
 set local role authenticated;
 select is((select count(*)::int from public.bills), 0, 'concessão numa filial inativa não dá acesso');
+
+-- ---------- sem usuário na sessão ----------
+select set_config('request.jwt.claims', '', true),
+       set_config('app.user_id', '', true);
+select is((select count(*)::int from public.companies), 0, 'sem usuário na sessão: nenhuma empresa');
+select is((select count(*)::int from public.permissions), 0, 'sem usuário na sessão: nem o catálogo');
 
 reset role;
 select * from finish();

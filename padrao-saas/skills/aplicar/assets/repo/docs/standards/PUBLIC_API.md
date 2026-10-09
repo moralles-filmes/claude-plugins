@@ -1,6 +1,6 @@
 # API pública e chaves emitidas para clientes
 
-> Padrão SaaS v3.1 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
+> Padrão SaaS v3.2 — documento normativo. Não edite o corpo por projeto; adaptações vão em "Particularidades deste projeto", no final.
 > Leia quando o produto expõe API, webhooks de saída ou chaves de acesso **para os seus clientes** integrarem sistemas deles.
 > Chaves de provedores que **você** consome (Meta, Z-API, gateway) seguem INTEGRATIONS.md e SECURITY.md §6.
 

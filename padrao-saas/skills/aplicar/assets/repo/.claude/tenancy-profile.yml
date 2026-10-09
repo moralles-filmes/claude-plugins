@@ -1,4 +1,4 @@
-# Contrato de tenancy e acesso do projeto — Padrão SaaS v3.1
+# Contrato de tenancy e acesso do projeto — Padrão SaaS v3.2
 # Fonte única lida pelo Padrão SaaS e pelos plugins saas-shield-br, saas-builder-br e saas-audit-br.
 # Preencha com fatos CONFIRMADOS. Projeto existente declara o arquétipo que já usa (A–D);
 # projeto novo usa o arquétipo E abaixo (ACCESS_CONTROL.md).

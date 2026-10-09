@@ -1,5 +1,5 @@
 -- =====================================================================================
--- Padrão SaaS v3.1 — EXEMPLO de módulo sobre o modelo de acesso
+-- Padrão SaaS v3.2 — EXEMPLO de módulo sobre o modelo de acesso
 -- Mostra os três padrões que todo módulo usa:
 --   1. tabela da EMPRESA (fornecedores): filtra por company_id
 --   2. tabela da FILIAL (contas a pagar): filtra por location_id, FK composta garante a empresa
@@ -32,8 +32,10 @@ create policy suppliers_update on public.suppliers for update to authenticated
   using      (company_id in (select private.allowed_company_ids('financeiro.fornecedores.editar', true)))
   with check (company_id in (select private.allowed_company_ids('financeiro.fornecedores.editar', true)));
 
-revoke all on public.suppliers from anon;
-revoke delete, truncate on public.suppliers from authenticated;
+-- Grants explícitos: não dependa dos default privileges do Supabase (no Postgres puro eles
+-- não existem e a tabela ficaria inacessível; no Supabase, dariam DELETE sem você pedir).
+revoke all on public.suppliers from anon, authenticated;
+grant select, insert, update on public.suppliers to authenticated;
 
 -- 2. Tabela da filial ------------------------------------------------------------------
 create table public.bills (
