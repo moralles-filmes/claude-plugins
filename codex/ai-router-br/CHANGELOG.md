@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.0 — 2026-10-16
+O router escolhe o modelo pela complexidade da tarefa e checa o que está disponível na máquina antes de delegar.
+
+### Corrigido
+- O Codex worker nunca passava `-m`: herdava o modelo interativo do `~/.codex/config.toml` (`gpt-6-astra`, depois `gpt-6-sol` em `high`) para qualquer tarefa. Agora usa `-m` e `-c model_reasoning_effort` do degrau da escada.
+- DeepSeek: chave malformada (ex.: Ctrl+V gravado como o caractere 22) era rejeitada pelo `fetch` com `UND_ERR_INVALID_ARG` e rotulada como erro de rede. Agora vira `deepseek_api_key_malformed` antes da requisição; requisição recusada localmente não repete. Resposta truncada, vazia ou fora do formato desce para o próximo degrau. Timeout padrão de 600 s. Arquivo maior que `max_file_chars` não vai mais truncado para reescrita.
+- O CLI do app desktop do Windows (`%LOCALAPPDATA%OpenAICodexin<build>codex.exe`, fora do PATH) é encontrado; `AI_ROUTER_CODEX_BIN` força outro caminho.
+
+### Adicionado
+- Escada por complexidade (`routing.*`, `references/models.md`): `mechanical`/`simple` → DeepSeek → `gpt-6-luna`; `standard` → `gpt-6.1-sol` low → `gpt-6-sol` low → DeepSeek; `complex` → `gpt-6.1-sol` high → `gpt-6-sol` high. `gpt-6-astra` só com `--executor codex --model gpt-6-astra`. Nesta versão Codex não há subagente Claude: quando nenhum degrau está disponível, a tarefa fica no principal.
+- `complexity`, `steps` e `plan_ready` no TASK PACKAGE: plano mapeado desce um degrau. Disponibilidade checada antes do dispatch (binário e `models_cache.json` do Codex, formato da chave e tamanho da tarefa para o DeepSeek); degraus pulados aparecem em `skipped_candidates` e no `summary_line`. Modelo recusado pela conta desce para o próximo modelo.
+- CLI: `--model`, `--effort`, `--complexity`. `doctor` mostra a escada da máquina e o formato da chave.
+- Auto-init atualiza um `.ai-router/config.yml` ainda idêntico ao template anterior (por hash); config editado não é tocado. O projeto só pode remover ou reordenar degraus.
+
+### Ação do usuário
+- Regravar a `DEEPSEEK_API_KEY` se o `doctor` mostrar `deepseek_key_format: "malformed"`. No Windows: copie a chave e rode `[Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', (Get-Clipboard).Trim(), 'User')`.
+- Um `.ai-router/config.yml` editado à mão mantém os valores antigos; para os novos padrões, apague o arquivo (o router o recria).
+
 ## 1.3.4 — 2026-10-07
 O bloco do router deixa de ser duplicado em projetos que seguem o Padrão SaaS.
 

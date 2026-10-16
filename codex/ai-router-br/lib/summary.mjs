@@ -22,35 +22,52 @@ export function codexModel(env=process.env) {
   return null;
 }
 
-function label(executor,config,models) {
+const CLAUDE_NAMES={haiku:'Haiku',sonnet:'Sonnet'};
+// The rung's own model/effort when the ladder chose one; the user's Codex config only for a forced run without it.
+function label(executor,config,models,model=null,effort=null) {
   if (executor==='deepseek') return `DeepSeek (${code(config?.deepseek?.model)||'deepseek-flash'})`;
-  if (executor==='codex') { const m=config?.codex?.ignore_user_config===true?null:models.codex(); return m?`Codex (${m})`:'Codex'; }
+  if (executor==='codex') {
+    const m=model?code(model):config?.codex?.ignore_user_config===true?null:models.codex();
+    return m?`Codex (${m}${effort?` · ${code(effort)}`:''})`:'Codex';
+  }
+  if (executor==='claude') return `Claude ${CLAUDE_NAMES[model]||code(model)||''} (subagente)`.replace('  ',' ');
   return executor==='main'?MAIN:code(executor)||'?';
 }
+const of=(c,config,models)=>label(c?.executor,config,models,c?.model,c?.effort);
+const unavailable=res=>{ const r=[...new Set((Array.isArray(res?.skipped_candidates)?res.skipped_candidates:[]).map(s=>code(s?.reason)).filter(Boolean))]; return r.length?`indisponível: ${r.join(', ')}`:null; };
 const money=v=>`US$${v.toFixed(v<1?4:2).replace('.',',')}`;
 const duration=ms=>ms<1000?`${Math.round(ms)} ms`:ms<60000?`${(ms/1000).toFixed(1).replace('.',',')} s`:`${(ms/60000).toFixed(1).replace('.',',')} min`;
 
 export function summaryLine(res,config,{codexModel:cm=codexModel}={}) {
   const models={codex:cm};
-  const head=Number.isInteger(res?.tier)?`${SUMMARY_PREFIX} · TIER ${res.tier} →`:`${SUMMARY_PREFIX} →`;
+  const tier=Number.isInteger(res?.tier)?` · TIER ${res.tier}`:'';
+  const level=res?.complexity && res?.executor!=='main'?` · ${code(res.complexity)}`:'';
+  const head=`${SUMMARY_PREFIX}${tier}${level} →`;
+  const previous=res?.fallback && res.previous_executor?`${label(res.previous_executor,config,models,res.previous_model,res.previous_effort)} indisponível → `:'';
   if (res?.status==='error') return `${SUMMARY_PREFIX} · erro (${code(res.error_code)||'desconhecido'})`;
   if (res?.status==='dry-run') {
-    const parts=[`${head} ${label(res.executor,config,models)}${res.executor==='main'&&res.small?' (tarefa pequena)':''}`];
-    if (res.fallback) parts.push(`fallback: ${label(res.fallback,config,models)}`);
+    const parts=[`${head} ${of(res,config,models)}${res.executor==='main'&&res.small?' (tarefa pequena)':''}`];
+    const fb=Array.isArray(res.fallback_chain)?res.fallback_chain:null;
+    if (fb?.length) parts.push(`fallback: ${fb.map(c=>of(c,config,models)).join(' → ')}`);
+    else if (!fb && res.fallback) parts.push(`fallback: ${label(res.fallback,config,models)}`);
     parts.push('classificação');
+    const skipped=unavailable(res); if (skipped) parts.push(skipped);
     if (res.dispatch_error) parts.push(`dispatch será bloqueado (${code(res.dispatch_error)})`);
     const n=Array.isArray(res.relevant_not_sent)?res.relevant_not_sent.length:0;
     if (n) parts.push(n===1?'1 arquivo de contexto não vai ao worker':`${n} arquivos de contexto não vão ao worker`);
     return parts.join(' · ');
   }
-  if (res?.status==='main_required') return `${head} ${MAIN}`;
+  if (res?.status==='main_required') return [`${head} ${MAIN}`,unavailable(res)].filter(Boolean).join(' · ');
   if (res?.status==='blocked') return `${head} bloqueado (${code(res.error_code)||'blocked'}) · segue com o ${MAIN}`;
-  let who=label(res?.executor,config,models);
-  if (res?.fallback && res.previous_executor) who=`${label(res.previous_executor,config,models)} indisponível → ${who}`;
-  const parts=[`${head} ${who}`,`${STATUS[res?.status]||code(res?.status)||'?'}${res?.status==='failed'&&res.error_code?` (${code(res.error_code)})`:''}`];
+  if (res?.status==='delegate_claude') {
+    const why=res.external_blocked?`workers externos bloqueados (${code(res.external_blocked)}) → `:previous;
+    return `${head} ${why}${label('claude',config,models,res.model)} · delegado ao subagente`;
+  }
+  const parts=[`${head} ${previous}${of(res,config,models)}`,`${STATUS[res?.status]||code(res?.status)||'?'}${res?.status==='failed'&&res.error_code?` (${code(res.error_code)})`:''}`];
   if (typeof res?.cost_usd==='number' && Number.isFinite(res.cost_usd)) parts.push(money(res.cost_usd));
   else if (res?.executor==='codex') parts.push('sem custo de API');
   if (Number.isFinite(res?.duration_ms)) parts.push(duration(res.duration_ms));
+  if (res?.status==='failed' && res.suggested_next) parts.push(`correção: ${of(res.suggested_next,config,models)}`);
   return parts.join(' · ');
 }
 

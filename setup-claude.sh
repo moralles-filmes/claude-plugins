@@ -261,7 +261,10 @@ fi
 
 # ─── DeepSeek ───────────────────────────────────────────────────────────
 step "DeepSeek (opcional: worker econômico pago por API)"
-if env_present DEEPSEEK_API_KEY; then ok "DEEPSEEK_API_KEY configurada (valor não exibido)"
+if env_present DEEPSEEK_API_KEY; then
+  # Same rule as the router: printable ASCII, no spaces, 20+ chars (a keystroke saved as text fails here).
+  if printf '%s' "$DEEPSEEK_API_KEY" | LC_ALL=C grep -Eq '^[!-~]{20,512}$'; then ok "DEEPSEEK_API_KEY configurada (valor não exibido)"
+  else warn "DEEPSEEK_API_KEY existe mas está malformada (espaço, caractere invisível ou placeholder). Regrave colando a chave real e abra um novo terminal."; fi
 else warn "DEEPSEEK_API_KEY não configurada. Configure localmente (ex.: no seu ~/.zshrc/~/.bashrc ou gerenciador de secrets) e abra um novo terminal. Nunca cole a chave em chats, no Git, CLAUDE.md, AGENTS.md ou .ai-router/. Sem ela o router funciona com Claude + Codex."; fi
 
 # ─── Resumo ─────────────────────────────────────────────────────────────

@@ -335,7 +335,14 @@ function Invoke-Setup {
 
     # --- DeepSeek --------------------------------------------------------------
     Write-Step "DeepSeek (opcional: worker economico pago por API)"
-    if (Test-EnvPresent 'DEEPSEEK_API_KEY') { Write-Ok "DEEPSEEK_API_KEY configurada (valor nao exibido)" }
+    if (Test-EnvPresent 'DEEPSEEK_API_KEY') {
+        $dsKey = $null
+        foreach ($scope in 'Process', 'User', 'Machine') { $v = [Environment]::GetEnvironmentVariable('DEEPSEEK_API_KEY', $scope); if ($v) { $dsKey = $v; break } }
+        # Same rule as the router: printable ASCII, no spaces, 20+ chars. A Ctrl+V saved as text (char 22) fails here.
+        if ($dsKey -cmatch '^[\x21-\x7e]{20,512}$') { Write-Ok "DEEPSEEK_API_KEY configurada (valor nao exibido)" }
+        else { Write-Warn "DEEPSEEK_API_KEY existe mas esta malformada ($($dsKey.Length) caractere(s): tecla gravada como texto, espaco ou placeholder). Copie a chave e regrave direto da area de transferencia: [Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', (Get-Clipboard).Trim(), 'User') - depois reabra o editor." }
+        $dsKey = $null; $v = $null
+    }
     else {
         Write-Warn "DEEPSEEK_API_KEY nao configurada. Configure localmente (Configuracoes > Sistema > Sobre > Configuracoes avancadas > Variaveis de Ambiente > Usuario, ou seu gerenciador de secrets) e abra um novo terminal. Nunca cole a chave em chats, no Git, CLAUDE.md, AGENTS.md ou .ai-router/. Sem ela o router funciona com Claude + Codex."
     }

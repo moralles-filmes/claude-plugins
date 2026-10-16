@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.4.0 — 2026-10-16
+O router escolhe o modelo pela complexidade da tarefa, checa o que está disponível na máquina e termina a escada num subagente Claude barato, não no agente principal. Até aqui nenhum dispatch externo tinha dado certo: tudo voltava para o modelo mais caro.
+
+### Diagnóstico (logs e transcrições locais)
+- Em ~150 vereditos, nenhum dispatch externo teve sucesso. DeepSeek falhava em 769 ms com `deepseek_network_error:UND_ERR_INVALID_ARG`, o Codex com `spawn codex ENOENT`, e o resto era `dirty_worktree`. Em todos os casos a tarefa caía no agente principal.
+- O Codex worker nunca passava `-m`. Ele herdava o modelo interativo do `~/.codex/config.toml` — `gpt-6-astra` em ~38 classificações, depois `gpt-6-sol` com `model_reasoning_effort = "high"` — para qualquer tarefa, inclusive um script de 2 arquivos.
+- A `DEEPSEEK_API_KEY` salva no Windows tinha **1 caractere, código 22 (Ctrl+V)**: a tecla foi gravada no lugar da chave. O `fetch` recusava o header (`UND_ERR_INVALID_ARG`), o worker rotulava isso como erro de rede e repetia a chamada. `doctor` e `setup` só checavam se a variável existia.
+- O app desktop do Codex instala o CLI em `%LOCALAPPDATA%OpenAICodexin<build>codex.exe`, fora do PATH.
+
+### Adicionado
+- **Escada de modelos por complexidade** (`routing.*` no config, `references/models.md`): `mechanical`/`simple` → DeepSeek → Codex `gpt-6-luna` (low/medium) → Claude Haiku; `standard` → Codex `gpt-6.1-sol` low → `gpt-6-sol` low → DeepSeek → Claude Sonnet; `complex` → `gpt-6.1-sol` high → `gpt-6-sol` high → Claude Sonnet. O `gpt-6-astra` (100× os créditos do Luna) fica fora da escada; só com `--executor codex --model gpt-6-astra`.
+- **Complexidade** no classificador e no TASK PACKAGE (`complexity`, `steps`, `plan_ready`). Quando a complexidade é declarada, ela vale; quando não, é inferida pelo tier, pelo número de arquivos e por sinais como arquitetura, concorrência, performance e causa raiz. Um plano mapeado em `steps` desce um degrau. O tier de risco não muda: TIER 0 continua no principal.
+- **Disponibilidade antes do dispatch**:
+  - Codex: binário (PATH, shim npm `.cmd` via node, build mais recente do app desktop, `AI_ROUTER_CODEX_BIN`) e modelos da conta pelo `~/.codex/models_cache.json`.
+  - DeepSeek: formato da chave, e se a tarefa cabe nele (sem tools, arquivo truncado, reescrita maior que uma resposta).
+  - Claude: host Claude Code (`CLAUDECODE`/`AI_ROUTER_HOST`).
+  - Degraus pulados saem em `skipped_candidates` e no `summary_line` (`indisponível: <código>`). O `doctor` mostra a escada da máquina.
+- **Subagentes `claude-worker-haiku` e `claude-worker-sonnet`** como último degrau. Eles recebem `status: delegate_claude` com `claude_agent` quando:
+  - os workers externos estão indisponíveis;
+  - o repo bloqueia worker externo (`dirty_worktree`, `tracked_secret`, `tracked_router_config`, `not_git_repo`).
+  - Falha sem fallback traz `suggested_next` com o subagente que deve fazer a correção.
+- Codex: `-m <modelo>` e `-c model_reasoning_effort="<esforço>"` do degrau. Modelo recusado pela conta (`model_unavailable`, ex.: rollout do `gpt-6.1-sol`) desce para o próximo modelo. Falha do executor inteiro pula os outros modelos dele.
+- CLI: `--executor claude`, `--model`, `--effort`, `--complexity`, `--host`.
+- Auto-init atualiza um `.ai-router/config.yml` que ainda é idêntico ao template 1.3.4 (por hash). Sem isso, a cópia antiga (timeout de 180 s, sem escada) prevaleceria sobre os novos padrões. Config editado à mão não é tocado.
+
+### Corrigido
+- DeepSeek:
+  - Chave malformada vira `auth_unavailable` (`deepseek_api_key_malformed`) antes de qualquer requisição.
+  - Requisição recusada pelo `fetch` vira `request_invalid`, sem retry. Só erro de rede real repete.
+  - Resposta truncada (`finish_reason: length`) vira `output_truncated`; vazia, `empty_output` (repetida uma vez); fora do formato, `output_unusable`. As três descem para o próximo degrau em vez de voltar ao principal.
+  - Timeout não repete (`api_timeout`) e o padrão subiu de 180 s para 600 s: a API segura requisição na fila por até 10 min.
+  - Arquivo maior que `max_file_chars` chegava truncado e voltava como "conteúdo completo" sem o final. Agora a tarefa é recusada para o DeepSeek.
+- `doctor`, `setup.ps1`/`setup.sh` e o `setup-claude` da raiz validam o formato da chave (sem mostrar o valor) e encontram o Codex fora do PATH.
+
+### Alterado
+- Skill `route`: declare `complexity` e `steps`; com `executor: claude`/`delegate_claude`, chame o Agent tool com o `claude_agent` em vez de executar no principal.
+- Projeto pode remover ou reordenar degraus em `routing.*`, nunca adicionar modelo ou complexidade (`config_ignored_settings`).
+- `max_output_tokens` do DeepSeek de 16000 para 32000 e `max_context_chars` de 180000 para 400000 (preço de pico, `pricing_as_of: 2026-10-16`).
+
+### Ação do usuário
+- Regravar a chave: copie a chave do DeepSeek e rode `[Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', (Get-Clipboard).Trim(), 'User')`; reabra o editor; `doctor` deve mostrar `deepseek_key_format: "ok"`.
+- Um `.ai-router/config.yml` editado à mão mantém os valores antigos (ex.: `deepseek.timeout_ms: 180000`, sem `routing`). Para receber os novos padrões, apague o arquivo: o próximo uso do router o recria a partir do template.
+
 ## 1.3.4 — 2026-10-07
 O bloco do router deixa de ser duplicado em projetos que seguem o Padrão SaaS.
 

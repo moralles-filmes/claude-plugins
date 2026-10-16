@@ -15,6 +15,10 @@ export function normalizeTask(raw={}) {
     restrictions:arr(raw.restrictions||raw.restricoes),
     acceptance:arr(raw.acceptance||raw.criterios_aceite),
     tests:arr(raw.tests||raw.testes),
+    // mechanical | simple | standard | complex: picks the model rung. A mapped plan (steps) lowers the inferred rung.
+    complexity:String(raw.complexity||raw.complexidade||''),
+    steps:arr(raw.steps||raw.passos).map(String),
+    plan_ready:raw.plan_ready===true,
     budget:raw.budget||{profile:'normal'},
     max_turns:Number(raw.max_turns||20),
     max_attempts:Number(raw.max_attempts||2),

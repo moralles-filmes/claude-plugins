@@ -6,7 +6,7 @@ import { ensureSafeRepo } from '../lib/security.mjs';
 import { redact } from '../lib/redact.mjs';
 import { repo, rm, sh } from './helpers.mjs';
 const pluginRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const cli=(root,...args)=>{ const r=spawnSync(process.execPath,[path.join(pluginRoot,'scripts','ai-router.mjs'),...args,'--root',root],{encoding:'utf8',env:{...process.env,AI_ROUTER_WORKER:''}}); return {code:r.status,json:JSON.parse(r.stdout)}; };
+const cli=(root,...args)=>{ const r=spawnSync(process.execPath,[path.join(pluginRoot,'scripts','ai-router.mjs'),...args,'--root',root],{encoding:'utf8',env:{...process.env,AI_ROUTER_WORKER:'',AI_ROUTER_HOST:'other',DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'}}); return {code:r.status,json:JSON.parse(r.stdout)}; };
 const count=(s,sub)=>s.split(sub).length-1;
 
 test('rules merge preserves content, is idempotent and dedupes',()=>{

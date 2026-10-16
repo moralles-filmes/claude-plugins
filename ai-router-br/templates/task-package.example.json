@@ -2,6 +2,12 @@
   "id": "TASK-004",
   "objective": "Criar componente seletor de unidade.",
   "context": "Componente visual sem alterar autenticação ou sessão.",
+  "complexity": "simple",
+  "steps": [
+    "src/hooks/useUnits.ts: exportar useUnits() que lê as unidades autorizadas do adapter existente",
+    "src/components/Header.tsx: renderizar <select> com as unidades de useUnits() e chamar setActiveUnit no onChange",
+    "Mobile: o select ocupa a largura toda abaixo de 640px"
+  ],
   "relevant_files": ["src/components/Header.tsx", "src/hooks/useUnits.ts"],
   "allowed_files": ["src/components/Header.tsx", "src/hooks/useUnits.ts"],
   "forbidden_files": ["supabase/migrations/", ".env"],

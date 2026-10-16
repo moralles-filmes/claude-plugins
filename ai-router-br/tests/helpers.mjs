@@ -37,6 +37,7 @@ const FAKE_EXEC=`const fs=require('fs'),path=require('path');
 const s=JSON.parse(fs.readFileSync('scenario.json','utf8'));
 const out=process.argv[process.argv.indexOf('--output-last-message')+1];
 if(s.dump_env_to) fs.writeFileSync(s.dump_env_to,JSON.stringify(Object.keys(process.env)));
+if(s.dump_args_to) fs.writeFileSync(s.dump_args_to,JSON.stringify(process.argv.slice(2)));
 if(s.tamper_main) require('./tamper-main.js');
 if(s.echo_prompt) process.stderr.write('user\\n'+fs.readFileSync(0,'utf8')+'\\n');
 for(const [f,c] of Object.entries(s.write||{})){ fs.mkdirSync(path.dirname(f),{recursive:true}); fs.writeFileSync(f,c); }
@@ -60,6 +61,9 @@ export async function mockDeepSeek(handler){
 export function deepseekReply(parsed,usage={prompt_tokens:100,completion_tokens:50}){
   return JSON.stringify({choices:[{message:{content:JSON.stringify(parsed)}}],usage});
 }
+export const FAKE_DS_KEY='fake-ds-key-not-real-0000';
+// What the router would detect on a machine: explicit in tests so the real Codex install, DeepSeek key or host never leak in.
+export function probeFor({host='other',deepseek_key='ok',codex_command=['codex'],codex_models=null}={}){ return {host,deepseek_key,codex_command,codex_models}; }
 export async function withEnv(vars,fn){
   const old={}; for(const k of Object.keys(vars)){ old[k]=process.env[k]; if(vars[k]===undefined) delete process.env[k]; else process.env[k]=vars[k]; }
   try{ return await fn(); } finally { for(const k of Object.keys(vars)){ if(old[k]===undefined) delete process.env[k]; else process.env[k]=old[k]; } }

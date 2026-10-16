@@ -6,6 +6,7 @@ const pluginRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')
 const argv=process.argv.slice(2); const cmd=argv.shift()||'help';
 function flag(name,def=null){const i=argv.indexOf(`--${name}`); if(i<0)return def; return argv[i+1]&&!argv[i+1].startsWith('--')?argv[i+1]:true;}
 const list=v=>typeof v==='string'?v.split(',').map(s=>s.trim()).filter(Boolean):[];
+const str=name=>{ const v=flag(name); return typeof v==='string'?v:null; };
 const print=obj=>console.log(JSON.stringify(obj,null,2));
 const ROUTING=['dry-run','dispatch','classify','new-task'];
 try {
@@ -15,19 +16,21 @@ try {
     // First use in any project bootstraps .ai-router/ silently and idempotently (disable with --no-init).
     const boot=argv.includes('--no-init')?{root:resolveProjectRoot(flag('root','.')),status:'disabled'}:ensureInitialized(flag('root','.'),pluginRoot);
     const root=boot.root;
-    const auto_init=boot.status==='created'?{status:'created',rules_synced:boot.rules_synced,git_exclude:boot.git_exclude}:boot.status==='skipped'?{status:'skipped',reason:boot.reason}:boot.status;
+    const auto_init=boot.status==='created'?{status:'created',rules_synced:boot.rules_synced,git_exclude:boot.git_exclude}:boot.status==='skipped'?{status:'skipped',reason:boot.reason}:boot.config_upgraded?{status:boot.status,config_upgraded:true}:boot.status;
     if(cmd==='new-task'){ const p=saveTask(root,{objective:flag('objective',''),allowed_files:list(flag('allowed')),forbidden_files:list(flag('forbidden'))}); print({status:'task_created',task:p,auto_init}); }
     else {
       const config=loadConfig(root,pluginRoot);
       const tf=flag('task');
       const task=typeof tf==='string'?loadTask(path.resolve(tf)):normalizeTask({objective:flag('objective',''),allowed_files:list(flag('allowed')),forbidden_files:list(flag('forbidden'))});
-      const force=flag('executor'); const res=await route({root,task,config,dryRun:cmd!=='dispatch',forceExecutor:force===null?null:String(force)});
+      if(str('complexity')) task.complexity=str('complexity');
+      const force=flag('executor');
+      const res=await route({root,task,config,dryRun:cmd!=='dispatch',forceExecutor:force===null?null:String(force),forceModel:str('model'),forceEffort:str('effort'),host:str('host')});
       const ignored=config.ignored_project_settings||[];
       // summary_line first: the chat line (skills, PostToolUse hook) survives even a truncated output.
       print({summary_line:summaryLine(res,config),...res,auto_init,...(ignored.length?{config_ignored_settings:ignored}:{})});
     }
   } else {
-    console.log('Usage: ai-router.mjs init|dry-run|classify|dispatch|new-task --root . [--task file.json] [--objective text] [--allowed a,b] [--forbidden x/] [--executor codex|deepseek|main] [--no-init]');
+    console.log('Usage: ai-router.mjs init|dry-run|classify|dispatch|new-task --root . [--task file.json] [--objective text] [--allowed a,b] [--forbidden x/] [--executor codex|deepseek|claude|main] [--model m] [--effort low|medium|high] [--complexity mechanical|simple|standard|complex] [--host claude|other] [--no-init]');
     process.exit(cmd==='help'||cmd==='--help'?0:1);
   }
 } catch (e) {

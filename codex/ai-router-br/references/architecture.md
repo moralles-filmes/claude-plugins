@@ -10,12 +10,15 @@ Existe exatamente **um orquestrador principal por sessão**: Claude Code quando 
 pedido normal (o usuário não precisa citar o router)
   -> agente principal aciona a skill de roteamento (Claude: ai-router-br:route · Codex: $ai-router)
   -> CLI auto-inicializa o projeto se necessário (idempotente, silencioso)
-  -> classifica risco/escopo/custo
+  -> classifica risco/escopo/custo e complexidade (mechanical/simple/standard/complex)
   -> pequena? resolve diretamente
   -> TIER 0? agente principal
-  -> TIER 1? Codex worker -> fallback DeepSeek apenas se indisponível/limite
-  -> TIER 2/3? DeepSeek -> fallback Codex
-  -> worker em worktree isolada (repo limpo, .ai-router/ não versionado)
+  -> TIER 1-3? escada da complexidade (models.md), sem os degraus indisponíveis nesta máquina:
+       mechanical/simple: DeepSeek -> Codex gpt-6-luna -> subagente Claude Haiku
+       standard/complex:  Codex gpt-6.1-sol -> Codex gpt-6-sol -> (DeepSeek) -> subagente Claude Sonnet
+  -> degrau indisponível no dispatch? desce para o próximo
+  -> degrau Claude (ou repo sujo / secret rastreado)? status delegate_claude: o principal chama o Agent tool
+  -> worker externo em worktree isolada (repo limpo, .ai-router/ não versionado)
   -> descarta arquivos ignorados criados pelo worker
   -> valida allowlist + HEAD inalterado + repositório principal intocado
   -> gera patch + resultado (testes adiados: tests_pending)
@@ -44,7 +47,7 @@ Nunca inicializa o diretório home, a raiz do disco, `~/.claude`, `~/.codex`, pa
 
 ## Quem executou: linha no chat
 
-`dry-run`, `classify` e `dispatch` imprimem `summary_line` como **primeira** chave do JSON, por exemplo `🔀 Router · TIER 2 → DeepSeek (deepseek-flash) · sucesso · US$0,0004 · 1,8 s`. A linha é montada só com campos fixos, códigos e números (executor, modelo, tier, status, `error_code`, custo, duração). Nunca inclui texto do worker, prompt, caminho ou mensagem de erro. O modelo do DeepSeek vem do config do plugin. O do Codex worker vem da chave `model` de topo em `$CODEX_HOME/config.toml` (ou `~/.codex/config.toml`) e é omitido com `ignore_user_config: true`.
+`dry-run`, `classify` e `dispatch` imprimem `summary_line` como **primeira** chave do JSON, por exemplo `🔀 Router · TIER 2 → DeepSeek (deepseek-flash) · sucesso · US$0,0004 · 1,8 s`. A linha é montada só com campos fixos, códigos e números (executor, modelo, tier, status, `error_code`, custo, duração). Nunca inclui texto do worker, prompt, caminho ou mensagem de erro. O modelo do DeepSeek vem do config do plugin. O do Codex worker é o do degrau (`-m` e `-c model_reasoning_effort` no `codex exec`), por exemplo `Codex (gpt-6-luna · low)`; só um Codex forçado sem degrau herda a chave `model` de topo em `$CODEX_HOME/config.toml` (omitida com `ignore_user_config: true`). O subagente aparece como `Claude Haiku (subagente)`/`Claude Sonnet (subagente)`, e degraus pulados como `indisponível: <código>`.
 
 - **Claude Code:** um hook `PostToolUse` (`Bash|PowerShell`, filtrado por `if` para comandos com `ai-router.mjs`) roda `scripts/router-notice.mjs`, que devolve a linha como `systemMessage`, mostrada ao usuário sem depender do modelo. O hook nunca bloqueia e fica calado para outros comandos e dentro de workers.
 - **Claude Code e Codex:** as skills mandam o agente principal copiar o `summary_line` literalmente na resposta.

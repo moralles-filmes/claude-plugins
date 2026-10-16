@@ -57,6 +57,15 @@ export function hardenConfig(template,project) {
   for (const key of Object.keys(tplOf('budgets')).filter(k=>k.endsWith('_max_usd'))) pick('budgets',key,atMost);
   pick('budgets','default_profile',lower(PROFILE_RANK));
   pick('risk','critical_score',atMost);
+  // The ladder decides which paid model runs: a project may drop or reorder the plugin's rungs, never add one.
+  const routing=section('routing'); const tplRouting=tplOf('routing');
+  for (const key of Object.keys(routing)) if (!Object.hasOwn(tplRouting,key)) { delete routing[key]; ignored.push(`routing.${key}`); }
+  for (const key of Object.keys(tplRouting)) pick('routing',key,(t,p)=>{
+    const tl=(Array.isArray(t)?t:[]).map(String);
+    if (!Array.isArray(p)) return tl;
+    const kept=[...new Set(p.map(String))].filter(x=>tl.includes(x));
+    return kept.length?kept:tl;
+  });
   return {config:cfg,ignored:[...new Set(ignored)]};
 }
 
