@@ -3,6 +3,6 @@ name: ai-router-dry-run
 description: Classificar uma tarefa com o ai-router-br sem executar workers nem alterar o produto.
 ---
 # Dry Run
-Classifique somente. Rode `node "<plugin-root>/scripts/ai-router.mjs" dry-run --root . --objective "<resumo curto e seguro>"`, onde `<plugin-root>` é a pasta dois níveis acima deste `SKILL.md`. Não cole texto bruto do usuário no shell; com aspas ou símbolos, grave um TASK PACKAGE em `.ai-router/TASKS/` e use `--task`. O primeiro uso auto-inicializa `.ai-router/` de forma idempotente. Mostre o `summary_line` literalmente e depois tier, executor, fallback, motivo, budget, revisão e auditoria.
+Classifique somente. Rode `node "<plugin-root>/scripts/ai-router.mjs" dry-run --root . --objective "<resumo curto e seguro>"`, onde `<plugin-root>` é a pasta dois níveis acima deste `SKILL.md`. Não cole texto bruto do usuário no shell; com aspas ou símbolos, grave um TASK PACKAGE em `.ai-router/TASKS/` e use `--task`. O primeiro uso auto-inicializa `.ai-router/` de forma idempotente. Mostre o `summary_line` literalmente e depois tier, complexidade, executor (modelo e esforço), fallback (`fallback_chain`), indisponíveis (`skipped_candidates`), motivo, budget, revisão e auditoria.
 
 Sem `allowed_files` o escopo é desconhecido e nada é tratado como tarefa pequena. Para o veredito que o fluxo real usaria, grave o TASK PACKAGE com a lista de arquivos e classifique com `--task`.

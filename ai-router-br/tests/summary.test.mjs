@@ -62,10 +62,11 @@ test('hook notice reads summary_line from router commands only',()=>{
 test('CLI prints summary_line first and the hook script turns it into a user-visible message',()=>{
   const d=repo({'README.md':'# app\n'}); const home=tmpHome('model = "gpt-cli-test"\n');
   try {
-    const r=spawnSync(process.execPath,[path.join(pluginRoot,'scripts','ai-router.mjs'),'dry-run','--objective','Implementar módulo de fornecedores no backend e frontend em vários arquivos.','--root',d],{encoding:'utf8',env:{...process.env,AI_ROUTER_WORKER:'',CODEX_HOME:home}});
+    const r=spawnSync(process.execPath,[path.join(pluginRoot,'scripts','ai-router.mjs'),'dry-run','--objective','Implementar módulo de fornecedores no backend e frontend em vários arquivos.','--root',d],{encoding:'utf8',env:{...process.env,AI_ROUTER_WORKER:'',CODEX_HOME:home,AI_ROUTER_CODEX_BIN:process.execPath,AI_ROUTER_HOST:'claude',DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'}});
     assert.equal(r.status,0); const json=JSON.parse(r.stdout);
     assert.equal(Object.keys(json)[0],'summary_line');
-    assert.equal(json.summary_line,`${SUMMARY_PREFIX} · TIER 1 → Codex (gpt-cli-test) · fallback: DeepSeek (deepseek-flash) · classificação`);
+    // The ladder names the model; the user's config.toml (gpt-cli-test) no longer decides it.
+    assert.equal(json.summary_line,`${SUMMARY_PREFIX} · TIER 1 · standard → Codex (gpt-6.1-sol · low) · fallback: Codex (gpt-6-sol · low) → DeepSeek (deepseek-flash) → Claude Sonnet (subagente) · classificação`);
     const hook=(input,env={})=>spawnSync(process.execPath,[path.join(pluginRoot,'scripts','router-notice.mjs')],{encoding:'utf8',input,env:{...process.env,AI_ROUTER_WORKER:'',...env}});
     const payload=JSON.stringify({hook_event_name:'PostToolUse',tool_name:'PowerShell',tool_input:{command:`node "${path.join(pluginRoot,'scripts','ai-router.mjs')}" dry-run --root .`},tool_response:{stdout:r.stdout}});
     const h=hook(payload); assert.equal(h.status,0); assert.deepEqual(JSON.parse(h.stdout),{systemMessage:json.summary_line});

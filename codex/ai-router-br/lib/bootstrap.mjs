@@ -2,11 +2,22 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import { syncProjectRules } from './rules.mjs';
 import { trackedRouterPath } from './security.mjs';
 
 const STATE_TEMPLATE='# AI Router State\n\nKeep this short. No secrets.\n\n- Active task: none\n- Last result: none\n';
 const REPORT_TEMPLATE='# AI Router Report\n\n';
+// sha256 of earlier plugin templates (CR removed). A project config that still equals one of them was never edited,
+// so it follows the plugin: otherwise its copied values (old timeouts, no routing ladder) would outrank the new defaults.
+const PREVIOUS_TEMPLATES=new Set(['577c79d353a9cb1997fbca04bf422153eb7eec5ea5f03d75f111e780b9474695']);
+const templateHash=text=>crypto.createHash('sha256').update(String(text).replace(/\r/g,'')).digest('hex');
+function upgradeUntouchedConfig(file,template) {
+  try {
+    if (!PREVIOUS_TEMPLATES.has(templateHash(fs.readFileSync(file,'utf8')))) return false;
+    fs.copyFileSync(template,file); return true;
+  } catch { return false; }
+}
 
 function gitRun(root,args){ return spawnSync('git',args,{cwd:root,encoding:'utf8',windowsHide:true}); }
 function gitOut(root,args){
@@ -63,7 +74,9 @@ export function ensureInitialized(rootInput,pluginRoot,{syncRules='on-create',en
   // Exclude first, so router files never show up as untracked changes.
   const gitExclude=ensureGitExclude(root);
   for (const d of ['TASKS','RESULTS']) { const p=path.join(base,d); if(!fs.existsSync(p)){ fs.mkdirSync(p,{recursive:true}); created.push(`.ai-router/${d}/`); } }
-  if (!fs.existsSync(config)) { fs.copyFileSync(path.join(pluginRoot,'templates','config.yml'),config); created.push('.ai-router/config.yml'); }
+  const template=path.join(pluginRoot,'templates','config.yml');
+  const configUpgraded=!firstRun && upgradeUntouchedConfig(config,template);
+  if (!fs.existsSync(config)) { fs.copyFileSync(template,config); created.push('.ai-router/config.yml'); }
   for (const [name,content] of [['STATE.md',STATE_TEMPLATE],['REPORT.md',REPORT_TEMPLATE]]) {
     const p=path.join(base,name); if(!fs.existsSync(p)){ fs.writeFileSync(p,content); created.push(`.ai-router/${name}`); }
   }
@@ -71,5 +84,5 @@ export function ensureInitialized(rootInput,pluginRoot,{syncRules='on-create',en
   if (syncRules==='always' || (syncRules==='on-create' && firstRun)) {
     rules=syncProjectRules(root,{apply:true});
   }
-  return {root,status:firstRun?'created':'existing',created,git_exclude:gitExclude,rules_synced:rules?rules.results.filter(r=>r.changed).map(r=>path.basename(r.file)):[]};
+  return {root,status:firstRun?'created':'existing',created,git_exclude:gitExclude,...(configUpgraded?{config_upgraded:true}:{}),rules_synced:rules?rules.results.filter(r=>r.changed).map(r=>path.basename(r.file)):[]};
 }

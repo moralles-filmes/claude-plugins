@@ -10,7 +10,7 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 - **[saas-builder-br](./saas-builder-br/)** — Orquestrador + subagents para construir SaaS multi-tenant (Vite + React + TS / Supabase / Vercel), com gates pontuais do saas-shield-br e auditoria completa delegada ao saas-audit-br.
 - **[turbo](./turbo/)** — Otimização de performance ponta a ponta (React/Next + Postgres/Supabase), com baseline medido e guarda-corpos contra regressão.
 - **[saas-audit-br](./saas-audit-br/)** — Orquestrador de auditoria completa de SaaS (audit → fix → test), reutilizando saas-shield-br + code-health. Por padrão só audita; correção só com `--fix`/`--full`.
-- **[ai-router-br](./ai-router-br/)** — Roteamento seguro de tarefas por risco/custo entre o agente principal, Codex worker (login ChatGPT) e DeepSeek worker (API). Versão nativa Codex em [codex/ai-router-br](./codex/ai-router-br/).
+- **[ai-router-br](./ai-router-br/)** — Roteamento seguro de tarefas por risco, complexidade e custo entre o agente principal, Codex worker (login ChatGPT, modelo pela complexidade), DeepSeek worker (API) e subagentes Claude Haiku/Sonnet. Versão nativa Codex em [codex/ai-router-br](./codex/ai-router-br/).
 
 ## Instalando em uma máquina nova
 

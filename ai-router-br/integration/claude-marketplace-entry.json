@@ -1,5 +1,5 @@
 {
   "name": "ai-router-br",
   "source": "./ai-router-br",
-  "description": "Roteamento seguro de modelos por risco/custo com Codex e DeepSeek workers."
+  "description": "Roteamento seguro de modelos por risco, complexidade e custo com Codex, DeepSeek e subagentes Claude Haiku/Sonnet."
 }

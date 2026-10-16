@@ -1,7 +1,7 @@
 {
   "name": "ai-router-br",
-  "version": "1.3.4",
-  "description": "Roteamento transversal de tarefas para Codex principal, Codex worker isolado ou DeepSeek econômico, com risco, budget, fallback e revisão.",
+  "version": "1.4.0",
+  "description": "Roteamento transversal de tarefas por risco e complexidade para Codex principal, Codex worker isolado (gpt-6-luna para braçal, gpt-6.1-sol para coding) ou DeepSeek econômico, com disponibilidade checada, budget, fallback e revisão.",
   "author": {
     "name": "Yuri Moraes",
     "email": "morallesfilms@gmail.com"
@@ -20,8 +20,8 @@
   "skills": "./skills",
   "interface": {
     "displayName": "AI Router BR",
-    "shortDescription": "Roteia tarefas por risco e custo",
-    "longDescription": "Roteamento seguro de tarefas de desenvolvimento entre o Codex principal, workers Codex por login ChatGPT e DeepSeek por API, com classificação contextual de risco, budgets, worktrees, fallback, revisão obrigatória e gates de auditoria.",
+    "shortDescription": "Roteia tarefas por risco, complexidade e custo",
+    "longDescription": "Roteamento seguro de tarefas de desenvolvimento entre o Codex principal, workers Codex por login ChatGPT (modelo escolhido pela complexidade, gpt-6-luna para trabalho braçal) e DeepSeek por API, com classificação contextual de risco e complexidade, checagem de disponibilidade, budgets, worktrees, fallback, revisão obrigatória e gates de auditoria.",
     "developerName": "Yuri Moraes",
     "category": "Developer Tools",
     "capabilities": [

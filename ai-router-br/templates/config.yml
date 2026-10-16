@@ -1,7 +1,8 @@
 # ai-router-br project config. Local only: never commit .ai-router/.
 # Security settings can only be tightened here. Endpoint, Codex command, ChatGPT auth and clean-git gate
 # always come from the plugin; budgets/limits only go down, prices only up, allowlists only shrink.
-version: 1
+# routing.* lists can only drop or reorder the rungs the plugin ships for that complexity.
+version: 2
 router:
   auto_delegate: true
   small_task_direct: true
@@ -10,6 +11,17 @@ router:
 
 risk:
   critical_score: 8
+
+# Model ladder per complexity (TIER 1-3; TIER 0 always stays with the main agent).
+# executor[:model[:effort]]. The first available rung runs; the next ones are the fallback, in order.
+# claude:haiku / claude:sonnet are Claude Code subagents (Agent tool), never the main model.
+# Codex credits per 1M output tokens (2026-10-16): gpt-6-luna 12.5, gpt-6.1-sol 250, gpt-6-sol 250, gpt-6-astra 1250.
+# gpt-6-astra is left out on purpose; use it only with: --executor codex --model gpt-6-astra
+routing:
+  mechanical: [deepseek, codex:gpt-6-luna:low, claude:haiku]
+  simple: [deepseek, codex:gpt-6-luna:medium, claude:haiku]
+  standard: [codex:gpt-6.1-sol:low, codex:gpt-6-sol:low, deepseek, claude:sonnet]
+  complex: [codex:gpt-6.1-sol:high, codex:gpt-6-sol:high, claude:sonnet]
 
 budgets:
   cheap_max_usd: 0.15
@@ -21,10 +33,11 @@ deepseek:
   base_url: https://api.deepseek.com
   model: deepseek-flash
   max_attempts: 2
-  timeout_ms: 180000
-  max_output_tokens: 16000
-  max_context_chars: 180000
-  pricing_as_of: 2026-09-16
+  # The API keeps a queued request open (blank keep-alive lines) for up to 10 minutes before inference starts.
+  timeout_ms: 600000
+  max_output_tokens: 32000
+  max_context_chars: 400000
+  pricing_as_of: 2026-10-16
   peak_cache_miss_input_usd_per_mtok: 0.30
   peak_output_usd_per_mtok: 1.20
 

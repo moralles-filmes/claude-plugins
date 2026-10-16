@@ -1,3 +1,4 @@
+import { COMPLEXITIES, ladderFor } from './models.mjs';
 // Tokens curtos são ancorados em \b. Sem isso casavam dentro de palavras comuns em
 // PT-BR e a tarefa virava TIER 0 no principal, com auditoria falsa: "role" em
 // "controle", "drop" em "dropdown", "secret" em "secretaria", "fix" em "fixtures",
@@ -22,7 +23,21 @@ const DESTRUCTIVE=new RegExp(String.raw`(\bdrop(?:ar|s|ping|ped)?\b|\bpurge\b|\b
 const CODING=/(\bimplement\w*|\bcreate\w*|\bbuild(?:s|ing)?\b|\brefactor\w*|\bde?bug(?:s|ar|ging|ged)?\b|\bfix(?:e[sd]|ing)?\b|\bcomponent\w*|\bapis?\b|\bcrud\b|\bfrontend\b|\bbackend\b|\bfeatures?\b|\btest(?:e|es|s|ar|ando|ing|ed)?\b|módulo|modulo|implementar|criar|corrigir|refatorar)/i;
 const CHEAP=/(inventory|inventari|grep|search files|localizar|boilerplate|fixture|mock|rename|bulk|documentation|documenta|summar|catalog|dead[- ]code exploration|repetitiv|lint simples)/i;
 const MECH=/(classif|organiza|sumariza|listar referências|listar referencias|buscar ocorrências|buscar ocorrencias)/i;
+// Complexity picks the model rung for delegated work, never the risk tier. A mapped plan (steps) lowers it one
+// rung: executing a plan someone already thought through is the "braçal" work the cheap models are for.
+const COMPLEX=/(arquitetura|architecture|concorr[êe]ncia|concurrency|race condition|condi[çc][ãa]o de corrida|deadlock|\bperformance\b|desempenho|otimiz|optimi[sz]|algoritm|causa raiz|root cause|intermitente|flaky|investiga|migra[çc][ãa]o de dados|data migration)/i;
 const BROAD=/(módulo completo|modulo completo|end[- ]to[- ]end|ponta a ponta|vários arquivos|varios arquivos|backend e frontend|full feature|entire module|\b(?:módulo|modulo|module)\b|inventari|catalogar código|catalog code|dead[- ]code exploration|bulk edit)/i;
+function complexityOf(task,tier,scope,files) {
+  const declared=String(task.complexity||task.complexidade||'').trim().toLowerCase();
+  if (COMPLEXITIES.includes(declared)) return {complexity:declared,complexity_source:'task'};
+  let level=tier>=3?0:tier===2?1:files.length>15?3:2;
+  // "Investigar race condition" has no coding verb and lands in tier 3: the signal still needs a real coder.
+  if (COMPLEX.test(scope)) level=tier===1?3:Math.max(level,2);
+  const steps=task.steps||task.passos;
+  const planned=(Array.isArray(steps) && steps.length>0) || task.plan_ready===true;
+  if (planned && level>1) level--;
+  return {complexity:COMPLEXITIES[level],complexity_source:planned?'inferred_with_plan':'inferred'};
+}
 export function classifyTask(task, config={}) {
   const objective=String(task.objective||task.objetivo||'');
   const context=String(task.context||task.contexto||'');
@@ -50,8 +65,11 @@ export function classifyTask(task, config={}) {
   const maxSmallFiles=config?.router?.small_task_max_files??1;
   const maxSmallChars=config?.router?.small_task_max_chars??500;
   const small = tier===3 && files.length>=1 && files.length<=maxSmallFiles && objective.length<=maxSmallChars && !BROAD.test(objective) && !CHEAP.test(objective);
-  let executor=tier===0?'main':tier===1?'codex':'deepseek';
-  let fallback=tier===1?'deepseek':tier>=2?'codex':null;
+  const {complexity,complexity_source}=complexityOf(task,tier,scope,files);
+  // First rung of the ladder; the router later drops rungs that are unavailable on this machine.
+  const ladder=ladderFor(config,complexity);
+  let executor=tier===0?'main':ladder[0]?.executor||'main';
+  let fallback=tier===0?null:ladder.find(c=>c.executor!==executor)?.executor||null;
   if(small && config?.router?.small_task_direct!==false){executor='main';fallback=null;reasons.push('tarefa pequena: principal pode resolver diretamente');}
-  return {tier,risk_score:risk,executor,fallback,small,reasons,audit_required:tier===0 || risk>=5};
+  return {tier,risk_score:risk,complexity,complexity_source,executor,fallback,small,reasons,audit_required:tier===0 || risk>=5};
 }

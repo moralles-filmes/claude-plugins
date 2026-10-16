@@ -1,7 +1,7 @@
 {
   "name": "ai-router-br",
-  "version": "1.3.4",
-  "description": "Roteamento transversal e seguro de tarefas entre o agente principal, Codex worker via login ChatGPT e DeepSeek econômico via API, com risco, budget, worktrees, fallback e revisão obrigatória.",
+  "version": "1.4.0",
+  "description": "Roteamento transversal e seguro de tarefas por risco e complexidade entre o agente principal, Codex worker via login ChatGPT (modelo escolhido por complexidade), DeepSeek econômico via API e subagentes Claude Haiku/Sonnet, com disponibilidade checada, budget, worktrees, fallback e revisão obrigatória.",
   "author": {
     "name": "Yuri Moraes",
     "email": "morallesfilms@gmail.com"
@@ -12,6 +12,8 @@
     "ai-router",
     "codex",
     "deepseek",
+    "claude-subagents",
+    "model-routing",
     "worktree",
     "security",
     "pt-br"

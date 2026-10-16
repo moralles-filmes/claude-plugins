@@ -26,6 +26,12 @@
 - max files é hard gate; max attempts e budget (acumulado entre tentativas, limitado pelo teto do config mesmo que o TASK PACKAGE peça mais; valores inválidos caem no teto) são hard gates no worker DeepSeek;
 - falha de teste, violação de escopo, secret preflight, config inseguro, comando inseguro ou resultado suspeito escala ao principal e **nunca** dispara fallback; falhas elegíveis a fallback descartam a worktree;
 - `AI_ROUTER_WORKER=1` impede delegação aninhada e auto-inicialização dentro de workers.
+- resposta do DeepSeek truncada (`finish_reason: length`), vazia ou fora do formato desce para o próximo degrau: nada foi gravado na árvore, então o fallback não mascara nada. Mudança fora de `allowed_files` continua `scope_violation`, sem fallback;
+- a `DEEPSEEK_API_KEY` precisa ser ASCII imprimível sem espaços (20+ caracteres) antes de qualquer requisição; chave malformada vira `auth_unavailable` com `deepseek_api_key_malformed`, sem mostrar valor nem tamanho no resultado. Requisição que o `fetch` recusa localmente (`request_invalid`) não é tratada como rede nem repetida;
+- o subagente Claude (`claude-worker-haiku`/`claude-worker-sonnet`) tem o mesmo nível de confiança do agente principal: roda na sessão do usuário, com as permissões dela, na árvore principal. Por isso `dirty_worktree`, `tracked_secret`, `tracked_router_config` e `not_git_repo` — gates que existem porque o código sairia para um worker de terceiro — não o bloqueiam. Ele nunca recebe TIER 0, não tem Agent tool (não delega) e o resultado é revisado pelo principal no `git diff`. Erros do TASK PACKAGE (`glob_not_supported`, `unsafe_test_command`, caminho inválido) continuam bloqueando;
+- a escada (`routing.*`) do config do projeto só remove ou reordena degraus do plugin; entrada nova (ex.: `codex:gpt-6-astra:ultra`) ou complexidade nova é ignorada e aparece em `config_ignored_settings`. Modelo e esforço passam por allowlist de formato antes de virar argumento do `codex exec` (sem shell);
+- `AI_ROUTER_CODEX_BIN` (caminho absoluto do Codex CLI) e `AI_ROUTER_HOST` (`claude`/`other`) só são lidos do ambiente do processo do router, nunca do config do projeto; o comando `codex.command` continua travado no template;
+- o auto-init só substitui um `config.yml` cujo conteúdo é idêntico (hash) a um template anterior do plugin; qualquer edição do usuário mantém o arquivo como está.
 
 ## Comandos proibidos aos workers
 

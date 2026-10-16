@@ -9,6 +9,6 @@ Classifique sem executar workers. Rode `node "${CLAUDE_PLUGIN_ROOT}/scripts/ai-r
 
 Sem `allowed_files` o escopo é desconhecido e nada é tratado como tarefa pequena. Para o veredito que o `route` usaria de verdade, grave o TASK PACKAGE com a lista de arquivos e classifique com `--task`.
 
-Mostre o `summary_line` literalmente e depois: Tarefa, Tier, Executor, Fallback, Motivo, Budget, Revisão e Auditoria.
+Mostre o `summary_line` literalmente e depois: Tarefa, Tier, Complexidade, Executor (com modelo e esforço), Fallback (`fallback_chain`), Indisponíveis (`skipped_candidates`), Motivo, Budget, Revisão e Auditoria.
 
 Tarefa: $ARGUMENTS

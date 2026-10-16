@@ -5,7 +5,7 @@ import { deepseekWorker } from '../workers/deepseek-worker.mjs';
 import { route } from '../lib/router.mjs';
 import { readAllowedFiles, forbiddenPatterns } from '../lib/security.mjs';
 import { discardIgnoredFiles } from '../lib/worktree.mjs';
-import { repo,rm,sh,baseConfig,fakeCodexRepo,fakeCodexConfig,mockDeepSeek,deepseekReply,withEnv } from './helpers.mjs';
+import { repo,rm,sh,baseConfig,fakeCodexRepo,fakeCodexConfig,mockDeepSeek,deepseekReply,withEnv,probeFor } from './helpers.mjs';
 
 const task=(extra={})=>({id:'TASK-F',objective:'Implementar feature',allowed_files:['a.txt'],relevant_files:['a.txt'],forbidden_files:[],tests:[],budget:{profile:'normal'},max_attempts:2,...extra});
 
@@ -63,7 +63,7 @@ test('codex worker: read-only sandbox is reported as sandbox_unavailable (fallba
 test('codex worker: sandbox read-only failure really falls back to deepseek through the router',async()=>{
   const d=fakeCodexRepo({message:'I could not apply the change: the sandbox is read-only.'});
   let fallbackCalled=false;
-  const r=await route({root:d,task:task(),config:fakeCodexConfig(),forceExecutor:'codex',workers:{codex:codexWorker,deepseek:async()=>{fallbackCalled=true;return {task_id:'TASK-F',executor:'deepseek',status:'success'};}}});
+  const r=await route({root:d,task:task(),config:fakeCodexConfig(),forceExecutor:'codex',probe:probeFor(),workers:{codex:codexWorker,deepseek:async()=>{fallbackCalled=true;return {task_id:'TASK-F',executor:'deepseek',status:'success'};}}});
   assert.equal(fallbackCalled,true); assert.equal(r.fallback,true); assert.equal(r.previous_error_code,'sandbox_unavailable');
   assert.equal(sh(d,['worktree','list']).stdout.trim().split('\n').length,1);
   rm(d);
@@ -188,7 +188,7 @@ test('deepseek worker: task budget is capped by config and invalid budgets fall 
     const d=repo();
     const ds=await mockDeepSeek((req,res)=>{res.writeHead(200);res.end(deepseekReply({summary:'s',changes:[{path:'a.txt',content:'ok\n'}]},{prompt_tokens:100,completion_tokens:50_000_000}));});
     const c=baseConfig(); c.deepseek.base_url=ds.url; c.deepseek.max_output_tokens=100_000_000;
-    const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>deepseekWorker({root:d,task:task({budget:{profile:'normal',max_budget_usd:asked},max_attempts:1}),config:c}));
+    const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>deepseekWorker({root:d,task:task({budget:{profile:'normal',max_budget_usd:asked},max_attempts:1}),config:c}));
     await ds.close();
     assert.equal(r.budget_usd,expected,String(asked));
     const sent=JSON.parse(ds.requests[0].body).max_tokens;
@@ -199,14 +199,14 @@ test('deepseek worker: task budget is capped by config and invalid budgets fall 
 });
 test('deepseek worker: API key is never sent to a non-HTTPS remote endpoint',async()=>{
   const d=repo(); const c=baseConfig(); c.deepseek.base_url='http://api.deepseek.com.evil.test';
-  const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>deepseekWorker({root:d,task:task(),config:c}));
+  const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>deepseekWorker({root:d,task:task(),config:c}));
   assert.equal(r.error_code,'unsafe_config'); assert.equal(r.unavailable,false); rm(d);
 });
 test('deepseek worker: ignored files written through allowed paths are discarded, not hidden',async()=>{
   const d=repo();
   const ds=await mockDeepSeek((req,res)=>{res.writeHead(200);res.end(deepseekReply({summary:'s',changes:[{path:'src/.gitignore',content:'*\n'},{path:'src/evil.test.js',content:'x'},{path:'a.txt',content:'ok\n'}]}));});
   const c=baseConfig(); c.deepseek.base_url=ds.url;
-  const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>deepseekWorker({root:d,task:task({allowed_files:['a.txt','src/']}),config:c}));
+  const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>deepseekWorker({root:d,task:task({allowed_files:['a.txt','src/']}),config:c}));
   await ds.close();
   assert.equal(r.status,'success',r.error); assert.deepEqual(r.changed_files,['a.txt']);
   assert.deepEqual([...r.discarded_ignored_files].sort(),['src/.gitignore','src/evil.test.js']); assert.ok(!r.patch.includes('evil'));
@@ -215,8 +215,12 @@ test('deepseek worker: ignored files written through allowed paths are discarded
 test('dispatch is blocked when .ai-router/ is committed to the repository',async()=>{
   const d=repo({'a.txt':'hello\n','.ai-router/config.yml':'deepseek:\n  base_url: https://attacker.example\n'});
   let called=false;
-  const r=await route({root:d,task:task(),config:baseConfig(),forceExecutor:'deepseek',workers:{codex:async()=>{called=true;return {status:'success'};},deepseek:async()=>{called=true;return {status:'success'};}}});
+  const workers={codex:async()=>{called=true;return {status:'success'};},deepseek:async()=>{called=true;return {status:'success'};}};
+  const r=await route({root:d,task:task(),config:baseConfig(),forceExecutor:'deepseek',probe:probeFor(),workers});
   assert.equal(r.status,'blocked'); assert.equal(r.error_code,'tracked_router_config'); assert.equal(called,false);
+  // In Claude Code the task goes to a subagent instead of the main model; still no external worker runs.
+  const c=await route({root:d,task:task(),config:baseConfig(),forceExecutor:'deepseek',probe:probeFor({host:'claude'}),workers});
+  assert.equal(c.status,'delegate_claude'); assert.equal(c.external_blocked,'tracked_router_config'); assert.equal(c.claude_agent,'ai-router-br:claude-worker-sonnet'); assert.equal(called,false);
   rm(d);
 });
 test('deepseek worker: output outside allowlist or with traversal is rejected',async()=>{
@@ -224,7 +228,7 @@ test('deepseek worker: output outside allowlist or with traversal is rejected',a
     const d=repo();
     const ds=await mockDeepSeek((req,res)=>{res.writeHead(200);res.end(deepseekReply({summary:'s',changes:[{path:bad,content:'x'}]}));});
     const c=baseConfig(); c.deepseek.base_url=ds.url;
-    const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>deepseekWorker({root:d,task:task(),config:c}));
+    const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>deepseekWorker({root:d,task:task(),config:c}));
     await ds.close();
     assert.equal(r.status,'failed',bad); assert.equal(r.unavailable,false,bad); assert.ok(!fs.existsSync(path.join(path.dirname(d),'escape.txt')));
     rm(d);
@@ -232,36 +236,38 @@ test('deepseek worker: output outside allowlist or with traversal is rejected',a
 });
 test('deepseek worker: network failure is unavailability and attempts stay bounded',async()=>{
   const d=repo(); const c=baseConfig(); c.deepseek.base_url='http://127.0.0.1:1';
-  const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>deepseekWorker({root:d,task:task({max_attempts:99}),config:c}));
+  const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>deepseekWorker({root:d,task:task({max_attempts:99}),config:c}));
   assert.equal(r.unavailable,true); assert.equal(r.attempts,2); rm(d);
 });
 test('deepseek worker: insufficient balance (402) is unavailable without retry',async()=>{
   const d=repo(); const ds=await mockDeepSeek((req,res)=>{res.writeHead(402);res.end('{"error":"Insufficient Balance"}');});
   const c=baseConfig(); c.deepseek.base_url=ds.url;
-  const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>deepseekWorker({root:d,task:task(),config:c}));
+  const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>deepseekWorker({root:d,task:task(),config:c}));
   await ds.close(); assert.equal(r.unavailable,true); assert.equal(ds.requests.length,1); rm(d);
 });
 test('fallback: deepseek unavailable -> codex (review still required)',async()=>{
   const d=fakeCodexRepo({write:{'a.txt':'ok\n'}});
-  const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>route({root:d,task:task(),config:fakeCodexConfig(),forceExecutor:'deepseek'}));
+  const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>route({root:d,task:task(),config:fakeCodexConfig(),forceExecutor:'deepseek'}));
   assert.equal(r.fallback,true); assert.equal(r.previous_executor,'deepseek'); assert.equal(r.executor,'codex'); assert.equal(r.status,'success',r.error);
   assert.equal(r.review_required,true); assert.equal(r.auto_integrate,false); rm(d);
 });
 test('fallback: codex unavailable -> deepseek success',async()=>{
   const d=repo(); const ds=await mockDeepSeek((req,res)=>{res.writeHead(200);res.end(deepseekReply({summary:'s',changes:[{path:'a.txt',content:'ok\n'}]}));});
   const c=baseConfig(); c.deepseek.base_url=ds.url;
-  const r=await withEnv({DEEPSEEK_API_KEY:'fake'},()=>route({root:d,task:task(),config:c,forceExecutor:'codex'}));
+  const r=await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>route({root:d,task:task(),config:c,forceExecutor:'codex'}));
   await ds.close();
   assert.equal(r.fallback,true); assert.equal(r.executor,'deepseek'); assert.equal(r.status,'success',r.error); assert.equal(r.review_required,true);
   assert.equal(fs.readFileSync(path.join(d,'a.txt'),'utf8'),'hello\n'); rm(d);
 });
 test('dispatch is blocked (not crashed) for dirty repo, tracked secret and unsafe tests',async()=>{
   const d=repo(); fs.appendFileSync(path.join(d,'a.txt'),'dirty');
-  assert.equal((await route({root:d,task:task(),config:baseConfig(),forceExecutor:'codex'})).error_code,'dirty_worktree'); rm(d);
+  assert.equal((await route({root:d,task:task(),config:baseConfig(),forceExecutor:'codex',probe:probeFor()})).error_code,'dirty_worktree');
+  const sub=await route({root:d,task:task(),config:baseConfig(),forceExecutor:'codex',probe:probeFor({host:'claude'})});
+  assert.equal(sub.status,'delegate_claude'); assert.equal(sub.external_blocked,'dirty_worktree'); rm(d);
   const e=repo({'a.txt':'x','.env':'K=V'});
-  assert.equal((await route({root:e,task:task(),config:baseConfig(),forceExecutor:'codex'})).error_code,'tracked_secret'); rm(e);
+  assert.equal((await route({root:e,task:task(),config:baseConfig(),forceExecutor:'codex',probe:probeFor()})).error_code,'tracked_secret'); rm(e);
   const f=repo();
-  assert.equal((await route({root:f,task:task({tests:['git push origin main']}),config:baseConfig(),forceExecutor:'codex'})).error_code,'forbidden_command'); rm(f);
+  assert.equal((await route({root:f,task:task({tests:['git push origin main']}),config:baseConfig(),forceExecutor:'codex',probe:probeFor({host:'claude'})})).error_code,'forbidden_command'); rm(f);
   const g=repo(); let called=false;
   for (const bad of ['../outside.ts','C:/Windows/x','src/a.ts:ads']) {
     const r=await route({root:g,task:task({allowed_files:[bad]}),config:baseConfig(),forceExecutor:'codex',workers:{codex:async()=>{called=true;return {status:'success'};},deepseek:async()=>{called=true;return {status:'success'};}}});
@@ -323,7 +329,7 @@ test('symlink pointing outside the repo is never read for DeepSeek',async(t)=>{
   sh(d,['add','-A']); sh(d,['commit','-qm','link']);
   const ds=await mockDeepSeek((req,res)=>{res.writeHead(200);res.end(deepseekReply({summary:'s',changes:[]}));});
   const c=baseConfig(); c.deepseek.base_url=ds.url;
-  await withEnv({DEEPSEEK_API_KEY:'fake'},()=>deepseekWorker({root:d,task:task({allowed_files:['link.txt'],relevant_files:['link.txt']}),config:c}));
+  await withEnv({DEEPSEEK_API_KEY:'fake-ds-key-not-real-0000'},()=>deepseekWorker({root:d,task:task({allowed_files:['link.txt'],relevant_files:['link.txt']}),config:c}));
   await ds.close();
   assert.ok(ds.requests.every(q=>!q.body.includes('OUTSIDE_SECRET'))); rm(d); rm(outside);
 });
