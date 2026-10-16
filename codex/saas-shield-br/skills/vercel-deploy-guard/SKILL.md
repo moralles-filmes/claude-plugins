@@ -1,0 +1,216 @@
+---
+name: vercel-deploy-guard
+description: "Pré-deploy checklist para Vercel — env vars validadas (server vs client), headers de segurança (CSP, HSTS, X-Frame-Options), source maps off em prod, bundle size limits, redirects, cache strategy, build logs review. Use quando o usuário pedir \"vou fazer deploy\", \"checklist pré-deploy\", \"deploy guard\", \"validar config Vercel\", \"antes do deploy\", ou ao revisar `vercel.json`."
+---
+
+# vercel-deploy-guard
+
+Você valida configuração Vercel antes de deploy ir pra produção. Foca em: segurança de headers, env vars corretamente segregadas, source maps, bundle size, e gotchas de cache.
+
+## Quando ativa
+
+- "Vou fazer deploy"
+- "Pré-deploy"
+- "Valida vercel.json"
+- "$saas-shield-br:pre-deploy"
+
+## Checklist (20 itens)
+
+### Env vars (5)
+
+- [ ] `.env.local` está no `.gitignore`?
+- [ ] Variáveis sensíveis NÃO têm prefixo `VITE_` (Vite) ou `NEXT_PUBLIC_` (Next)?
+- [ ] No painel Vercel, env vars marcadas como "Production" / "Preview" / "Development" corretamente?
+- [ ] Secrets de prod NÃO estão em "Preview" (PRs vazariam)?
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` / secret key `sb_secret_…` só em "Production" e "Preview" do branch principal — nunca em PRs? A anon/publishable key (`sb_publishable_…`) é a única chave do Supabase que pode ter prefixo público.
+
+### Headers de segurança (6)
+
+`vercel.json`:
+```json
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' https://js.stripe.com; style-src 'self' 'unsafe-inline'; frame-src https://js.stripe.com" }
+      ]
+    }
+  ]
+}
+```
+
+- [ ] `X-Frame-Options: DENY` (anti-clickjacking)
+- [ ] `Strict-Transport-Security` (HSTS)
+- [ ] `X-Content-Type-Options: nosniff`
+- [ ] `Referrer-Policy` configurado
+- [ ] `Permissions-Policy` (desliga APIs perigosas)
+- [ ] `Content-Security-Policy` ajustado pro stack (Supabase WSS, Stripe, etc.)
+
+### Build & Bundle (4)
+
+- [ ] Source maps **não publicadas** em prod?
+  ```ts
+  // vite.config.ts
+  build: { sourcemap: mode === 'production' ? 'hidden' : true }  // 'hidden' gera mas não linka (Sentry); false não gera
+  // next.config: productionBrowserSourceMaps fica false (padrão); suba os mapas só para o Sentry
+  ```
+- [ ] Bundle gzipped < 250 KB inicial? (`rollup-plugin-visualizer` no Vite; `@next/bundle-analyzer` no Next)
+- [ ] Code-split por rota (`React.lazy` + `Suspense`)?
+- [ ] Imagens otimizadas (`<img loading="lazy">`, formatos modernos)?
+
+### Cache & ISR (3)
+
+- [ ] `Cache-Control` apropriado em respostas estáticas?
+  - Assets imutáveis (`/assets/*-<hash>.js`): `public, max-age=31536000, immutable`
+  - HTML: `public, max-age=0, must-revalidate`
+- [ ] CDN configurado para arquivos estáticos?
+- [ ] Edge functions têm `Cache-Control` consciente?
+
+### Redirects & Rewrites (2)
+
+- [ ] `vercel.json` tem redirect 301 de domínio antigo para novo (se aplicável)?
+- [ ] SPA fallback configurado sem engolir `/api/*` e `/assets/*`? (Vite/React)
+  ```json
+  {
+    "rewrites": [{ "source": "/((?!api|assets|.*\\..*).*)", "destination": "/index.html" }]
+  }
+  ```
+
+## Configuração modelo `vercel.json`
+
+Fonte única; o `devops-ci` do saas-builder-br referencia esta skill. Não mantenha cópia em outro lugar: quem gera o `vercel.json` lê daqui.
+
+### Vite (SPA)
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "trailingSlash": false,
+
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(.*\\.(html|json))",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    }
+  ],
+
+  "rewrites": [
+    { "source": "/((?!api|assets|.*\\..*).*)", "destination": "/index.html" }
+  ]
+}
+```
+
+> Usa `npm`? Se o projeto for `bun`/`pnpm`, troque só `buildCommand` (e `installCommand`, se precisar). Stripe no front? Acrescente `https://js.stripe.com` a `script-src`/`frame-src` e `https://api.stripe.com` a `connect-src` (ver montagem de CSP abaixo). Usuários majoritariamente no Brasil com Vercel Functions? Adicione `"regions": ["gru1"]` (São Paulo).
+
+### Next.js (App Router)
+
+A Vercel detecta o framework: sem `buildCommand`, `outputDirectory`, rewrite de SPA nem cache de `/assets` (o Next cuida de `/_next/static`). Só os headers:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        }
+      ]
+    }
+  ]
+}
+```
+
+> No Next, a CSP começa em **report-only** (SECURITY §8.1) e só vira `Content-Security-Policy` depois de conferir os relatórios: o runtime do Next injeta scripts inline. Para CSP com nonce, gere o header no `middleware.ts` em vez do `vercel.json`. Em dev, o Next precisa de `'unsafe-eval'`; não leve isso para produção.
+
+## CSP — montagem para SaaS Supabase + Stripe + React
+
+```
+Content-Security-Policy:
+  default-src 'self';
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.sentry.io;
+  img-src 'self' data: blob: https:;
+  font-src 'self' data:;
+  script-src 'self' 'unsafe-inline' https://js.stripe.com;
+  style-src 'self' 'unsafe-inline';
+  frame-src https://js.stripe.com https://hooks.stripe.com;
+  object-src 'none';
+  base-uri 'self';
+  form-action 'self';
+```
+
+`'unsafe-inline'` em scripts é geralmente necessário para Vite preload, mas se possível use nonces ou hashes.
+
+## Saída
+
+```
+🚀 PRE-DEPLOY GUARD — <projeto>
+
+✅ Aprovado: <N>/20
+🚨 Bloqueantes: <lista>
+🟡 Atenção: <lista>
+
+🔧 Fixes priorizados:
+  1. <fix mais crítico>
+  2. ...
+
+🎯 Veredito: <DEPLOY APROVADO | BLOQUEADO POR <N> itens>
+```
+
+## Comandos úteis
+
+```bash
+# Validar build local
+npm run build && du -sh dist/
+
+# Preview do bundle
+npm run preview
+
+# Audit deps
+npm audit
+
+# Headers reais (após deploy)
+curl -I https://<seu-dominio>.com/
+```
+
+## Nota para o Codex
+
+Gerado de `saas-shield-br/` (plugin Claude Code) por `scripts/build-codex-plugins.mjs`. `<plugin-root>` é a pasta que contém `.codex-plugin/`, dois níveis acima deste `SKILL.md`. Onde o texto manda acionar um agente ou subagente (Agent tool, `subagent_type`), use a skill de mesmo nome deste plugin (`$saas-shield-br:<nome>`) — nesta sessão ou num sub-agente do Codex, se disponível —, respeitando o modo de leitura/escrita que ela declara. Um `/comando` do Claude Code é a skill `$<plugin>:<comando>`.

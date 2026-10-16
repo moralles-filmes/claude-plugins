@@ -547,6 +547,19 @@ if (existsSync(padraoCheck)) {
   }
 }
 
+// ─── 9b. Versões Codex geradas em dia com os plugins Claude ─────────
+
+step('Validando versões Codex geradas (scripts/build-codex-plugins.mjs --check)')
+
+const codexBuilder = join(REPO_ROOT, 'scripts', 'build-codex-plugins.mjs')
+if (existsSync(codexBuilder)) {
+  try {
+    ok(execSync(`node "${codexBuilder}" --check`, { stdio: 'pipe', encoding: 'utf8' }).trim())
+  } catch (e) {
+    err(`${`${e.stderr ?? ''}${e.stdout ?? ''}`.trim().split('\n').slice(0, 6).join(' | ')}`)
+  }
+}
+
 // ─── 10. Versão do plugin.json = topo do CHANGELOG ──────────────────
 
 step('Validando versão do plugin.json contra o CHANGELOG')

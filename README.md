@@ -160,6 +160,17 @@ claude plugin update ai-router-br@morallesfilms-local   # repita para cada plugi
 
 Depois de atualizar, **reinicie o Claude Code**: uma sessão aberta continua com as skills e os agentes que carregou ao iniciar.
 
+### Plugins SaaS no Codex
+
+`padrao-saas`, `saas-shield-br`, `saas-builder-br`, `saas-audit-br`, `code-health`, `turbo` e `pt-br-utils` também têm versão Codex em `codex/<plugin>/`, gerada a partir do plugin Claude. O Codex só carrega skills, então agentes e comandos do Claude Code viram skills (`$saas-shield-br:rls-auditor`, `$saas-shield-br:check-rls`), com o modo de leitura/escrita do agente escrito no texto. Os hooks do `saas-shield-br` não existem lá. Para instalar ou atualizar:
+
+```bash
+codex plugin marketplace add moralles-filmes/claude-plugins --ref main   # uma vez; depois: codex plugin marketplace upgrade morallesfilms-local
+codex plugin add padrao-saas@morallesfilms-local   # repita para cada plugin
+```
+
+Nunca edite `codex/<plugin>/` à mão: mude o plugin Claude e rode `node scripts/build-codex-plugins.mjs`. O `validate.mjs` (pre-push e CI) falha se a versão gerada estiver desatualizada.
+
 > O `git pull` no clone local só importa quando o marketplace foi registrado pelo **caminho local** (`-LocalMarketplace` ou o setup manual acima): aí faça `git pull` antes do `marketplace update`. Quando foi registrado pelo GitHub (padrão do setup), a fonte é o repositório remoto e o clone não é lido.
 
 ### Atualização automática (recomendado, uma vez por máquina)
@@ -194,11 +205,12 @@ claude-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json     # lista de plugins Claude Code
 ├── .agents/plugins/
-│   └── marketplace.json     # marketplace Codex (ai-router-br nativo)
+│   └── marketplace.json     # marketplace Codex (ai-router-br nativo + plugins gerados)
 ├── .github/workflows/
 │   └── validate.yml         # CI: valida JSON, frontmatter, scripts + testes do ai-router-br
 ├── scripts/
-│   └── validate.mjs         # rodável local também (Claude + Codex + sincronia do ai-router-br)
+│   ├── validate.mjs         # rodável local também (Claude + Codex + sincronia do ai-router-br)
+│   └── build-codex-plugins.mjs  # gera codex/<plugin>/ a partir dos plugins Claude (--check no validate)
 ├── saas-shield-br/          # plugin
 │   ├── .claude-plugin/
 │   │   └── plugin.json
@@ -206,7 +218,8 @@ claude-plugins/
 │   └── README.md
 ├── ai-router-br/            # plugin Claude Code (núcleo compartilhado + skills/hook Claude)
 ├── codex/
-│   └── ai-router-br/        # plugin Codex nativo (.codex-plugin/, skills com agents/openai.yaml)
+│   ├── ai-router-br/        # plugin Codex nativo (.codex-plugin/, skills com agents/openai.yaml)
+│   └── padrao-saas/, saas-shield-br/, ...  # gerados: não edite à mão
 ├── setup-claude.ps1         # bootstrap/atualização Windows
 ├── setup-claude.sh          # bootstrap/atualização macOS/Linux
 └── README.md                # este arquivo
