@@ -1,0 +1,466 @@
+---
+name: llm-multi-provider
+description: "Padrão de roteador multi-provider para LLMs (OpenAI, Anthropic, Gemini) — fallback automático, retry exponencial, streaming SSE, tracking de custo por tenant, escolha por modelo/qualidade/preço, cache de respostas determinísticas. Use ao construir features que chamam LLM (chat, sumarização, análise, classificação)."
+---
+
+# LLM Router multi-provider — padrão para SaaS
+
+## Princípios
+
+1. **Frontend nunca chama LLM direto.** Sempre via Edge Function.
+2. **Toda chamada loga uso (`api_usage`)** com custo estimado.
+3. **Fallback entre providers** quando o feature não exige modelo específico **e a chamada não executa ferramenta com efeito externo** (no meio de tool call, nada de trocar de provider). Cada provider da cadeia é operador de dados pessoais (LGPD): só entra na cadeia o que está no inventário do projeto (Padrão SaaS, SECURITY §9–10). A resposta registra `model_used`.
+4. **Retry exponencial** apenas em 5xx e 429.
+5. **Cache** quando temperatura = 0 e prompt é determinístico.
+6. **Limite por tenant** (rate limit + budget mensal).
+7. **Timeout em toda chamada** — 30s, 60s em streaming (`AbortController`).
+
+> Exemplos no arquétipo E (`company_id`). As Edge Functions seguem o template do `$saas-shield-br:edge-function-guard`; `requireTenant`, `can`, `adminClient`, `json` e `cors` são os helpers de `_shared/` descritos no `backend-supabase`. As chaves de LLM são da plataforma (Supabase secrets); chave que o cliente traz é segredo por tenant e vai para o Vault (SECURITY §6).
+
+## Catálogo de modelos (formato — NÃO copie os valores sem conferir)
+
+Esta skill **não** é a fonte da verdade de IDs nem de preços: eles mudam a cada poucos meses e um catálogo estático aqui envelhece silenciosamente (e `logUsage` passa a calcular custo errado). No dia da implementação:
+
+- **Anthropic**: IDs, preços e cache de prompt → skill `claude-api` (se instalada) ou https://docs.claude.com/en/docs/about-claude/models
+- **OpenAI** → https://platform.openai.com/docs/models · **Google** → https://ai.google.dev/gemini-api/docs/models
+
+Formato do arquivo (preços em USD por 1k tokens; os números abaixo são **ilustrativos**, só para o tipo compilar):
+
+```ts
+// supabase/functions/_shared/llm-models.ts
+// ⚠️ Atualize IDs e preços na data do deploy e registre a data aqui: catálogo conferido em ____-__-__
+export const MODELS = {
+  // OpenAI — exemplo
+  "gpt-4o-mini":               { provider: "openai",    in: 0.00015, out: 0.0006, ctx: 128_000,   streaming: true },
+  "gpt-4o":                    { provider: "openai",    in: 0.0025,  out: 0.01,   ctx: 128_000,   streaming: true },
+
+  // Anthropic — família Claude 5 (IDs vigentes em 2026-09; confira preço na skill claude-api)
+  "claude-haiku-4-5-20251001": { provider: "anthropic", in: 0.0008,  out: 0.004,  ctx: 200_000,   streaming: true },
+  "claude-sonnet-5":           { provider: "anthropic", in: 0.003,   out: 0.015,  ctx: 200_000,   streaming: true },
+  "claude-opus-5":             { provider: "anthropic", in: 0.015,   out: 0.075,  ctx: 200_000,   streaming: true, reasoning: true },
+
+  // Google — exemplo
+  "gemini-2.0-flash":          { provider: "google",    in: 0.000075, out: 0.0003, ctx: 1_000_000, streaming: true },
+} as const;
+
+export type ModelId = keyof typeof MODELS;
+```
+
+Teste obrigatório: um `MODELS.test.ts` que falha se a data de conferência tiver mais de 90 dias — assim o catálogo não envelhece sem ninguém notar.
+
+## Tier de qualidade (para fallback inteligente)
+
+```ts
+// Tarefa → ordem de fallback (1º é preferido). Ajuste junto com o catálogo.
+export const FALLBACK_CHAINS = {
+  cheap_fast: ["gemini-2.0-flash", "gpt-4o-mini", "claude-haiku-4-5-20251001"] as const,
+  balanced:   ["claude-haiku-4-5-20251001", "gpt-4o-mini", "gemini-2.0-flash"] as const,
+  smart:      ["claude-sonnet-5", "gpt-4o"] as const,
+  reasoning:  ["claude-opus-5"] as const,
+};
+```
+
+## Edge Function — `llm/index.ts`
+
+```ts
+import { requireTenant, type TenantContext } from "../_shared/adapters/supabase/tenant.ts";
+import { adminClient } from "../_shared/adapters/supabase/clients.ts";
+import { can } from "../_shared/application/can.ts";
+import { toHttp } from "../_shared/http/to-http.ts";
+import { MODELS, FALLBACK_CHAINS, type ModelId } from "../_shared/llm-models.ts";
+
+interface LlmRequest {
+  prompt: string;
+  system?: string;
+  model?: ModelId;
+  tier?: keyof typeof FALLBACK_CHAINS;
+  max_tokens?: number;
+  temperature?: number;
+  stream?: boolean;
+  cache_key?: string; // se setado e temperature=0, usa cache
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return cors(req);
+  if (req.method !== "POST") return json({ error: "method" }, 405);
+
+  try {
+    const ctx = await requireTenant(req);                   // JWT + x-company-id + membership ativa
+    if (!can(ctx, "assistente.conversas.criar")) return json({ error: "forbidden" }, 403); // chave do módulo que usa IA
+    const body: LlmRequest = await req.json();             // valide com zod no projeto real
+
+    // Rate limit e budget pela empresa resolvida no servidor
+    if (await rateLimited(ctx.companyId)) {
+      return json({ error: "rate_limited" }, 429);
+    }
+    if (await overBudget(ctx.companyId)) {
+      return json({ error: "budget_exceeded" }, 402);
+    }
+
+    // Cache hit
+    if (body.cache_key && (body.temperature ?? 0) === 0) {
+      const cached = await getCache(ctx.companyId, body.cache_key);
+      if (cached) return json({ ...cached, cached: true }, 200);
+    }
+
+    // Resolve modelos a tentar
+    const chain: ModelId[] = body.model
+      ? [body.model]
+      : [...FALLBACK_CHAINS[body.tier ?? "balanced"]];
+
+    const result = await tryChain(chain, body, ctx);
+
+    // Cache se aplicável
+    if (body.cache_key && (body.temperature ?? 0) === 0) {
+      await putCache(ctx.companyId, body.cache_key, result);
+    }
+
+    return json(result, 200);
+  } catch (e) {
+    // Erro normalizado (toHttp do backend-supabase): auth/permissão viram 401/403; falha de provider vira 502.
+    const { status, code } = toHttp(e);
+    if (status < 500) return json({ error: code }, status);
+    console.error("[llm] falha", e instanceof Error ? e.name : "unknown"); // sem mensagem/corpo do provider
+    return json({ error: "llm_unavailable" }, 502);
+  }
+});
+
+async function tryChain(chain: ModelId[], body: LlmRequest, ctx: TenantContext) {
+  let lastErr: unknown;
+  for (const modelId of chain) {
+    const start = Date.now();
+    try {
+      const result = await callWithRetry(modelId, body);
+      await logUsage(ctx, modelId, result.usage, "success", Date.now() - start);
+      return { ...result, model_used: modelId };
+    } catch (e) {
+      lastErr = e;
+      const status = (e as { status?: number }).status;
+      console.warn(`[llm] ${modelId} falhou (${status ?? "transporte"}), tentando o próximo`); // sem corpo do provider
+      await logUsage(ctx, modelId, { input: 0, output: 0 }, "error", Date.now() - start, String(status ?? "transport"));
+    }
+  }
+  throw lastErr;
+}
+
+async function callWithRetry(modelId: ModelId, body: LlmRequest, max = 3) {
+  let lastErr: unknown;
+  for (let i = 0; i < max; i++) {
+    try { return await callProvider(modelId, body); }
+    catch (e: any) {
+      lastErr = e;
+      const status = e.status ?? 0;
+      // Não retenta 4xx (exceto 429)
+      if (status >= 400 && status < 500 && status !== 429) throw e;
+      const delay = Math.min(1000 * 2 ** i, 8000) + Math.random() * 500;
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+async function callProvider(modelId: ModelId, body: LlmRequest) {
+  const meta = MODELS[modelId];
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), body.stream ? 60_000 : 30_000);
+  try {
+    switch (meta.provider) {
+      case "openai":    return await callOpenAI(modelId, body, ac.signal);
+      case "anthropic": return await callAnthropic(modelId, body, ac.signal);
+      case "google":    return await callGemini(modelId, body, ac.signal);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+```
+
+## Implementação por provider
+
+### OpenAI (Chat Completions)
+```ts
+async function callOpenAI(model: string, req: LlmRequest, signal: AbortSignal) {
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    signal,
+    headers: {
+      "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        ...(req.system ? [{ role: "system", content: req.system }] : []),
+        { role: "user", content: req.prompt },
+      ],
+      max_tokens: req.max_tokens,
+      temperature: req.temperature ?? 0.7,
+    }),
+  });
+  if (!r.ok) {
+    const err: any = new Error("openai_error");
+    err.status = r.status;
+    err.body = await r.text();
+    throw err;
+  }
+  const data = await r.json();
+  return {
+    text: data.choices[0].message.content,
+    usage: { input: data.usage.prompt_tokens, output: data.usage.completion_tokens },
+  };
+}
+```
+
+### Anthropic (Messages API)
+```ts
+async function callAnthropic(model: string, req: LlmRequest, signal: AbortSignal) {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    signal,
+    headers: {
+      "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: req.max_tokens ?? 1024,
+      ...(req.system && { system: req.system }),
+      messages: [{ role: "user", content: req.prompt }],
+      temperature: req.temperature ?? 0.7,
+    }),
+  });
+  if (!r.ok) {
+    const err: any = new Error("anthropic_error");
+    err.status = r.status;
+    err.body = await r.text();
+    throw err;
+  }
+  const data = await r.json();
+  return {
+    text: data.content[0].text,
+    usage: { input: data.usage.input_tokens, output: data.usage.output_tokens },
+  };
+}
+```
+
+### Google (Gemini)
+```ts
+async function callGemini(model: string, req: LlmRequest, signal: AbortSignal) {
+  // Chave no header, nunca na query string (vaza em log de proxy e mensagem de erro do fetch)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const r = await fetch(url, {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json", "x-goog-api-key": Deno.env.get("GOOGLE_API_KEY")! },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: req.prompt }] }],
+      ...(req.system && { systemInstruction: { parts: [{ text: req.system }] } }),
+      generationConfig: {
+        maxOutputTokens: req.max_tokens,
+        temperature: req.temperature ?? 0.7,
+      },
+    }),
+  });
+  if (!r.ok) {
+    const err: any = new Error("gemini_error");
+    err.status = r.status;
+    throw err;
+  }
+  const data = await r.json();
+  return {
+    text: data.candidates[0].content.parts[0].text,
+    usage: {
+      input: data.usageMetadata?.promptTokenCount ?? 0,
+      output: data.usageMetadata?.candidatesTokenCount ?? 0,
+    },
+  };
+}
+```
+
+## Streaming (SSE)
+
+Use quando o usuário precisa ver tokens chegando (chat). Na Edge Function:
+
+```ts
+// supabase/functions/llm-stream/index.ts
+Deno.serve(async (req) => {
+  const ctx = await requireTenant(req);
+  if (!can(ctx, "assistente.conversas.criar")) return json({ error: "forbidden" }, 403);
+  const { prompt } = await req.json();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      try {
+        for await (const chunk of streamFromAnthropic(prompt)) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
+});
+```
+
+No frontend, dentro do adapter do módulo (`src/features/assistente/api.ts`), com `fetch` + `getReader()` (não `EventSource`, que não envia Authorization):
+
+```ts
+import { supabase } from "@/lib/supabase/client";
+import { env } from "@/lib/env";
+
+export async function streamLlm(companyId: string, prompt: string, onChunk: (text: string) => void) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("sem_sessao");
+  const r = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/llm-stream`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${session.access_token}`,
+      "x-company-id": companyId, // empresa ativa da URL; a função confirma a membership
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prompt, stream: true }),
+  });
+  if (!r.ok || !r.body) throw new Error(`llm_stream_${r.status}`);
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") return;
+        const chunk: { delta?: string } = JSON.parse(data); // linha malformada = erro visível, não engolido
+        if (chunk.delta) onChunk(chunk.delta);
+      }
+    }
+  }
+}
+```
+
+## Cache de respostas determinísticas
+
+Tabela:
+```sql
+create table public.llm_cache (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  cache_key text not null,
+  model text not null,
+  response jsonb not null,
+  hits int not null default 0,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  unique (company_id, cache_key)
+);
+create index llm_cache_company_id_cache_key_idx on public.llm_cache(company_id, cache_key);
+```
+
+Use SHA256 do prompt+system+model como `cache_key` se não vier explícito.
+
+## Tabela `api_usage` (custo, rate limit e budget)
+
+Uma linha por chamada externa — LLM, WhatsApp e qualquer terceiro. Peça ao `db-schema-designer` no arquétipo de tenant do projeto:
+
+```sql
+create table public.api_usage (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  user_id uuid references public.app_users (id) on delete set null,
+  provider text not null check (provider in ('openai','anthropic','google','zapi','meta_cloud')),
+  model text,
+  input_tokens int,
+  output_tokens int,
+  messages_sent int,
+  cost_usd numeric(10,6) not null default 0,
+  latency_ms int,
+  status text not null default 'success' check (status in ('success','error','timeout')),
+  error_code text,
+  created_at timestamptz not null default now()
+);
+create index api_usage_company_id_created_at_idx on public.api_usage(company_id, created_at desc);
+-- RLS forçada; leitura com allowed_company_ids('<modulo>.consumo.ver'); escrita só pelo servidor
+```
+
+Log de uso (chamado em `tryChain`, inclusive em erro):
+
+```ts
+async function logUsage(
+  ctx: TenantContext, model: ModelId, usage: { input: number; output: number },
+  status: "success" | "error" | "timeout", latency_ms: number, error_code?: string,
+) {
+  const meta = MODELS[model];
+  await adminClient().from("api_usage").insert({
+    company_id: ctx.companyId,
+    user_id: ctx.userId,
+    provider: meta.provider,
+    model,
+    input_tokens: usage.input,
+    output_tokens: usage.output,
+    cost_usd: (usage.input / 1000) * meta.in + (usage.output / 1000) * meta.out,
+    latency_ms,
+    status,
+    error_code,
+  });
+}
+```
+
+## Rate limit + budget
+
+Com `api_usage`:
+
+```ts
+async function rateLimited(company_id: string): Promise<boolean> {
+  const since = new Date(Date.now() - 60_000).toISOString();
+  const { count } = await adminClient().from("api_usage")
+    .select("*", { count: "exact", head: true })
+    .eq("company_id", company_id)
+    .in("provider", ["openai", "anthropic", "google"])
+    .gte("created_at", since);
+  return (count ?? 0) >= 60; // 60 req/min por tenant
+}
+
+async function overBudget(company_id: string): Promise<boolean> {
+  const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0,0,0,0);
+  const admin = adminClient();
+  const { data } = await admin.from("api_usage")
+    .select("cost_usd.sum()")
+    .eq("company_id", company_id)
+    .in("provider", ["openai", "anthropic", "google"])
+    .gte("created_at", monthStart.toISOString())
+    .single();
+  const used = Number(data?.sum ?? 0);
+  // Lê limite do plano da empresa (ajuste conforme seu modelo de billing)
+  const { data: plan } = await admin.from("companies").select("monthly_llm_budget_usd").eq("id", company_id).single();
+  return used >= (plan?.monthly_llm_budget_usd ?? 100);
+}
+```
+
+## Anti-padrões
+
+- ❌ `temperature: 0.7` em tarefa que devia ser determinística (extração estruturada)
+- ❌ Esquecer `max_tokens` (modelo pode gerar 4000 tokens e custar 10x)
+- ❌ Cache sem `company_id` na key (vaza resposta entre tenants — mesmo prompt, mas pode ter contexto diferente)
+- ❌ Retry em 400/401/403 (não vai melhorar)
+- ❌ Não logar uso em erro (perde dado de quanto está falhando)
+- ❌ Streaming via `EventSource` no client (não envia Authorization header)
+- ❌ Frontend escolhendo modelo ("o usuário pode trocar pro mais caro") — backend decide tier
+
+## Nota para o Codex
+
+Gerado de `saas-builder-br/` (plugin Claude Code) por `scripts/build-codex-plugins.mjs`. `<plugin-root>` é a pasta que contém `.codex-plugin/`, dois níveis acima deste `SKILL.md`. Onde o texto manda acionar um agente ou subagente (Agent tool, `subagent_type`), use a skill de mesmo nome deste plugin (`$saas-builder-br:<nome>`) — nesta sessão ou num sub-agente do Codex, se disponível —, respeitando o modo de leitura/escrita que ela declara. Um `/comando` do Claude Code é a skill `$<plugin>:<comando>`.

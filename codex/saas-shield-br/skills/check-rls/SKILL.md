@@ -1,0 +1,36 @@
+---
+name: check-rls
+description: "Revisa RLS num arquivo .sql específico ou em todas as migrations recentes (parametrizado pelo tenancy-profile). Use quando o usuário pedir (equivale ao comando /check-rls do Claude Code)."
+---
+`<argumentos>` = o que o usuário pediu junto com a skill — formato `[arquivo.sql ou 'recent']`.
+
+Rode revisão de RLS.
+
+## Como proceder
+
+1. **Determine alvo**:
+   - Se `<argumentos>` é um path de arquivo: audite só esse.
+   - Se `<argumentos>` é `recent`: liste migrations dos últimos 7 dias (`supabase/migrations/`) e audite todas.
+   - Se vazio: pergunte qual arquivo ou se quer `recent`.
+
+2. **Resolva a convenção** — carregue a skill `tenant-model` e leia `.claude/tenancy-profile.yml` (ou detecte): `TC` (coluna de tenant), `R` (resolver), `WP` (write_path). **Não assuma `company_id`.**
+
+3. **Invoque a skill `rls-reviewer`** com o(s) arquivo(s), aplicando o checklist parametrizado + os 12 anti-patterns. **Não** marque ausência de force-trigger como violação se `WP` ≠ `force-trigger`.
+
+4. **Para mais de um arquivo, sumário consolidado**:
+   ```
+   📋 SUMÁRIO MULTI-ARQUIVO  | Arquétipo: <A–E>
+   - <arquivo1>: PASS / FAIL (N bloqueantes)
+   - <arquivo2>: ...
+   Total: X bloqueantes / Y atenções
+   ```
+
+5. **Se houver bloqueantes ou dúvida**, dispare o agente `rls-auditor` (Agent tool com `subagent_type: rls-auditor`) para uma segunda opinião isolada — útil antes de merge de PR.
+
+## Entrada do usuário
+
+`<argumentos>`
+
+## Nota para o Codex
+
+Gerado de `saas-shield-br/` (plugin Claude Code) por `scripts/build-codex-plugins.mjs`. `<plugin-root>` é a pasta que contém `.codex-plugin/`, dois níveis acima deste `SKILL.md`. Onde o texto manda acionar um agente ou subagente (Agent tool, `subagent_type`), use a skill de mesmo nome deste plugin (`$saas-shield-br:<nome>`) — nesta sessão ou num sub-agente do Codex, se disponível —, respeitando o modo de leitura/escrita que ela declara. Um `/comando` do Claude Code é a skill `$<plugin>:<comando>`.

@@ -15,6 +15,90 @@
         "authentication": "ON_USE"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "padrao-saas",
+      "source": {
+        "source": "local",
+        "path": "./codex/padrao-saas"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "saas-shield-br",
+      "source": {
+        "source": "local",
+        "path": "./codex/saas-shield-br"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "saas-builder-br",
+      "source": {
+        "source": "local",
+        "path": "./codex/saas-builder-br"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "saas-audit-br",
+      "source": {
+        "source": "local",
+        "path": "./codex/saas-audit-br"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "code-health",
+      "source": {
+        "source": "local",
+        "path": "./codex/code-health"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "turbo",
+      "source": {
+        "source": "local",
+        "path": "./codex/turbo"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "pt-br-utils",
+      "source": {
+        "source": "local",
+        "path": "./codex/pt-br-utils"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

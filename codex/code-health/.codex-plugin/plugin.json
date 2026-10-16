@@ -1,0 +1,40 @@
+{
+  "name": "code-health",
+  "version": "0.4.0",
+  "description": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js + Supabase-aware. Encontra dead code, arquivos órfãos, botões fantasma, rotas quebradas, dados mockados, stubs, e (em projetos Supabase) typos em .from(), buckets de Storage não declarados, invokes quebrados, dead tables/functions, Realtime sem cleanup. Modo padrão: report → aprovar → fix com checkpoint git.",
+  "author": {
+    "name": "Moralles Filmes",
+    "url": "https://github.com/moralles-filmes"
+  },
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
+  "repository": "https://github.com/moralles-filmes/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "code-quality",
+    "dead-code",
+    "cleanup",
+    "audit",
+    "refactoring",
+    "javascript",
+    "typescript",
+    "react",
+    "nextjs",
+    "vite",
+    "supabase"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "Code Health",
+    "shortDescription": "Dead code e código não-funcional em JS/TS",
+    "longDescription": "Auditoria e limpeza de código para projetos JS/TS/React/Next.js + Supabase-aware. Encontra dead code, arquivos órfãos, botões fantasma, rotas quebradas, dados mockados, stubs, e (em projetos Supabase) typos em .from(), buckets de Storage não declarados, invokes quebrados, dead tables/functions, Realtime sem cleanup. Modo padrão: report → aprovar → fix com checkpoint git.",
+    "developerName": "Moralles Filmes",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use $code-health:health para o relatório de saúde do código (dead code + não-funcional)."
+    ]
+  }
+}
