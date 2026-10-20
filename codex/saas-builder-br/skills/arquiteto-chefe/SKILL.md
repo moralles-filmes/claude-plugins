@@ -71,7 +71,7 @@ Antes de cada gate, confirme que o plugin esperado está instalado (`Glob` em `~
 
 # Antes da Fase 1 — Padrão SaaS
 
-Se o repo não tem `AGENTS.md` com `docs/standards/` (Padrão SaaS), peça ao usuário para rodar `$padrao-saas:aplicar` antes (modo B, projeto novo). Ele instala a camada de contexto, as permissões do Claude Code e o `.claude/tenancy-profile.yml`. Todos os subagents tratam `docs/standards/` como norma: o que você delega cita o padrão relevante (ex.: `db-schema-designer` → DATABASE, MULTI_TENANCY, ACCESS_CONTROL). Módulos novos depois do lançamento seguem `$padrao-saas:novo-modulo`.
+Se o repo não tem `AGENTS.md` com `docs/standards/` (Padrão SaaS), peça ao usuário para rodar `$padrao-saas:aplicar` antes (modo B, projeto novo). Ele instala a camada de contexto, as permissões do Claude Code e o `.claude/tenancy-profile.yml`. Todos os subagents tratam `docs/standards/` como norma: o que você delega cita o padrão relevante (ex.: `db-schema-designer` → DATABASE, MULTI_TENANCY, ACCESS_CONTROL). Módulos novos depois do lançamento seguem `$padrao-saas:novo-modulo`; mudanças que tocam mais de uma camada ou mais de 5 arquivos seguem `$padrao-saas:mudanca` (plano em fases, cada fase com contexto limpo).
 
 # Fases canônicas e roteamento
 
@@ -188,6 +188,7 @@ Quando o usuário interrompe a sequência com um pedido pontual, use esta tabela
 | "saúde do código", "code health", "varredura completa" | `$code-health:health` |
 | "auditoria completa", "audita o sistema inteiro", "tá seguro pra lançar?" | peça ao usuário `$saas-audit-br:audit --audit-only` |
 | "novo projeto", "começar saas", "ideia de produto" | volta para fase 1 → `arquiteto-saas` |
+| mudança que toca mais de uma camada (banco + servidor + tela) ou mais de 5 arquivos, "faz em fases" | `$padrao-saas:mudanca` — o plano em fases é dela; cada fase volta para o subagent da camada desta tabela |
 
 # Como você delega (Agent tool)
 

@@ -1,6 +1,6 @@
 ---
 name: aplicar
-description: Instala, audita ou atualiza o Padrão SaaS v3.2 num repositório — AGENTS.md/CLAUDE.md enxutos, docs/standards normativos com manifest, regras por caminho, AGENTS.md aninhados para o Codex, permissões do Claude Code e o modelo de acesso (empresas, filiais, papéis e permissões por módulo/submódulo). Use quando o usuário pedir para aplicar, instalar, atualizar ou auditar o "padrão SaaS", inicializar o contexto de agentes de um projeto, reorganizar CLAUDE.md/AGENTS.md, ou implantar o controle de acesso por empresa/filial/módulo. Não use em tarefas comuns de código; para criar um módulo use padrao-saas:novo-modulo.
+description: Instala, audita ou atualiza o Padrão SaaS v3.2 num repositório — AGENTS.md/CLAUDE.md enxutos, docs/standards normativos com manifest, regras por caminho, AGENTS.md aninhados para o Codex, permissões do Claude Code e o modelo de acesso (empresas, filiais, papéis e permissões por módulo/submódulo). Use quando o usuário pedir para aplicar, instalar, atualizar ou auditar o "padrão SaaS", inicializar o contexto de agentes de um projeto, reorganizar CLAUDE.md/AGENTS.md, ou implantar o controle de acesso por empresa/filial/módulo. Não use em tarefas comuns de código; para criar um módulo use padrao-saas:novo-modulo e, para mudança em várias camadas, padrao-saas:mudanca.
 ---
 
 # Padrão SaaS v3.2 — aplicar num projeto
@@ -174,6 +174,10 @@ Entregue nesta ordem e **pare** antes de qualquer alteração funcional, migrati
 - Copie `scripts/check-portabilidade.mjs`, rode e grave a linha de base; inclua os dois scripts no CI.
 - SQL de referência: `auth.uid()` virou `private.current_user_id()` e as FKs de usuário apontam para `public.app_users`. Em projeto existente isso é **plano** (expand → backfill → contract), não migration nesta execução.
 - `.claude/rules/banco-de-dados.md` ganhou as regras de grants explícitos e de `current_user_id()`: faça o merge e regenere os AGENTS.md aninhados.
+
+**Plugin 3.3 (a norma continua v3.2; `docs/standards/` e manifest sem mudança):**
+
+- AGENTS.md: o §8 ganhou a linha "Mudança em mais de uma camada ou em mais de 5 arquivos" e o §10 o critério de tarefa complexa e o trabalho em fases (PLAN.md + STATE.md, contexto limpo por fase). Faça o merge das duas seções preservando os fatos do projeto.
 
 ## 10. Depois da instalação
 

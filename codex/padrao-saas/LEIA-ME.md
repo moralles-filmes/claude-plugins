@@ -38,6 +38,7 @@ padrao-saas/
   tests/                         testes do kit: check-padrao, check-portabilidade e SQL (pgTAP)
     templates/settings/          regras dos MCPs Supabase e Vercel
   skills/novo-modulo/            cria, amplia ou remove um módulo, com Definition of Done
+  skills/mudanca/                mudança em várias camadas, em fases, com estado em .tasks/<slug>/
 ```
 
 `.claude` é uma pasta oculta. No macOS, `Cmd+Shift+.` no Finder mostra.
@@ -75,7 +76,7 @@ Apague também os arquivos `02_PROMPT_MESTRE…` e `03_PADRAO_UNIVERSAL…` de o
 5. Abra uma sessão nova e rode `/context` (CLAUDE.md, AGENTS.md e as rules devem aparecer) e `/doctor`. Se o `/doctor` sugerir enxugar o AGENTS.md, as seções de segurança, acesso e invariantes ficam.
 6. No CI do projeto, acrescente `node scripts/check-padrao.mjs`, `node scripts/check-portabilidade.mjs` e `supabase test db`. Em projeto existente, grave antes a linha de base da portabilidade (`--write-baseline`): o CI passa a barrar só dívida nova.
 
-Para cada módulo novo: `/padrao-saas:novo-modulo`.
+Para cada módulo novo: `/padrao-saas:novo-modulo`. Para mudança em várias camadas: `/padrao-saas:mudanca` — planeja em fases, executa cada uma com contexto limpo e retoma pelo `.tasks/<slug>/STATE.md`, sem depender do histórico do chat.
 
 ## Modelo de acesso, em uma tabela
 

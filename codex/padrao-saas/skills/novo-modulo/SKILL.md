@@ -7,7 +7,7 @@ description: "Cria um módulo ou submódulo novo num SaaS que segue o Padrão Sa
 
 Você vai executar o procedimento de `docs/standards/MODULES.md` do projeto. Leia esse documento, `ACCESS_CONTROL.md`, `ARCHITECTURE.md` e `.claude/tenancy-profile.yml` antes de começar. Se o projeto não tem `docs/standards/`, pare e sugira `$padrao-saas:aplicar`.
 
-Mantenha `.tasks/modulo-<chave>/STATE.md` atualizado a cada etapa (AGENTS.md §10).
+Mantenha `.tasks/modulo-<chave>/STATE.md` atualizado a cada etapa (AGENTS.md §10), no formato da skill `$padrao-saas:mudanca`. Ao retomar ou depois de compactação, siga a Etapa 0 dela. As Etapas 2 a 4 rodam fora da conversa principal (ver Delegação, no fim).
 
 ## Etapa 1 — Escopo e árvore de permissões (pare para aprovação)
 
@@ -76,7 +76,13 @@ Siga MODULES §4 na ordem, parando para aprovação antes de desligar o módulo 
 
 ## Delegação
 
-Se o saas-builder-br estiver instalado, você pode delegar etapas aos subagents (`db-schema-designer`, `backend-supabase`, `frontend-react`, `qa-testes`, `integrador-apis`), passando a árvore aprovada e os padrões relevantes. A aprovação da Etapa 1 e a verificação final continuam com você.
+A conversa principal fica com a Etapa 1 (aprovação), a verificação de cada etapa e a Etapa 5. As Etapas 2, 3 e 4 rodam cada uma com contexto limpo, escolhendo o executor na ordem da skill `$padrao-saas:mudanca` (Etapa 2):
+
+- com o ai-router-br: cada etapa passa pela `ai-router-br:route`, e o risco crítico (banco, RLS, permissões) fica com você;
+- com o saas-builder-br: Etapa 2 → `db-schema-designer`; Etapa 3 → `backend-supabase` (e `integrador-apis` se houver integração); Etapa 4 → `frontend-react` (e `design-ux` para componentes); testes → `qa-testes`;
+- sem nenhum dos dois: subagente de uso geral; sem subagentes, execute e use a fronteira de sessão da `$padrao-saas:mudanca` (Etapa 3).
+
+Cada delegação recebe a árvore aprovada, `docs/modules/<modulo>.md`, os padrões da etapa e o caminho do STATE.md, não a conversa. Os especialistas de banco, servidor e tela do saas-builder-br não têm shell: `supabase db reset`, `supabase test db` e os comandos oficiais rodam com você (ou no `qa-testes`) antes de fechar a etapa. Feche cada etapa no STATE.md. Se a conversa principal já estiver longa, sugira `/clear` e retomar pelo STATE.md.
 
 ## Nota para o Codex
 

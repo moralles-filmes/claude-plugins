@@ -86,6 +86,7 @@ Leia este arquivo e, depois, só o que a tarefa exige. Se a tarefa toca vários 
 | Texto, estilo ou ajuste local simples | o código afetado; `docs/modules/<modulo>.md` se existir |
 | Bug funcional | documento do módulo + testes relacionados; TESTING §2 |
 | Módulo ou submódulo novo, mudança de contrato, remoção | `MODULES.md` + `ARCHITECTURE.md` + `ACCESS_CONTROL.md` |
+| Mudança em mais de uma camada ou em mais de 5 arquivos | §10 (em fases) + o que cada fase exige nesta tabela |
 | Refactor | `ARCHITECTURE.md` |
 | Permissão, papel, convite, filial, menu por permissão | `ACCESS_CONTROL.md` + `MULTI_TENANCY.md` |
 | Auth, sessão, RLS, dados pessoais, audit log | `SECURITY.md` + `MULTI_TENANCY.md` |
@@ -112,7 +113,8 @@ Não carregue documentos sem relação com o escopo. Também não omita um docum
 
 ## 10. Continuidade
 
-- Em tarefa complexa, mantenha `.tasks/<slug>/STATE.md` com: objetivo, decisões, arquivos alterados, o que não foi commitado, testes executados, riscos, pendências e próximo passo. Atualize ao concluir cada fase.
+- **Tarefa complexa** é a que toca mais de uma camada (banco, servidor, tela, integração) ou mais de 5 arquivos. Ela é feita em fases: plano em `.tasks/<slug>/PLAN.md` aprovado antes de executar, uma entrega verificável por fase e `.tasks/<slug>/STATE.md` com objetivo, decisões, arquivos alterados, o que não foi commitado, testes executados, riscos, pendências e próximo passo, atualizado ao concluir cada fase. Com o plugin padrao-saas, use a skill `padrao-saas:mudanca`.
+- Execute cada fase com contexto limpo quando possível (subagente, ou sessão nova retomando pelo STATE.md). A conversa principal planeja, verifica e integra.
 - Ao retomar uma sessão ou depois de compactação, **confira o STATE.md contra `git status` e `git diff`** antes de continuar. Retome pelo próximo passo confirmado, não pela memória da conversa.
 - Estado de ferramentas (todos fora do Git): `.tasks/` (este padrão), `.saas-audit/` (auditoria), `.turbo/` (performance), `.ai-router/` (roteamento), `.claude/saas-state.json` (construção). Ao retomar, leia o da ferramenta em uso.
 - Onde guardar conhecimento:
