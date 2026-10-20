@@ -1,5 +1,14 @@
 # Changelog — padrao-saas
 
+## 3.3.0
+
+A norma continua v3.2: `docs/standards/` e o manifest não mudaram.
+
+- **Skill `mudanca` (nova).** Mudança que toca mais de uma camada ou mais de 5 arquivos é feita em fases: investigação, plano em `.tasks/<slug>/PLAN.md` aprovado pelo usuário, uma entrega verificável por fase, executor com contexto limpo (ai-router-br, especialista do saas-builder-br ou subagente; risco crítico fica no principal), verificação e gate do saas-shield-br na conversa principal, `STATE.md` atualizado ao fechar cada fase e retomada pelo estado em disco (Etapa 0) em vez do histórico do chat. Entre fases, sugere `/clear` quando a conversa principal já está longa. Antes, o trabalho longo acontecia inteiro num chat só, com contexto crescendo e a compactação perdendo detalhe.
+- **AGENTS.md §10 com critério objetivo.** "Tarefa complexa" passou a ser a que toca mais de uma camada ou mais de 5 arquivos, e ela é feita em fases com PLAN.md e STATE.md. O §8 ganhou a linha correspondente no roteador.
+- **`novo-modulo` delega as Etapas 2 a 4 por padrão** (antes era opcional e tudo rodava na conversa principal). A aprovação da Etapa 1, a verificação de cada etapa e o fechamento ficam com o principal; `supabase db reset`/`test db` rodam nele porque os especialistas de banco, servidor e tela do saas-builder-br não têm shell.
+- `aplicar`: descrição aponta para `mudanca`; §9 explica o merge do AGENTS.md em projetos que já usam o padrão.
+
 ## 3.2.0
 
 - **check-padrao nos dois sentidos.** Padrão listado no manifest e ausente no projeto agora falha (na 3.1 passava em silêncio). O manifest separa obrigatórios e opcionais; opcional não adotado é declarado em `.claude/padrao.json` com motivo. Também confere o `.claude/tenancy-profile.yml` e avisa quando o AGENTS.md passa de 200 linhas.

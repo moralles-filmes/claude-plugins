@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.5.1] — 2026-10-20
+
+### Alterado
+- **`arquiteto-chefe` encaminha mudança em várias camadas para `/padrao-saas:mudanca`** (padrao-saas 3.3.0). Antes, um pedido pontual que tocava banco, servidor e tela caía na tabela de palavras-chave e ia inteiro para um único subagent, sem plano nem estado. Agora o plano em fases e o `STATE.md` vêm da skill, e cada fase volta para o subagent da camada.
+
 ## [1.5.0] — 2026-10-08
 
 ### Alterado

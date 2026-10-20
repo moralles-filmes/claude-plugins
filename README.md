@@ -4,7 +4,7 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 
 ## Plugins inclusos
 
-- **[padrao-saas](./padrao-saas/)** — Padrão SaaS: a norma dos projetos (arquitetura, segurança, multi-tenancy, controle de acesso por empresa/filial/módulo, banco, integrações, API pública, ciclo de vida da empresa, testes, operação). Skills `aplicar` e `novo-modulo`. Os plugins abaixo executam; este diz o quê e por quê. Comece pelo [LEIA-ME](./padrao-saas/LEIA-ME.md).
+- **[padrao-saas](./padrao-saas/)** — Padrão SaaS: a norma dos projetos (arquitetura, segurança, multi-tenancy, controle de acesso por empresa/filial/módulo, banco, integrações, API pública, ciclo de vida da empresa, testes, operação). Skills `aplicar`, `novo-modulo` e `mudanca` (mudança em várias camadas feita em fases, com contexto limpo por fase). Os plugins abaixo executam; este diz o quê e por quê. Comece pelo [LEIA-ME](./padrao-saas/LEIA-ME.md).
 - **[saas-shield-br](./saas-shield-br/)** — Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite (segurança RLS, isolamento tenant, secrets, custo, PT-BR). Fonte única dos templates de migration, Edge Function e deploy usados pelos outros plugins.
 - **[code-health](./code-health/)** — Auditoria e limpeza de código JS/TS/React/Next.js/Vite, Supabase-aware (dead code, botões fantasma, rotas quebradas, mocks, stubs, referências Supabase quebradas).
 - **[saas-builder-br](./saas-builder-br/)** — Orquestrador + subagents para construir SaaS multi-tenant (Vite + React + TS / Supabase / Vercel), com gates pontuais do saas-shield-br e auditoria completa delegada ao saas-audit-br.
@@ -57,7 +57,7 @@ Depois da instalação global não há nada para configurar por projeto: abra o 
 
 ## padrao-saas — a norma dos projetos
 
-Num projeto novo ou existente, cole o [prompt inicial](./padrao-saas/PROMPT_INICIAL.md) como primeira mensagem (Claude Code ou Codex). O agente instala a camada de contexto (`AGENTS.md`, `docs/standards/`, `.claude/tenancy-profile.yml`, regras e permissões), faz o diagnóstico e para antes de mexer em código. Para cada módulo novo: `/padrao-saas:novo-modulo`.
+Num projeto novo ou existente, cole o [prompt inicial](./padrao-saas/PROMPT_INICIAL.md) como primeira mensagem (Claude Code ou Codex). O agente instala a camada de contexto (`AGENTS.md`, `docs/standards/`, `.claude/tenancy-profile.yml`, regras e permissões), faz o diagnóstico e para antes de mexer em código. Para cada módulo novo: `/padrao-saas:novo-modulo`. Para mudança em várias camadas: `/padrao-saas:mudanca`.
 
 | Plugin | Papel em relação ao padrão |
 |---|---|

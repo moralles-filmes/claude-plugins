@@ -11,7 +11,7 @@
                     {
                         "name":  "padrao-saas",
                         "source":  "./padrao-saas",
-                        "description":  "Padrão SaaS v3.2 — fonte normativa dos projetos: arquitetura, segurança, multi-tenancy, controle de acesso (empresas, filiais, permissões por módulo/submódulo), banco, integrações, API pública, ciclo de vida da empresa, testes, operação e portabilidade (check-portabilidade com linha de base; SQL de referência testado no Supabase e em Postgres puro). Skills aplicar (instala/audita/atualiza o padrão num projeto) e novo-modulo (criação de módulo com DoD). Lido pelos plugins saas-builder-br, saas-shield-br e saas-audit-br."
+                        "description":  "Padrão SaaS v3.2 — fonte normativa dos projetos: arquitetura, segurança, multi-tenancy, controle de acesso (empresas, filiais, permissões por módulo/submódulo), banco, integrações, API pública, ciclo de vida da empresa, testes, operação e portabilidade (check-portabilidade com linha de base; SQL de referência testado no Supabase e em Postgres puro). Skills aplicar (instala/audita/atualiza o padrão num projeto), novo-modulo (criação de módulo com DoD) e mudanca (mudança em várias camadas feita em fases, com contexto limpo por fase). Lido pelos plugins saas-builder-br, saas-shield-br e saas-audit-br."
                     },
                     {
                         "name":  "saas-shield-br",
