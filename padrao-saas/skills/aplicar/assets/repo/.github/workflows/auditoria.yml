@@ -1,0 +1,67 @@
+name: auditoria
+
+on:
+  schedule:
+    - cron: '7 6 * * 1'             # segunda, 03:07 em Brasília: divide o limite da assinatura com o uso do dia
+  workflow_dispatch:
+
+permissions:
+  contents: read                    # só leitura: a auditoria não consegue fazer push
+  actions: read                     # baixar o relatório da execução anterior
+  id-token: write                   # autenticação do Claude GitHub App
+
+concurrency:
+  group: auditoria
+  cancel-in-progress: false
+
+jobs:
+  auditoria:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0 }      # histórico: secret-scan --history e diff desde a auditoria anterior
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version-file: .nvmrc }
+      - run: corepack enable         # pnpm/yarn para o audit de dependências
+
+      - name: Auditoria anterior (para comparar)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          for id in $(gh run list --workflow auditoria.yml --status completed --limit 10 --json databaseId --jq '.[].databaseId'); do
+            if gh run download "$id" --name saas-audit --dir .saas-audit-prev 2>/dev/null \
+              && jq -e '.complete == true' .saas-audit-prev/ci-result.json > /dev/null 2>&1; then
+              echo "Comparando com a execução $id"; break   # a última auditoria completa, não a última tentativa
+            fi
+            rm -rf .saas-audit-prev
+          done
+
+      - uses: anthropics/claude-code-action@v1     # depois de validar, fixe pelo SHA da versão
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: https://github.com/moralles-filmes/claude-plugins.git
+          plugins: |
+            saas-shield-br@morallesfilms-local
+            code-health@morallesfilms-local
+            saas-audit-br@morallesfilms-local
+          prompt: /saas-audit-br:audit --ci
+          claude_args: |
+            --max-turns 250
+            --allowedTools "Read,Glob,Grep,Write,Edit,Bash,Agent,Skill"
+
+      - name: Resumo
+        if: always()
+        run: |
+          if [ -f .saas-audit/SUMMARY.md ]; then cat .saas-audit/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+          else echo "A auditoria não gerou SUMMARY.md: veja o log do passo anterior." >> "$GITHUB_STEP_SUMMARY"; fi
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: saas-audit, path: .saas-audit/, include-hidden-files: true, retention-days: 90, if-no-files-found: ignore }
+
+      - name: P0 novo ou auditoria incompleta reprova a execução
+        run: |
+          r=.saas-audit/ci-result.json
+          [ -f "$r" ] || { echo "::error::Auditoria incompleta: ci-result.json ausente"; exit 1; }
+          jq -e '.complete == true' "$r" > /dev/null || { echo "::error::Auditoria incompleta (complete=false): veja o resumo"; exit 1; }
+          n=$(jq '.new.P0' "$r")
+          [ "$n" = "0" ] || { echo "::error::$n P0 novo(s) desde a auditoria anterior"; exit 1; }

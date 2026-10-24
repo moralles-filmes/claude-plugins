@@ -1,5 +1,15 @@
 # Changelog — padrao-saas
 
+## 3.6.0
+
+A norma continua v3.2: `docs/standards/` e o manifest não mudaram. Projetos já instalados fazem o merge descrito na skill `aplicar` §9 ("Plugin 3.6").
+
+- **`.github/workflows/ci.yml` no kit**, e a skill `aplicar` passa a instalá-lo (com aceite), em vez de só sugerir as etapas. É o mesmo CI do `devops-ci` do saas-builder-br, conferido pelo `validate.mjs`: lockfile congelado, lint, typecheck, testes, build, `check-padrao`, `check-portabilidade`, `supabase db reset`, `db lint`, `test db` (isolamento entre empresas) e testes de integração. Antes, só SaaS novo do saas-builder-br nascia com os testes de isolamento rodando em todo PR. Projeto sem `supabase/config.toml` ou sem testes em `supabase/tests/` recebe aviso no PR, não um verde silencioso; em produto multiempresa, a falta do primeiro teste de isolamento é P1 no plano.
+- **`.github/workflows/auditoria.yml` no kit** (opcional, sistemas críticos): roda `/saas-audit-br:audit --ci` toda semana pelo `claude-code-action`, com os plugins instalados do marketplace e a assinatura do Claude (`CLAUDE_CODE_OAUTH_TOKEN`). Só leitura; compara com a execução anterior pelo artefato; P0 novo ou auditoria incompleta reprovam a execução. As tarefas agendadas do claude.ai não serviam: sessões na nuvem não instalam plugins.
+- **`security.yml` com o job `sast`**: Semgrep CE 1.180.0 (`p/default`) no PR, na main e toda semana, só relatando no começo; o resumo da execução lista os achados e o `semgrep.json` fica como artefato.
+- **MAINTENANCE.md revisto** com o calendário do relatório de segurança recorrente: auditoria agendada semanal (críticos) e mensal (demais), triagem do Semgrep, restauração mensal dos dados críticos, teste mensal dos alertas, privilégios e direitos LGPD trimestrais, versões fixas que o Dependabot não atualiza, simulação de incidente e recuperação completa semestrais, pentest anual.
+- `aplicar`: §3 pergunta se os testes de isolamento rodam em todo PR e se há SAST; §7 reescrito (instalar CI, propor segurança contínua e auditoria agendada).
+
 ## 3.5.0
 
 A norma continua v3.2: `docs/standards/` e o manifest não mudaram. Projetos já instalados fazem o merge descrito na skill `aplicar` §9 ("Plugin 3.5").

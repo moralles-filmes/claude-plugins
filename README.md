@@ -97,6 +97,7 @@ Uso:
 /saas-audit-br:audit --audit-only     # o mesmo, explícito
 /saas-audit-br:audit --fix            # audita e corrige P0/P1/P2 com testes
 /saas-audit-br:audit --full           # --fix + varredura aprofundada, hardening P3 e regressão ampliada
+/saas-audit-br:audit --ci             # agendado no GitHub Actions (auditoria.yml do kit): só lê e compara com a execução anterior
 /saas-audit-br:module Financeiro      # auditoria focada em um módulo (só audita)
 /saas-audit-br:module Agenda --fix
 /saas-audit-br:resume                 # retoma do estado em disco (após compactação ou nova sessão)
@@ -106,6 +107,7 @@ Uso:
 - **Dependências**: instale junto `saas-shield-br` e `code-health` (o setup automático já faz isso). Sem eles a auditoria continua, mas a cobertura correspondente fica `INCONCLUSIVE`.
 - **Tenancy**: resolvido pela skill `tenant-model` do saas-shield-br (5 arquétipos) — não assume `company_id`.
 - **Estado**: `.saas-audit/` no projeto auditado (`STATE.md`, `ARCHITECTURE.md`, `FINDINGS.md`, `PLAN.md`, `TESTS.md`, `REPORT.md`, `modules/`). Subagents fazem a varredura pesada; o thread principal recebe só resumo, evidência, severidade e próximo passo.
+- **Agendada**: o workflow `auditoria.yml` do kit do Padrão SaaS roda `--ci` toda semana ou todo mês, com a sua assinatura do Claude (`CLAUDE_CODE_OAUTH_TOKEN`), e reprova a execução quando aparece P0 novo. Detalhes em [saas-audit-br/README.md](./saas-audit-br/README.md#auditoria-agendada---ci).
 - **Segurança operacional**: nunca executa automaticamente `git reset --hard`, `git clean -fd`, force push, DROP/purge/restore em produção, rotação de secrets ou alteração massiva irreversível de dados — esses casos viram plano + backup + rollback/roll-forward + passo manual + validação.
 
 Detalhes em [saas-audit-br/README.md](./saas-audit-br/README.md).

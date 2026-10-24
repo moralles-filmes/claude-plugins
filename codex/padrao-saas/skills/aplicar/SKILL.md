@@ -22,7 +22,9 @@ assets/repo/                    espelho da raiz de um projeto; copie daqui
   scripts/security/             cópia do saas-shield-br (não edite aqui): secret-scan.mjs (staged, histórico,
                                 pré-push), deps-audit.mjs (lockfiles, audit prod × dev, watchlist, Node), padrões
   .githooks/pre-commit|pre-push  secret-scan para quem commita fora do Claude (terminal, IDE, Codex)
-  .github/workflows/security.yml  deps-audit + secret-scan --history no PR, na main e toda semana
+  .github/workflows/ci.yml        CI do PR: lint, typecheck, testes, build, padrão, banco local + pgTAP (avisa o que falta)
+  .github/workflows/security.yml  deps-audit + secret-scan --history + Semgrep no PR, na main e toda semana
+  .github/workflows/auditoria.yml  $saas-audit-br:audit --ci agendado (só leitura; P0 novo reprova a execução)
   .github/dependabot.yml        npm com cooldown + github-actions
   docs/standards/*.md           13 padrões normativos + .manifest.json (lista os obrigatórios e os opcionais)
   docs/modules|adr|runbooks/    modelos
@@ -65,7 +67,7 @@ Registre em `.tasks/padrao-saas/AUDIT.md`:
 8. Integrações: provedores, credenciais, webhooks (verificação? dedup?), efeito externo (idempotência?), runner assíncrono, segredos no escopo Preview da Vercel.
 9. MCP: servidores do produto e dos agentes (Supabase MCP com escrita em produção é P0).
 10. Instruções de agentes: CLAUDE.md, AGENTS.md, `.claude/rules/`, AGENTS.md aninhados, `AGENTS.override.md`, bloco do ai-router-br. Não altere configurações pessoais ou globais do usuário.
-11. CI, testes, observabilidade, backups (PITR? Storage?). O CI instala com `--ignore-scripts`, fixa actions por SHA e roda um audit de dependências agendado?
+11. CI, testes, observabilidade, backups (PITR? Storage?). O CI instala com `--ignore-scripts`, fixa actions por SHA e roda um audit de dependências agendado? Os testes de isolamento (pgTAP) rodam em todo PR? Há análise estática (SAST)?
 12. Divergências entre documentação e código.
 
 Se o plugin **saas-audit-br** estiver instalado e o projeto for grande, use `$saas-audit-br:audit --audit-only` para a varredura profunda de segurança e código e traga o resumo para cá, em vez de repetir o trabalho.
@@ -148,9 +150,21 @@ Proponha o nível e registre no AGENTS.md depois da aprovação:
 
 O nível decide **quanta infraestrutura construir**. Ele nunca dispensa os controles N1 de um fluxo que já existe.
 
-## 7. Quality gates (propor, não forçar)
+## 7. Quality gates
 
-Se o projeto tem CI, proponha: `node scripts/check-padrao.mjs`, `node scripts/check-portabilidade.mjs` (com linha de base em projeto legado), lint, typecheck, testes, `supabase test db` com os testes de isolamento, e geração e conferência do tipo das permissões. Para segurança contínua, proponha copiar `.github/workflows/security.yml` (deps-audit + secret-scan --history no PR, na main e toda semana: CVE novo aparece sem mudança de código) e `.github/dependabot.yml` (npm com cooldown + github-actions), ligar push protection e Dependabot alerts no GitHub, e instalar com `npm ci --ignore-scripts`. Não crie limite cego de tamanho que force a remoção de regra crítica.
+Os três workflows do kit são os mesmos do `devops-ci` do saas-builder-br (o `validate.mjs` do marketplace confere). Instale com o aceite do usuário, em commit local na branch desta execução.
+
+**CI — `.github/workflows/ci.yml`.** Lockfile congelado sem install scripts, lint, typecheck, testes, build, `check-padrao`, `check-portabilidade` e o banco local: `supabase db reset`, `db lint`, `test db` com os testes de isolamento e os testes de integração.
+- Adapte os comandos aos do AGENTS.md §7 (pnpm, nomes reais dos scripts). Etapa que o projeto ainda não tem vira PENDENTE no plano; não a remova em silêncio.
+- Projeto que já tem CI: acrescente as etapas que faltam ao workflow existente, em vez de criar um segundo pipeline.
+- Sem `supabase/config.toml` ou sem testes em `supabase/tests/`, o CI não reprova: avisa no PR. Em produto multiempresa, a falta do primeiro teste de isolamento é P1 e entra como primeira fase do plano (agente `qa-testes` do saas-builder-br; no modo B, os modelos `templates/sql/03` e `04`).
+- Proponha também a geração e a conferência do tipo das permissões.
+
+**Segurança contínua — `security.yml` e `dependabot.yml`.** Proponha copiar os dois: deps-audit, secret-scan --history e Semgrep (job `sast`, que começa só relatando) no PR, na main e toda semana, porque CVE novo aparece sem mudança de código. Proponha ligar push protection, Dependabot alerts e Dependabot security updates no GitHub, e instalar com `npm ci --ignore-scripts`.
+
+**Auditoria agendada — `auditoria.yml`.** Proponha em produto N2 ou que movimenta dinheiro, pedidos ou dados de várias empresas. Roda `$saas-audit-br:audit --ci` toda semana (nos demais sistemas, mensal: cron `'7 6 1 * *'`), só lendo, e reprova a execução quando aparece P0 novo. Depende de dois passos do usuário: instalar o Claude GitHub App no repositório e criar o secret `CLAUDE_CODE_OAUTH_TOKEN` com `claude setup-token` (usa a assinatura do Claude, sem cobrança de API). Copie o arquivo só depois que o usuário confirmar o secret: sem ele, toda execução falha.
+
+Não crie limite cego de tamanho que force a remoção de regra crítica.
 
 ## 8. Entrega
 
@@ -199,6 +213,13 @@ Entregue nesta ordem e **pare** antes de qualquer alteração funcional, migrati
 - AGENTS.md: §6 ganhou dependências (lockfile único, major = decisão) e o comando de histórico; §7 os comandos `deps` e `segredos`. Faça o merge preservando os fatos do projeto.
 - `.claude/settings.json`: `ask` para instalar/atualizar pacote e para `npx`/`pnpm dlx`/`bunx`; `deny` de leitura/edição de `.env.prod`, `.env.preview`, `.env.backup` e `.npmrc`. Faça o merge.
 - Rode a auditoria de dependências e runtime (§3, item 5) e a varredura do histórico também nos projetos que já usam o padrão.
+
+**Plugin 3.6 (a norma continua v3.2):**
+
+- `.github/workflows/ci.yml` (novo no kit): instale, ou acrescente ao CI existente as etapas que faltam (§7). Avisos de banco ausente ou de teste de isolamento ausente entram no plano.
+- `security.yml` ganhou o job `sast` (Semgrep CE, só relata). Se o projeto não alterou o arquivo, substitua; senão, acrescente o job.
+- `.github/workflows/auditoria.yml` (novo, opcional): proponha nos sistemas críticos, depois que o usuário criar o secret (§7).
+- `docs/runbooks/MAINTENANCE.md`: calendário revisto (auditoria agendada, Semgrep, restauração mensal dos dados críticos, teste mensal dos alertas, privilégios e LGPD trimestrais, simulação de incidente semestral, versões fixas que o Dependabot não atualiza). Faça o merge preservando os responsáveis e o histórico do projeto.
 
 ## 10. Depois da instalação
 

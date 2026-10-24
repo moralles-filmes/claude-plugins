@@ -50,9 +50,19 @@ Modos:
 /saas-audit-br:audit                # = --audit-only
 /saas-audit-br:audit --fix          # audita e corrige P0/P1/P2 com testes
 /saas-audit-br:audit --full         # --fix + hardening P3 relevante e regressão ampliada
+/saas-audit-br:audit --ci           # agendado no GitHub Actions: só lê, sem perguntas, compara com a execução anterior
 ```
 
 Depois de um `--audit-only` concluído, `--fix` reaproveita `FINDINGS.md`/`PLAN.md` se o código não mudou.
+
+### Auditoria agendada (`--ci`)
+
+Para a auditoria rodar sem ninguém pedir, use o workflow `.github/workflows/auditoria.yml` do kit do Padrão SaaS (`padrao-saas:aplicar` instala; o `devops-ci` do saas-builder-br também gera). Ele instala `saas-shield-br`, `code-health` e `saas-audit-br` pelo marketplace e roda `/saas-audit-br:audit --ci`. As tarefas agendadas do claude.ai não servem para isso: sessões na nuvem não instalam plugins.
+
+- **Custo:** com o secret `CLAUDE_CODE_OAUTH_TOKEN` (gere com `claude setup-token`), a execução usa a assinatura do Claude, no mesmo limite do uso interativo. Com `ANTHROPIC_API_KEY`, é cobrada por token na API.
+- **Comparação:** o workflow baixa o artefato da execução anterior para `.saas-audit-prev/`; cada finding tem uma `Key` e sai como novo, persistente, resolvido ou não reavaliado.
+- **Saídas:** `REPORT.md`, `SUMMARY.md` (publicado no resumo da execução) e `ci-result.json`. P0 novo ou auditoria incompleta (`complete: false`) reprovam a execução.
+- **Limites:** só leitura (`contents: read`), sem `--fix`, sem instalar dependência, sem commit nem push.
 
 ### Auditoria por módulo
 
@@ -166,4 +176,4 @@ O plugin deduplica findings por causa raiz e não transforma hipótese sem evid�
 
 ## Versão
 
-1.4.0 — histórico em [CHANGELOG.md](CHANGELOG.md).
+1.5.0 — histórico em [CHANGELOG.md](CHANGELOG.md).

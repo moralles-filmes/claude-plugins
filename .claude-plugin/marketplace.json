@@ -41,7 +41,7 @@
                     {
                         "name":  "saas-audit-br",
                         "source":  "./saas-audit-br",
-                        "description":  "Orquestrador de auditoria ponta a ponta para SaaS. Reutiliza saas-shield-br + code-health, adiciona auditoria de processo/IA/resiliência, classifica P0-P3 e mede portabilidade. Por padrão só audita (--audit-only); corrige em fases com testes quando pedido (--fix/--full). Mantém estado em disco para retomada após compactação/sessão. Inclui auditoria completa e por módulo."
+                        "description":  "Orquestrador de auditoria ponta a ponta para SaaS. Reutiliza saas-shield-br + code-health, adiciona auditoria de processo/IA/resiliência, classifica P0-P3 e mede portabilidade. Por padrão só audita (--audit-only); corrige em fases com testes quando pedido (--fix/--full). Mantém estado em disco para retomada após compactação/sessão. Inclui auditoria completa e por módulo, e o modo --ci para a auditoria agendada no GitHub Actions."
                     },
                     {
                         "name":  "ai-router-br",

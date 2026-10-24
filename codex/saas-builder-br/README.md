@@ -210,7 +210,11 @@ saas-builder-br/
 
 ## Versionamento
 
-Versão atual: **1.6.0**. Histórico completo em [CHANGELOG.md](./CHANGELOG.md).
+Versão atual: **1.7.0**. Histórico completo em [CHANGELOG.md](./CHANGELOG.md).
+
+### O que mudou na 1.7.0
+
+- `devops-ci`: auditoria agendada (`auditoria.yml`, `/saas-audit-br:audit --ci`), Semgrep no `security.yml` e `ci.yml` que avisa quando falta banco local ou teste de isolamento (serve também para projeto existente).
 
 ### O que mudou na 1.6.0
 
