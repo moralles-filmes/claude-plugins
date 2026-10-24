@@ -49,6 +49,8 @@ Um requisito se aplica quando o fluxo que ele protege existe **e** o nível do p
 
 Não adicione infraestrutura, troque a stack ou amplie escopo só para preencher checklist. Em tarefas sensíveis, classifique os requisitos relevantes como APLICÁVEL, NÃO APLICÁVEL (com justificativa objetiva) ou PENDENTE.
 
+**Quando duas regras conflitam**, siga nesta ordem: segurança e proteção de dados → integridade dos dados → instrução explícita do usuário nesta conversa → este arquivo e `docs/standards/` → arquitetura existente → convenções do projeto → preferência de implementação. Uma regra de baixo nunca justifica violar as duas primeiras: se o pedido do usuário colidir com elas, diga qual é o risco e peça confirmação em vez de executar em silêncio.
+
 ## 6. Segurança — vale em toda tarefa
 
 - **Tenant.** O tenant da operação vem da sessão validada mais a membership, **nunca** do body, da query, do payload de webhook ou do argumento de uma tool. Registros relacionados pertencem ao mesmo tenant (FK composta, MULTI_TENANCY §5).
@@ -58,7 +60,7 @@ Não adicione infraestrutura, troque a stack ou amplie escopo só para preencher
   - Service role / secret key (ignora RLS) e tokens de provedor ficam apenas no servidor.
   - Antes de usar a service role, resolva o tenant, verifique a permissão e filtre a coluna de tenant explicitamente em toda query.
   - A publishable/anon key pode ir ao browser porque a proteção vem de RLS e grants.
-- **Segredos.** Nunca em Git, browser, logs, traces, mensagens de erro, prompts de IA, resultados de tool ou documentação.
+- **Segredos.** Nunca em Git, browser, logs, traces, mensagens de erro, prompts de IA, resultados de tool ou documentação. Arquivo local com segredo fica no `.gitignore`; `.env.example` só com as chaves, sem valor. Segredo já versionado é P0: pare, avise, rotacione e só então trate o histórico — sem repetir o valor no relatório.
 - **Efeitos reais.** Testes, CI e **preview deployments** nunca disparam mensagens, e-mails, cobranças ou webhooks reais.
 - **Produção.** Deploy, push, merge, migration remota e alteração destrutiva exigem autorização explícita nesta conversa. Uma autorização vale para o mesmo escopo e ambiente até a tarefa terminar; mudança de escopo ou ambiente exige nova autorização. Commit local em branch de trabalho é livre (OPERATIONS §1).
 
@@ -106,7 +108,8 @@ Não carregue documentos sem relação com o escopo. Também não omita um docum
 1. Investigue antes de alterar: fluxo, contratos, testes, banco, tenant, permissões e integrações envolvidos.
 2. Planeje a menor mudança correta, preservando o comportamento fora do escopo. Nada de refactor paralelo, segunda arquitetura ou abstração prematura.
 3. Valide de forma proporcional ao risco, com os comandos oficiais.
-4. Nunca declare como testado algo que não foi executado. Use:
+4. Se a mudança tornou código antigo definitivamente obsoleto, remova — depois de conferir referências indiretas (string, rota, config, migration, job, permissão). Não deixe `funcaoNova2()` convivendo com a original só para não decidir; também não apague o que apenas *parece* sem uso.
+5. Nunca declare como testado algo que não foi executado. Use:
    ```text
    NÃO EXECUTADO — Motivo: … Impacto: … Como validar: …
    ```
@@ -115,6 +118,7 @@ Não carregue documentos sem relação com o escopo. Também não omita um docum
 
 - **Tarefa complexa** é a que toca mais de uma camada (banco, servidor, tela, integração) ou mais de 5 arquivos. Ela é feita em fases: plano em `.tasks/<slug>/PLAN.md` aprovado antes de executar, uma entrega verificável por fase e `.tasks/<slug>/STATE.md` com objetivo, decisões, arquivos alterados, o que não foi commitado, testes executados, riscos, pendências e próximo passo, atualizado ao concluir cada fase. Com o plugin padrao-saas, use a skill `padrao-saas:mudanca`.
 - Execute cada fase com contexto limpo quando possível (subagente, ou sessão nova retomando pelo STATE.md). A conversa principal planeja, verifica e integra.
+- Executor recebe escopo fechado: não decide arquitetura por conta própria, não altera arquivo fora da fase e não cria uma segunda implementação do que já existe. Dois executores nunca editam os mesmos arquivos ao mesmo tempo.
 - Ao retomar uma sessão ou depois de compactação, **confira o STATE.md contra `git status` e `git diff`** antes de continuar. Retome pelo próximo passo confirmado, não pela memória da conversa.
 - Estado de ferramentas (todos fora do Git): `.tasks/` (este padrão), `.saas-audit/` (auditoria), `.turbo/` (performance), `.ai-router/` (roteamento), `.claude/saas-state.json` (construção). Ao retomar, leia o da ferramenta em uso.
 - Onde guardar conhecimento:

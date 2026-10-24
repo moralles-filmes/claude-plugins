@@ -26,4 +26,5 @@ Pontos que mais causam vazamento entre empresas ou escalada de privilégio:
 - Campos de tenant, filial, papel, permissão, `is_owner`, preço, total e status vindos do cliente são ignorados ou revalidados. Nunca espalhe o body num insert/update.
 - Tabelas de acesso não recebem escrita do cliente. Quem concede só concede o que tem; ninguém altera os próprios acessos; a empresa nunca fica sem proprietário.
 - Service role / secret key ignora RLS: só em fluxo sistêmico, depois de resolver tenant e permissão, filtrando a coluna de tenant em toda query.
+- Segredo nunca entra no Git: arquivo local com credencial fica no `.gitignore` e o `.env.example` só tem as chaves. Encontrou um versionado? É P0: pare, avise e rotacione antes de limpar o histórico, sem repetir o valor.
 - Testes cobrem o bloqueio **e** o acesso legítimo: outra empresa, outra filial, outro submódulo, ação sem permissão, membership desativada.

@@ -53,13 +53,14 @@ Registre em `.tasks/padrao-saas/AUDIT.md`:
    - como a permissão é representada hoje (papel textual, níveis, permissões por módulo, nada);
    - de onde vem a empresa ativa (claim do JWT, URL, estado do cliente);
    - se `.claude/tenancy-profile.yml` existe. Se não, detecte como a skill `tenant-model` do saas-shield-br descreve e proponha o arquivo.
-4. Supabase, se usado: RLS habilitada e forçada em toda tabela de schema exposto; `with check` em insert/update; grants de `anon`/`authenticated`; views sem `security_invoker`; `security definer` sem `search_path`; funções executáveis por `PUBLIC`; uso da service role; FKs sem composição de tenant. Se disponível, rode os Advisors.
-5. Mutações críticas feitas direto do browser.
-6. Integrações: provedores, credenciais, webhooks (verificação? dedup?), efeito externo (idempotência?), runner assíncrono, segredos no escopo Preview da Vercel.
-7. MCP: servidores do produto e dos agentes (Supabase MCP com escrita em produção é P0).
-8. Instruções de agentes: CLAUDE.md, AGENTS.md, `.claude/rules/`, AGENTS.md aninhados, `AGENTS.override.md`, bloco do ai-router-br. Não altere configurações pessoais ou globais do usuário.
-9. CI, testes, observabilidade, backups (PITR? Storage?).
-10. Divergências entre documentação e código.
+4. **Exposição de segredos (antes de qualquer outra coisa):** `.gitignore` cobre `.env*` (menos o `.env.example`), chaves, dumps e o estado das ferramentas (`.tasks/`, `.saas-audit/`, `.turbo/`, `.ai-router/`); `.env.example` sem valores; nenhum arquivo com segredo rastreado agora (`git ls-files` com os padrões de `$saas-shield-br:secret-scanner`) nem no histórico. Com o saas-shield-br instalado, rode `$saas-shield-br:secret-scan`; sem ele, use a Camada 2 daquela skill como referência. **Achou segredo versionado: pare a auditoria e informe** — ele é P0, a rotação vem antes de limpar o histórico, e o valor nunca aparece no relatório.
+5. Supabase, se usado: RLS habilitada e forçada em toda tabela de schema exposto; `with check` em insert/update; grants de `anon`/`authenticated`; views sem `security_invoker`; `security definer` sem `search_path`; funções executáveis por `PUBLIC`; uso da service role; FKs sem composição de tenant. Se disponível, rode os Advisors.
+6. Mutações críticas feitas direto do browser.
+7. Integrações: provedores, credenciais, webhooks (verificação? dedup?), efeito externo (idempotência?), runner assíncrono, segredos no escopo Preview da Vercel.
+8. MCP: servidores do produto e dos agentes (Supabase MCP com escrita em produção é P0).
+9. Instruções de agentes: CLAUDE.md, AGENTS.md, `.claude/rules/`, AGENTS.md aninhados, `AGENTS.override.md`, bloco do ai-router-br. Não altere configurações pessoais ou globais do usuário.
+10. CI, testes, observabilidade, backups (PITR? Storage?).
+11. Divergências entre documentação e código.
 
 Se o plugin **saas-audit-br** estiver instalado e o projeto for grande, use `$saas-audit-br:audit --audit-only` para a varredura profunda de segurança e código e traga o resumo para cá, em vez de repetir o trabalho.
 
@@ -88,7 +89,7 @@ O `check-padrao.mjs` falha se um padrão do manifest sumir sem essa declaração
 
 Provider docs: copie `meta.md` e `zapi.md` só se o projeto usa esses provedores; para outros, crie a partir de `_TEMPLATE.md` com o que foi verificado na documentação oficial.
 
-Copie também `docs/modules/_TEMPLATE.md`, `docs/adr/_TEMPLATE.md`, `docs/runbooks/_TEMPLATE.md`, `docs/runbooks/MAINTENANCE.md`, `scripts/check-padrao.mjs` e `scripts/check-portabilidade.mjs`. Acrescente `.tasks/` ao `.gitignore` (sem reescrever o arquivo).
+Copie também `docs/modules/_TEMPLATE.md`, `docs/adr/_TEMPLATE.md`, `docs/runbooks/_TEMPLATE.md`, `docs/runbooks/MAINTENANCE.md`, `scripts/check-padrao.mjs` e `scripts/check-portabilidade.mjs`. Acrescente ao `.gitignore`, sem reescrever o arquivo: `.tasks/` e o estado das outras ferramentas (`.saas-audit/`, `.turbo/`, `.ai-router/`, `.code-health/`), mais o que faltar de `.env*` (menos `.env.example`), chaves e dumps apontados na auditoria.
 
 ### 4.2 Projeto novo (modo B)
 
@@ -151,12 +152,13 @@ Entregue nesta ordem e **pare** antes de qualquer alteração funcional, migrati
 
 1. Diagnóstico (modo, runtime, stack confirmada, arquétipo de tenant, nível proposto).
 2. Arquivos criados ou ajustados, e o que foi movido de onde para onde.
-3. Riscos em P0 · P1 · P2 · P3, cada um com evidência (arquivo:linha, consulta ou comando) e marcado CONFIRMADO/INFERIDO.
-4. Lacunas por padrão: APLICÁVEL, NÃO APLICÁVEL (com justificativa) ou PENDENTE.
-5. Lacunas do modelo de acesso (seção 5).
-6. Divergências entre documentação e código.
-7. Plano em fases, do maior risco para o menor, cada fase pequena e reversível.
-8. O que **não** foi verificado e por quê.
+3. **Exposição de segredos:** o que está rastreado ou no histórico, o que o `.gitignore` não cobria e o que foi corrigido. Nomeie o arquivo e o tipo de credencial, nunca o valor. Segredo encontrado é P0 e a rotação vem antes de limpar o histórico.
+4. Riscos em P0 · P1 · P2 · P3, cada um com evidência (arquivo:linha, consulta ou comando) e marcado CONFIRMADO/INFERIDO.
+5. Lacunas por padrão: APLICÁVEL, NÃO APLICÁVEL (com justificativa) ou PENDENTE.
+6. Lacunas do modelo de acesso (seção 5).
+7. Divergências entre documentação e código.
+8. Plano em fases, do maior risco para o menor, cada fase pequena e reversível.
+9. O que **não** foi verificado e por quê.
 
 ## 9. Atualização de um projeto que já usa o padrão
 
@@ -178,6 +180,11 @@ Entregue nesta ordem e **pare** antes de qualquer alteração funcional, migrati
 **Plugin 3.3 (a norma continua v3.2; `docs/standards/` e manifest sem mudança):**
 
 - AGENTS.md: o §8 ganhou a linha "Mudança em mais de uma camada ou em mais de 5 arquivos" e o §10 o critério de tarefa complexa e o trabalho em fases (PLAN.md + STATE.md, contexto limpo por fase). Faça o merge das duas seções preservando os fatos do projeto.
+
+**Plugin 3.4 (a norma continua v3.2):**
+
+- AGENTS.md: §5 ganhou a ordem de prioridade quando duas regras conflitam; §6 a regra de `.gitignore`, `.env.example` sem valor e segredo já versionado como P0; §9 a remoção de código obsoleto com checagem de referências indiretas; §10 o escopo fechado do executor. Faça o merge dessas quatro seções preservando os fatos do projeto.
+- Rode a verificação de exposição de segredos (§3, item 4) também nos projetos que já usam o padrão: ela não existia nas versões anteriores.
 
 ## 10. Depois da instalação
 
