@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [0.5.0] — 2026-10-24
+
+### Alterado (cadeia de suprimentos)
+- As ferramentas que o `dead-code-scanner` executa no projeto têm versão fixa: `knip@5.88.1`, `ts-prune@0.10.3`, `depcheck@1.4.7`. Antes, `@latest` baixava e executava o que estivesse no registry na hora.
+- Detector de imports/variáveis não usados: com config, usa o ESLint **do projeto** (`npx --no-install`); sem config, usa o `tsc --noUnusedLocals --noUnusedParameters` do próprio projeto. Saiu o `eslint@8` baixado pelo npx (fora de suporte desde out/2024).
+
 ## [0.4.0] — 2026-10-08
 
 ### Corrigido

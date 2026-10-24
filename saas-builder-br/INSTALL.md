@@ -8,7 +8,7 @@ Funciona em qualquer projeto, sem mexer no repo. Agents ficam disponíveis em to
 
 ```bash
 # 1. Adiciona o marketplace local (uma vez só, aponta pra pasta pai)
-claude plugin marketplace add C:\Users\morae\Documents\claude-plugins
+claude plugin marketplace add <caminho-do-repo>\claude-plugins
 
 # 2. Instala
 claude plugin install saas-builder-br
@@ -83,7 +83,7 @@ Esperado: o orquestrador responde se apresentando como arquiteto-chefe.
 
 ### Plugin (Opção A)
 ```bash
-cd C:\Users\morae\Documents\claude-plugins\saas-builder-br
+cd <caminho-do-repo>\claude-plugins\saas-builder-br
 git pull  # ou puxe sua versão atualizada
 claude plugin update saas-builder-br
 ```

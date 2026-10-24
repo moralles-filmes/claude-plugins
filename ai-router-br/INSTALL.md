@@ -1,6 +1,6 @@
 # Instalação
 
-Pré-requisitos: Node.js 20+, Git, agente principal autenticado pelo plano, Codex CLI autenticado via ChatGPT e `DEEPSEEK_API_KEY` local somente se DeepSeek for usado.
+Pré-requisitos: Node.js 22+ (LTS com suporte; o 20 ainda roda, mas está em fim de vida desde 30/04/2026), Git, agente principal autenticado pelo plano, Codex CLI autenticado via ChatGPT e `DEEPSEEK_API_KEY` local somente se DeepSeek for usado.
 
 A chave do DeepSeek precisa ser o texto real (`sk-...`), sem espaços. No Windows, copie a chave e grave direto da área de transferência — assim nenhuma tecla vira texto (um Ctrl+V que não cola fica salvo como o caractere 22 e o DeepSeek falha sempre):
 

@@ -92,7 +92,7 @@ Leia o `AGENTS.md` (§8, §9 e §10) e só os padrões que o roteador do §8 ped
 
 ## Etapa 4 — Fechamento
 
-1. Rode os comandos oficiais completos (lint, typecheck, testes, `supabase test db`, build), `node scripts/check-padrao.mjs` e `node scripts/check-portabilidade.mjs`.
+1. Rode os comandos oficiais completos (lint, typecheck, testes, `supabase test db`, build), `node scripts/check-padrao.mjs` e `node scripts/check-portabilidade.mjs`. Se a mudança tocou `package.json` ou lockfile, rode também `node scripts/security/deps-audit.mjs` (0 P0/P1; um lockfile só) e, antes do push, `node scripts/security/secret-scan.mjs --outgoing`. Dependência nova ou subida de major entra no PLAN.md como decisão do usuário, nunca dentro de uma fase sem aprovação.
 2. Regra durável criada pela mudança vai para o doc do módulo, "Particularidades" do padrão ou ADR (AGENTS.md §10).
 3. Encerre no formato do AGENTS.md §11. Tarefa sensível leva as sete seções.
 4. Marque o STATE.md como concluído. `.tasks/` não vai para o Git.

@@ -15,13 +15,18 @@
  *   - tabela criada em `public` sem `enable row level security` no mesmo arquivo;
  *   - RLS habilitada sem `force row level security` (por tabela);
  *   - `disable row level security` / `no force row level security`;
- *   - policy com `using (true)` ou `with check (true)`;
+ *   - policy com `using (true)` ou `with check (true)`, ou tautologia equivalente (`1=1`, `true = true`, `not false`);
  *   - função/procedure `security definer` sem `set search_path` (em qualquer ordem de cláusula
  *     no cabeçalho, inclusive depois do corpo, ou via `alter function … set search_path`).
  *
  * Avisos (exit 0, vão para o contexto do Claude via additionalContext):
  *   - `security definer` com search_path diferente de '' (padrão: '' + nomes qualificados);
- *   - tabela nova sem nenhuma policy (deny-all) ou sem `revoke … from anon` explícito.
+ *   - tabela nova sem nenhuma policy (deny-all) ou sem `revoke … from anon` explícito;
+ *   - `grant` de tabela direto para `anon`;
+ *   - SQL dinâmico (`execute '…create table/policy…'`): o hook não analisa o que está dentro.
+ *
+ * Vale para supabase/migrations/ (e qualquer pasta migrations/) e para o schema declarativo
+ * (supabase/schemas/).
  *
  * Comentários, strings e corpos $$…$$ são neutralizados antes da análise: texto dentro deles
  * não dispara nem satisfaz regra.
@@ -29,6 +34,9 @@
 
 import { readFileSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
+
+// Condição sempre verdadeira numa policy: (true), (1=1), (true = true), (not false), ((true))
+const TAUTOLOGY = String.raw`\( ?(?:\( ?true ?\)|true|1 ?= ?1|true ?= ?true|not false) ?\)`
 
 let payload
 try {
@@ -39,7 +47,7 @@ try {
 
 const input = payload?.tool_input ?? {}
 const rawPath = typeof input.file_path === 'string' ? input.file_path : ''
-if (!/\.sql$/i.test(rawPath) || !/migrations/i.test(rawPath)) process.exit(0)
+if (!/\.sql$/i.test(rawPath) || !/migrations|supabase[\\/]schemas[\\/]/i.test(rawPath)) process.exit(0)
 
 const cwd = typeof payload?.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd()
 const filePath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath)
@@ -76,6 +84,10 @@ if (typeof input.content === 'string') {
 }
 
 const now = analyze(after, { partial })
+// SQL dinâmico: o corpo $$…$$ é neutralizado na análise, então só dá para avisar.
+if (/\bexecute\s+(?:format\s*\(\s*)?(?:e?'|\$\w*\$)\s*(?:create|alter)\s+(?:or\s+replace\s+)?(?:table|policy)\b/i.test(after)) {
+  now.warnings.push({ msg: 'SQL dinâmico (EXECUTE) cria/altera tabela ou policy: o hook não analisa o conteúdo. Revise RLS, FORCE e policies à mão (/check-rls).' })
+}
 const prev = before !== null && !partial ? analyze(before, { partial: false }) : { blockers: [], warnings: [] }
 const prevKeys = new Set(prev.blockers.map((b) => b.key))
 const introduced = now.blockers.filter((b) => !prevKeys.has(b.key))
@@ -262,12 +274,17 @@ function analyze(sql, { partial }) {
       const policy = m[1].replace(/"/g, '')
       const target = qualify(m[2])
       policiesOn.add(target)
-      if (/\busing ?\( ?true ?\)/.test(m[3])) {
+      if (new RegExp(`\\busing ?${TAUTOLOGY}`).test(m[3])) {
         blockers.push({ key: `using-true:${policy}@${target}`, msg: `Policy ${policy} em ${target} com USING (true): equivale a desligar a RLS.` })
       }
-      if (/\bwith check ?\( ?true ?\)/.test(m[3])) {
+      if (new RegExp(`\\bwith check ?${TAUTOLOGY}`).test(m[3])) {
         blockers.push({ key: `check-true:${policy}@${target}`, msg: `Policy ${policy} em ${target} com WITH CHECK (true): permite gravar em qualquer tenant.` })
       }
+      continue
+    }
+
+    if ((m = /^grant .*? on (?:table )?(.+?) to (.+)$/.exec(bare)) && /\banon\b/.test(m[2]) && !/^(function|functions|procedure|routine|schema|sequence|all sequences|all functions)\b/.test(m[1])) {
+      warnings.push({ msg: `grant em ${m[1]} direto para anon: quem tem a anon key (pública) passa a depender só da RLS. Confirme que é intencional.` })
       continue
     }
 

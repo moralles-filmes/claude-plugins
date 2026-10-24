@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1 — 2026-10-24
+- Node recomendado passa a 22+ (`engines`, INSTALL, setup): o 20 está em fim de vida desde 30/04/2026. O `doctor` continua aceitando o 20, com o aviso `node_eol_upgrade_to_22_or_24` no campo novo `warnings` e o campo `node_22_plus`.
+- `references/security.md`: a regra de `.env` público é a mesma do saas-shield-br (`scripts/security/env-public.mjs`).
+- Codex: skill nova `$ai-router-status` (paridade com o `status` do Claude).
+
 ## 1.4.0 — 2026-10-16
 O router escolhe o modelo pela complexidade da tarefa, checa o que está disponível na máquina e termina a escada num subagente Claude barato, não no agente principal. Até aqui nenhum dispatch externo tinha dado certo: tudo voltava para o modelo mais caro.
 

@@ -1,0 +1,7 @@
+# Este repositório não tem dependências npm; só as GitHub Actions (fixadas por SHA) são atualizadas.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }

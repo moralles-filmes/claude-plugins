@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# .githooks/pre-push — Padrão SaaS (cópia do saas-shield-br).
+# Antes do push, varre os commits que ainda não estão em nenhum remoto (inclui merge,
+# cherry-pick e rebase). Achado: não faça o push; siga o runbook de rotação (provedor primeiro).
+command -v node >/dev/null 2>&1 || { echo "pre-push: node ausente; varredura de segredos NÃO executada." >&2; exit 1; }
+exec node "$(git rev-parse --show-toplevel)/scripts/security/secret-scan.mjs" --outgoing

@@ -1,6 +1,6 @@
 {
   "name": "saas-builder-br",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Orquestrador central + 8 subagents especializados para construção de SaaS multi-tenant em Vite+React+TS / Supabase / Vercel. Cada subagent tem contexto isolado e tarefa clara, com gates pontuais chamando o saas-shield-br e a auditoria completa delegada ao saas-audit-br. Constrói seguindo o Padrão SaaS (padrao-saas): projeto novo no arquétipo E (empresa → filial, usuário em várias empresas, permissões por módulo/submódulo/ação, empresa ativa na URL), tela → adapter api.ts → Supabase, transições críticas por RPC/Edge Function; projeto existente no arquétipo que o .claude/tenancy-profile.yml declara (A–D). Pensado para devs brasileiros que constroem SaaS com integrações WhatsApp (Z-API + Cloud API) e LLMs (OpenAI/Anthropic/Gemini).",
   "author": {
     "name": "Yuri Moraes",

@@ -1,6 +1,6 @@
 ---
 name: frontend-react
-description: 'Subagent que constrói o frontend Vite + React + TypeScript de um SaaS multi-tenant. Estrutura de pastas, roteamento (React Router v6), state (TanStack Query para servidor + Zustand para global UI), forms (React Hook Form + Zod), client Supabase configurado uma única vez. Use quando o orquestrador estiver na Fase 4 (frontend) ou quando o usuário pede componente/página/rota/hook. Não desenha visual — isso é o design-ux. Foco: arquitetura React funcional, type-safe, RLS-aware.'
+description: 'Subagent que constrói o frontend Vite + React + TypeScript de um SaaS multi-tenant. Estrutura de pastas, roteamento (React Router 7), state (TanStack Query para servidor + Zustand para global UI), forms (React Hook Form + Zod), client Supabase configurado uma única vez. Use quando o orquestrador estiver na Fase 4 (frontend) ou quando o usuário pede componente/página/rota/hook. Não desenha visual — isso é o design-ux. Foco: arquitetura React funcional, type-safe, RLS-aware.'
 tools: Read, Write, Edit, Glob, Grep
 model: sonnet
 skills:
@@ -15,7 +15,7 @@ Você é o `frontend-react`. Você constrói a camada React do SaaS — estrutur
 - **Build**: Vite 5+
 - **Framework**: React 18+
 - **Linguagem**: TypeScript estrito (`"strict": true`)
-- **Roteamento**: React Router v6+ (`createBrowserRouter` + data routers)
+- **Roteamento**: React Router 7 (`createBrowserRouter` + data routers; importar de `react-router-dom` continua valendo)
 - **Server state**: TanStack Query v5
 - **Global UI state**: Zustand (sem Redux)
 - **Forms**: React Hook Form + Zod (resolver `@hookform/resolvers/zod`)
@@ -49,9 +49,9 @@ import { useCreateBill } from "@/features/financeiro/hooks/use-bills";
 import { toCents } from "@/lib/format"; // arredondamento de dinheiro num lugar só
 
 const schema = z.object({
-  supplierId: z.string().uuid("Escolha o fornecedor"),
-  amount: z.number({ invalid_type_error: "Informe o valor" }).positive("Valor inválido"),
-  dueDate: z.string().date("Data inválida"),
+  supplierId: z.uuid("Escolha o fornecedor"),
+  amount: z.number({ error: "Informe o valor" }).positive("Valor inválido"), // zod 4: { error }, não invalid_type_error
+  dueDate: z.iso.date("Data inválida"),
 });
 type FormData = z.infer<typeof schema>;
 

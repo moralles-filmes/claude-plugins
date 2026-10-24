@@ -2,7 +2,7 @@
 #
 # Reconstroi numa maquina nova (ou atualiza nesta) o ambiente Claude Code + Codex a partir de
 # https://github.com/moralles-filmes/claude-plugins :
-#   - verifica Git, Node.js 20+, Claude Code e Codex CLI (instala Claude Code/Codex pelos
+#   - verifica Git, Node.js 22+ (LTS), Claude Code e Codex CLI (instala Claude Code/Codex pelos
 #     instaladores oficiais quando faltarem)
 #   - verifica login do Claude (assinatura) e do Codex via ChatGPT (nunca troca por API key)
 #   - registra/atualiza marketplaces e instala/atualiza TODOS os plugins do marketplace
@@ -162,11 +162,12 @@ function Invoke-Setup {
     }
 
     # --- Node.js ---------------------------------------------------------
-    Write-Step "Node.js 20+"
+    Write-Step "Node.js 22+ (LTS)"
     $NodeOk = $false
     if (Test-Command node) {
         $nv = ((node --version) -join '').Trim()
-        if ($nv -match '^v(\d+)\.' -and [int]$Matches[1] -ge 20) { $NodeOk = $true; Write-Ok "node $nv" }
+        if ($nv -match '^v(\d+)\.' -and [int]$Matches[1] -ge 22) { $NodeOk = $true; Write-Ok "node $nv" }
+        elseif ($nv -match '^v(\d+)\.' -and [int]$Matches[1] -ge 20) { $NodeOk = $true; Write-Warn "node $nv esta em fim de vida (o 20 saiu de suporte em 30/04/2026). Funciona, mas atualize para o LTS 22 ou 24 (winget install OpenJS.NodeJS.LTS)." }
         else { Write-Warn "node $nv e anterior ao 20. Atualize pelo instalador LTS de https://nodejs.org/en/download (ou: winget install OpenJS.NodeJS.LTS)." }
     } else {
         Write-Warn "Node.js nao encontrado. Instale o LTS de https://nodejs.org/en/download (ou: winget install OpenJS.NodeJS.LTS). Sem Node o ai-router-br, seus hooks e os testes nao rodam."
@@ -308,7 +309,7 @@ function Invoke-Setup {
 
     # --- Validacao e testes -------------------------------------------------
     if ($SkipTests) { Write-Step "Validacao e testes"; Write-Info "Ignorado (-SkipTests)." }
-    elseif (-not $NodeOk) { Write-Step "Validacao e testes"; Write-Warn "Ignorado: Node.js 20+ indisponivel." }
+    elseif (-not $NodeOk) { Write-Step "Validacao e testes"; Write-Warn "Ignorado: Node.js 20+ indisponivel (recomendado: 22+)." }
     elseif (-not (Test-Path $MarketplaceFile)) { Write-Step "Validacao e testes"; Write-Would "validar e testar depois do clone" }
     else {
         Write-Step "Validacao e testes essenciais"

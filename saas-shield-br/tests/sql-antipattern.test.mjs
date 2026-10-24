@@ -215,3 +215,34 @@ test('hooks.json: node + args, timeout, sem description por handler, if no secre
   assert.deepEqual(scan.map((h) => h.if).sort(), ['Bash(*git*)', 'PowerShell(*git*)'])
   assert.ok(scan.every((h) => h.matcher === 'Bash|PowerShell'))
 })
+
+test('tautologia em policy (1=1, true = true, not false) bloqueia como USING (true)', (t) => {
+  const dir = migrations(t)
+  for (const cond of ['1=1', '1 = 1', 'true = true', 'not false', '(true)']) {
+    const r = writeSql(join(dir, '20260101000000_t.sql'), `${OK_MIGRATION}\ncreate policy p_${cond.length} on public.suppliers for select using (${cond});\n`)
+    assert.equal(r.code, 2, `using (${cond}) devia bloquear`)
+    assert.match(r.stderr, /USING \(true\)/)
+  }
+  const ok = writeSql(join(dir, '20260101000001_t.sql'), `${OK_MIGRATION}\ncreate policy p on public.suppliers for select using (company_id is not null and 1 = 1);\n`)
+  assert.equal(ok.code, 0, 'só a condição inteira tautológica bloqueia')
+})
+
+test('schema declarativo (supabase/schemas/) também é analisado', (t) => {
+  const dir = migrations(t)
+  const schemas = join(dir, '..', 'schemas')
+  mkdirSync(schemas, { recursive: true })
+  assert.equal(writeSql(join(schemas, 'suppliers.sql'), 'create table public.x (id int);\n').code, 2)
+  assert.equal(writeSql(join(schemas, 'suppliers.sql'), OK_MIGRATION).code, 0)
+  const post = run(POST, 'Edit', { file_path: '/repo/supabase/schemas/x.sql' })
+  assert.match(JSON.parse(post.stdout).hookSpecificOutput.additionalContext, /\/check-rls/)
+})
+
+test('SQL dinâmico e grant direto para anon geram aviso (não bloqueiam)', (t) => {
+  const dir = migrations(t)
+  const dyn = writeSql(join(dir, '20260101000000_dyn.sql'), "do $$ begin execute 'create table public.x (id int)'; end $$;\n")
+  assert.equal(dyn.code, 0)
+  assert.match(JSON.parse(dyn.stdout).hookSpecificOutput.additionalContext, /SQL dinâmico \(EXECUTE\)/)
+  const grant = writeSql(join(dir, '20260101000001_g.sql'), `${OK_MIGRATION}\ngrant select on public.suppliers to anon;\n`)
+  assert.equal(grant.code, 0)
+  assert.match(JSON.parse(grant.stdout).hookSpecificOutput.additionalContext, /grant em public\.suppliers direto para anon/)
+})

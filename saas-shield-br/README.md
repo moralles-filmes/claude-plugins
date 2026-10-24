@@ -20,7 +20,7 @@ A skill **`tenant-model`** é a fonte única da verdade (spec do profile + detec
 
 ## O que está dentro
 
-### 10 Skills
+### 11 Skills
 
 | Skill | Categoria | O que faz |
 |---|---|---|
@@ -28,7 +28,8 @@ A skill **`tenant-model`** é a fonte única da verdade (spec do profile + detec
 | `agent-result-contract` | Fundação | Contrato único de saída dos auditores (veredito PASS/FAIL/INCONCLUSIVE, severidade P0–P3, regras de evidência) |
 | `rls-reviewer` | Segurança | Audita RLS parametrizado pelo profile — `FORCE RLS`, `USING`+`WITH CHECK`, `SECURITY DEFINER`+`search_path`, 12 anti-patterns |
 | `multi-tenant-auditor` | Segurança | Isolamento no repo inteiro — tabelas órfãs, fronteira privilegiada, views, leak detection (base do tenant-isolation-auditor) |
-| `secret-scanner` | Segurança | Detecta secrets vazados — `service_role` no cliente, `.env` commitado, keys hardcoded, `VITE_`/`NEXT_PUBLIC_` abuse |
+| `secret-scanner` | Segurança | Detecta secrets vazados — `service_role` no cliente, `.env` commitado (com critério de `.env` só público), keys hardcoded, `VITE_`/`NEXT_PUBLIC_` abuse — e **executa** a varredura do histórico git; traz o runbook de rotação (provedor primeiro) |
+| `dependency-audit` | Segurança | **Executa** o audit de dependências: lockfiles duplicados, npm/pnpm/bun audit com triagem prod × dev, watchlist dos incidentes de out/2026 (Next, React RSC, sharp, postcss, zod, xlsx…), Node em fim de vida, `overrides`, CDN oficial e major como decisão do usuário |
 | `supabase-migrator` | Backend | **Gerador único de migration** dos plugins — arquétipo E por padrão (helpers `private.*`, `search_path = ''`, FORCE RLS, grants explícitos, FK composta, transição por RPC); A–D como notas para legado |
 | `edge-function-guard` | Backend | Revisa Edge Functions e traz o **template canônico** — usuário validado no Auth, empresa ativa por `x-company-id` confirmada pela membership, `can()` sobre `my_permissions`, erro sem vazamento, `Deno.env` só no entrypoint |
 | `cost-optimizer` | Custo | Reduz a conta Supabase/Vercel — egress, invocações, Realtime, storage, bandwidth, build. Lentidão/performance fica com o plugin `turbo` |
@@ -47,26 +48,41 @@ Todos read-only (`Read, Grep, Glob`), com `maxTurns`/`effort`, pré-carregando a
 | `tenant-isolation-auditor` | Caça vazamentos cross-tenant no repo (funde o antigo tenant-leak-hunter + execução do multi-tenant-auditor) |
 | `identity-access-auditor` | Memberships, RBAC, convites, troca de tenant, super admin, anti-lockout, escalonamento de privilégio |
 | `integration-reliability-auditor` | Webhooks (assinatura), filas (claim/retry), idempotência, dedup, APIs externas |
-| `secret-hunter` | Varredura estática de secrets (código + `.env` + bundle); emite comandos de deep-scan (git/gitleaks) |
+| `secret-hunter` | Varredura estática de secrets (código + `.env` + bundle); o histórico é executado pelo `/secret-scan` na sessão principal |
 | `migration-validator` | Valida migration antes de aplicar (RLS + tenant + idempotência + reversibilidade + compatibilidade) |
 
-### 5 Slash Commands
+### 6 Slash Commands
 
 - `/audit-tenant` — resolve o profile e dispara o `tenant-isolation-auditor`
 - `/check-rls [arquivo]` — revisa RLS (parametrizado) num arquivo ou nas migrations recentes
-- `/secret-scan` — scan de secrets (estático + comandos de histórico git)
-- `/pre-deploy` — checklist: secrets → isolamento → identidade → integrações → schema → RLS → Vercel → edge functions
+- `/secret-scan` — scan de secrets: executa o histórico git (`scripts/security/secret-scan.mjs --history`) + estático pelo `secret-hunter`
+- `/deps-audit` — audit de dependências e runtime (`scripts/security/deps-audit.mjs`), com plano de migração para major
+- `/pre-deploy` — checklist: dependências/Node → secrets (com histórico) → isolamento → identidade → integrações → schema → RLS → Vercel → edge functions
 - `/new-migration [descrição]` — conduz a skill `supabase-migrator`; próximos passos sempre locais (`supabase db reset`, `supabase test db`). `db push` no remoto só depois do merge, com autorização explícita
 
 ### Hooks
 
 Todos com `command: "node"` + `args` (sem shell; path com espaço funciona) e `timeout`.
 
-- **PreToolUse** em `Write|Edit` de `migrations/*.sql` — avalia o arquivo **como vai ficar** (no Edit, aplica `old_string → new_string` sobre o arquivo atual) e bloqueia o que a mudança introduz: tabela em `public` sem RLS, RLS sem FORCE, `disable row level security`, `using (true)`/`with check (true)`, `security definer` sem `search_path` (em qualquer ordem de cláusula). Avisos (search_path ≠ `''`, tabela sem policy ou sem revoke de `anon`) vão para o contexto do Claude.
-- **PreToolUse** em `Bash|PowerShell` com `git` (filtro `if`) — em `git commit`, inclusive em comando composto (`git add -A && git commit`, `git -C dir commit`, `cd x; git commit`, `bash -c`), varre o índice, o que um `git add` anterior no mesmo comando vai adicionar e o working tree em `commit -a`. Lista de padrões: `hooks/scripts/secret-patterns.mjs` (fonte única; documentada no `patterns.md` do `secret-scanner`). JWT só bloqueia com `role: service_role`; `sb_secret_` bloqueia, `sb_publishable_` passa.
-- **PostToolUse** em `Write|Edit` de `supabase/migrations/*.sql` — sugere `/check-rls` e lembra que aplicar é local.
+- **PreToolUse** em `Write|Edit` de `migrations/*.sql` e `supabase/schemas/*.sql` — avalia o arquivo **como vai ficar** (no Edit, aplica `old_string → new_string` sobre o arquivo atual) e bloqueia o que a mudança introduz: tabela em `public` sem RLS, RLS sem FORCE, `disable row level security`, `using (true)`/`with check (true)` e tautologias (`1=1`, `not false`), `security definer` sem `search_path` (em qualquer ordem de cláusula). Avisos (search_path ≠ `''`, tabela sem policy ou sem revoke de `anon`, `grant` direto a `anon`, SQL dinâmico com `execute`) vão para o contexto do Claude.
+- **PreToolUse** em `Bash|PowerShell` com `git` (filtro `if`) — em `git commit`, inclusive em comando composto (`git add -A && git commit`, `git -C dir commit`, `cd x; git commit`, `bash -c`), varre o índice, o que um `git add` anterior no mesmo comando vai adicionar e o working tree em `commit -a`. Lista de padrões: `scripts/security/secret-patterns.mjs` (fonte única; documentada no `patterns.md` do `secret-scanner`): Supabase, Stripe, AWS, OpenAI, Anthropic, DeepSeek, Google/Gemini, Meta/WhatsApp, URL de banco com senha, npm, GitHub, Slack, chave PEM. JWT só bloqueia com `role: service_role`; `sb_secret_` bloqueia, `sb_publishable_` passa.
+- **PreToolUse** no `git push` (mesmo hook) — varre os commits de `HEAD` que ainda não estão em nenhum remoto: pega merge, cherry-pick e commit feito fora do Claude. `.env*` que não seja só público bloqueia pelo nome.
+- **PreToolUse** nas ferramentas MCP do GitHub que gravam arquivo (`create_or_update_file`, `push_files`) — a mesma varredura, porque esse caminho não passa por `git commit`.
+- **PostToolUse** em `Write|Edit` de `supabase/migrations/*.sql` e `supabase/schemas/*.sql` — sugere `/check-rls` e lembra que aplicar é local.
 
-Testes dos hooks (Node 18+, sem dependências), na raiz do marketplace:
+Os hooks só existem no Claude Code. Para commit humano, IDE e Codex, o kit do `padrao-saas` instala `.githooks/pre-commit` e `pre-push` com o mesmo `scripts/security/secret-scan.mjs`.
+
+### Scripts executáveis (`scripts/security/`, sem dependências)
+
+| Script | O que faz | Saída |
+|---|---|---|
+| `secret-scan.mjs` | `--staged`, `--outgoing`, `--history` (todas as refs), `--range A..B`; mesma lista do hook; nunca imprime o valor | 0 nada · 1 achado · 2 inconclusivo (clone raso) |
+| `deps-audit.mjs` | lockfiles, audit prod × dev (npm/pnpm/bun), watchlist, Node × fim de vida e × `engines` das dependências, exceções com prazo | 0 PASS · 1 P0/P1 · 2 inconclusivo |
+| `secret-patterns.mjs`, `env-public.mjs`, `watchlist.json` | fontes únicas dos padrões, da regra de `.env` público e das versões mínimas | — |
+
+O kit do `padrao-saas` copia esta pasta para `scripts/security/` dos projetos; o `validate.mjs` do marketplace confere que a cópia é idêntica.
+
+Testes dos hooks e scripts (Node LTS 22+, sem dependências), na raiz do marketplace:
 
 ```bash
 node --test saas-shield-br/tests/*.test.mjs
@@ -114,7 +130,7 @@ claude plugin install saas-shield-br
 
 ## Versionamento
 
-Versão atual: **2.4.0** — ver [CHANGELOG.md](./CHANGELOG.md). A v2 é convention-driven e **breaking** vs. a v1 (agente `tenant-leak-hunter` fundido em `tenant-isolation-auditor`, contrato de saída novo, não assume mais `company_id`).
+Versão atual: **2.5.0** — ver [CHANGELOG.md](./CHANGELOG.md). A v2 é convention-driven e **breaking** vs. a v1 (agente `tenant-leak-hunter` fundido em `tenant-isolation-auditor`, contrato de saída novo, não assume mais `company_id`).
 
 ## Licença
 

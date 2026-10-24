@@ -11,7 +11,7 @@ cd "$REPO_ROOT"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "⚠ pre-push: 'node' não encontrado no PATH — pulando validação."
-  echo "  (Instale Node 18+ para validar antes do push)"
+  echo "  (Instale o Node LTS 22+ para validar antes do push)"
   exit 0
 fi
 

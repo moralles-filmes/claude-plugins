@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# .githooks/pre-commit — Padrão SaaS (cópia do saas-shield-br).
+# Bloqueia commit com secret ou .env que não seja só público, também para quem commita
+# fora do Claude Code (terminal, IDE, Codex). Ative uma vez: git config core.hooksPath .githooks
+# Falso-positivo: marque a linha com "secret-scan: ignore" ou registre em .secret-scan-allow.json.
+command -v node >/dev/null 2>&1 || { echo "pre-commit: node ausente; varredura de segredos NÃO executada." >&2; exit 1; }
+exec node "$(git rev-parse --show-toplevel)/scripts/security/secret-scan.mjs" --staged

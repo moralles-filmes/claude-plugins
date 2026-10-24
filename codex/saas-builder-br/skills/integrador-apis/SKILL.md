@@ -69,7 +69,7 @@ export async function fetchWithTimeout(url: string, init: RequestInit = {}, ms =
 
 Uso numa Edge Function (`requireTenant`, `can`, `adminClient` e `json` são os helpers de `_shared/` do `backend-supabase`):
 ```ts
-const ChargeInput = z.object({ idempotency_key: z.string().uuid(), payload: z.record(z.unknown()) });
+const ChargeInput = z.object({ idempotency_key: z.uuid(), payload: z.record(z.string(), z.unknown()) }); // zod 4: z.record exige chave e valor
 
 Deno.serve(async (req) => {
   const ctx = await requireTenant(req);                         // JWT + x-company-id + membership ativa

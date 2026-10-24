@@ -105,7 +105,7 @@ export async function criarConta(ctx: TenantContext, conta: NovaConta, contas: C
 ```ts
 // supabase/functions/criar-conta/index.ts — entrypoint e adapter: único arquivo com Deno.* e @supabase/*
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
-import { z } from 'npm:zod@3'
+import { z } from 'npm:zod@^4.6.7' // zod 3 tem DoS por memória (GHSA-mrhx-c7xc-m3w5): só o 4 corrige
 import type { Grant, TenantContext } from '../_shared/permissions.ts'
 import { criarConta, Proibido, type ContasPort } from './caso-de-uso.ts'
 
@@ -117,12 +117,12 @@ const MAX_BODY = 100_000
 
 // z.object descarta chaves desconhecidas: company_id enviado no body some aqui.
 const Input = z.object({
-  location_id: z.string().uuid(),
-  supplier_id: z.string().uuid(),
+  location_id: z.uuid(),
+  supplier_id: z.uuid(),
   amount_cents: z.number().int().positive(),
-  due_date: z.string().date(),
+  due_date: z.iso.date(),
 })
-const CompanyId = z.string().uuid()
+const CompanyId = z.uuid()
 
 Deno.serve(async (req) => {
   const requestId = crypto.randomUUID()
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     let body: unknown
     try { body = JSON.parse(text) } catch { return reply({ error: 'invalid_json', requestId }, 400) }
     const input = Input.safeParse(body)
-    if (!input.success) return reply({ error: 'invalid_input', requestId, fields: input.error.flatten().fieldErrors }, 422)
+    if (!input.success) return reply({ error: 'invalid_input', requestId, fields: z.flattenError(input.error).fieldErrors }, 422)
 
     // 5. Caso de uso com a porta implementada sobre o client do usuário (RLS + with check confirmam de novo).
     const contas: ContasPort = {

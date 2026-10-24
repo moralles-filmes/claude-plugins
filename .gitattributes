@@ -1,3 +1,5 @@
 # Shell scripts and git hooks must keep LF endings on every platform (CRLF breaks bash, including Git Bash).
 *.sh text eol=lf
 .githooks/* text eol=lf
+# Git hooks do kit do padrao-saas (vão para os projetos)
+**/.githooks/* text eol=lf

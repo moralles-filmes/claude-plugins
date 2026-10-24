@@ -1,6 +1,6 @@
 ---
 name: secret-scanner
-description: "Detecta secrets vazados no código (Supabase service_role, API keys hardcoded, .env commitado, JWT em cliente, prefixo VITE_/NEXT_PUBLIC_ usado errado). Use quando o usuário pedir \"scan de secrets\", \"tem chave hardcoded?\", \"esquecimentos no .env\", \"vazei alguma key?\", \"secret scan\", \"audit secrets\", \"verifica vazamento de chave\", ou antes de fazer commit/deploy. Carrega `patterns.md` com 30+ regex de provedores (Stripe, AWS, Anthropic, OpenAI, GitHub, Slack, etc.)."
+description: "Detecta secrets vazados no código e no HISTÓRICO do Git (Supabase service_role, API keys hardcoded, .env commitado, JWT em cliente, prefixo VITE_/NEXT_PUBLIC_ usado errado) e conduz a rotação na ordem certa (provedor primeiro). Use quando o usuário pedir \"scan de secrets\", \"tem chave hardcoded?\", \"esquecimentos no .env\", \"vazei alguma key?\", \"secret scan\", \"audit secrets\", \"verifica vazamento de chave\", ou antes de fazer commit/deploy. Carrega `patterns.md` com 30+ regex de provedores (Stripe, AWS, Anthropic, OpenAI, GitHub, Slack, etc.)."
 ---
 
 # secret-scanner
@@ -18,7 +18,7 @@ Você é um detector de secrets para repos SaaS. Sua função é identificar cre
 
 ## Fluxo de scan
 
-Carregue `patterns.md` desta skill antes de começar. Contém os 30+ patterns de regex. A lista curta que o hook pré-commit bloqueia vive em `<plugin-root>/hooks/scripts/secret-patterns.mjs` (fonte única; o `patterns.md` documenta cada `id`).
+Carregue `patterns.md` desta skill antes de começar. Contém os 30+ patterns de regex. A lista curta que o hook bloqueia e que o CLI `secret-scan.mjs` usa no histórico vive em `<plugin-root>/scripts/security/secret-patterns.mjs` (fonte única; o `patterns.md` documenta cada `id`). Achou chave real em qualquer camada: siga [`rotation-runbook.md`](./rotation-runbook.md), na ordem.
 
 ### Camada 1 — Arquivos sob controle
 ```
@@ -32,31 +32,36 @@ Para cada padrão em `patterns.md`, rodar Grep no glob. Reportar matches com:
 - Severidade (🚨 / 🟡 / 🔵)
 - Fix sugerido
 
-### Camada 2 — Histórico git
-**Não execute git por conta** — peça ao usuário rodar:
-```bash
-# Procura strings sensíveis em todo histórico
-git log -p --all -S "service_role" | head -100
-git log -p --all -S "sb_secret_" | head -100
-git log -p --all -S "sk_live_" | head -100
-git log -p --all -S "AKIA" | head -100  # AWS
-```
-Se encontrar, é situação de **rotacionar a chave imediatamente**, não basta deletar do código.
+### Camada 2 — Histórico git (executar, não só recomendar)
 
-Recomende ferramentas:
-- `git-filter-repo` para reescrever histórico (a equipe inteira tem que reclonar)
-- `gitleaks` ou `trufflehog` para scan automatizado
+Na sessão principal (que tem shell; o agente `secret-hunter` não tem), rode:
+```bash
+node <plugin-root>/scripts/security/secret-scan.mjs --history --repo .
+```
+- Varre `git log -p --all` (todas as refs) com a mesma lista do hook, decodifica JWT (só `role=service_role` é achado) e confere cada `.env*` que já foi versionado pela regra de `.env` público.
+- Imprime commit, arquivo, `adicionado`/`removido`/`versionado` e o `id`. **Nunca o valor.**
+- `exit 0` = nada; `exit 1` = achado → [`rotation-runbook.md`](./rotation-runbook.md); `exit 2` = **INCONCLUSIVO** (clone raso, não é repo git). Clone raso: `git fetch --unshallow` e rode de novo. Inconclusivo nunca vira PASS.
+- Falso-positivo comprovado (fixture de teste, exemplo de doc): registre em `.secret-scan-allow.json` na raiz com `file`, `id`, `commit` e `reason`.
+
+Complementar, se estiver instalado (cobre mais formatos, inclusive genéricos):
+```bash
+gitleaks git . --log-opts="--all" --redact          # v8.19+; antes: gitleaks detect --source . --redact
+trufflehog git file://. --results=verified,unknown  # sem --only-verified: chave revogada some do relatório
+```
+
+**Não use `git log -S "service_role"`**: a service role é um JWT em base64 e a palavra só aparece depois de decodificar; o `-S` diferencia maiúsculas (`SUPABASE_SERVICE_ROLE_KEY` não casa) e todo projeto Supabase tem `service_role` em grants de migration. No teste de out/2026 esse comando não achou a chave; o `secret-scan.mjs --history`, sim.
+
+Reescrever o histórico (`git filter-repo`) é o **último** passo do runbook, só com decisão do usuário: não desfaz o vazamento.
 
 ### Camada 3 — `.env*` no repo
 ```
 Glob: **/.env*
 ```
-Reportar **todo arquivo .env que NÃO seja `.env.example`**. Verificar `.gitignore`:
-- Tem `.env`?
-- Tem `.env.local`?
-- Tem `.env.*.local`?
+Para cada `.env*` versionado (`git ls-files '*.env*' '**/.env*'`) que não seja `.env.example`/`.sample`/`.template`, aplique o critério de `.env` público (seção "Quando um `.env` versionado é aceitável" do `patterns.md`; o hook e o CLI aplicam a mesma regra de `scripts/security/env-public.mjs`):
+- **Só variáveis públicas** (`NEXT_PUBLIC_`/`VITE_`/… sem nome nem valor de segredo): 🔵 aceitável. Registre no relatório que foi conferido.
+- **Qualquer outro valor**: 🚨 BLOQUEANTE. O que já foi commitado está no histórico: siga o runbook (provedor primeiro), depois `git rm --cached`.
 
-Se `.env` está commitado, é 🚨 BLOQUEANTE — mesmo que rotacione, está no histórico.
+Verifique também o `.gitignore`: `.env`, `.env.local`, `.env.*.local` (ou `.env*` com `!.env.example`).
 
 ### Camada 4 — Configs públicos com keys
 Procure em:
@@ -97,6 +102,7 @@ Bundle vazando secret = 🚨 — está em produção. Rotacione + investigue com
 🔐 SCAN DE SECRETS
 Repo: <nome>
 Arquivos analisados: <N>
+Histórico: <N commits, todas as refs | INCONCLUSIVO: clone raso>
 
 ═══════════════════════════════════════════
 🚨 BLOQUEANTES (<N>)
@@ -105,17 +111,18 @@ Arquivos analisados: <N>
      Tipo: Supabase service_role JWT (eyJhbGc…)
      Match: const KEY = "eyJhbGciOi…"
      Risco: bypass total de RLS
-     🔧 Fix:
-        - Mover para Edge Function (Deno.env.get)
-        - Rotacionar chave em Supabase Dashboard → Settings → API
-        - Limpar histórico git (chave pode estar exposta)
+     🔧 Fix (rotation-runbook.md, nesta ordem):
+        1. Conter no Supabase: chaves novas (sb_secret_/sb_publishable_) e desativar as JWT legadas
+        2. Trocar em todos os ambientes + deploy; provar que a antiga dá 401
+        3. Mover para o servidor (Edge Function com Deno.env.get / Route Handler)
+        4. Histórico: só depois, se o usuário decidir
 
   2. .env (commitado!)
      Risco: TODO segredo do projeto exposto
      🔧 Fix:
+        # 1. Rotacionar TODAS as chaves listadas no .env (runbook), antes de mexer no Git
         git rm --cached .env
         echo ".env" >> .gitignore
-        # Rotacionar TODAS as chaves listadas no .env
 
   3. vite.config.ts:14
      Tipo: VITE_OPENAI_API_KEY usado (vai pro bundle)
@@ -130,7 +137,8 @@ Arquivos analisados: <N>
 ═══════════════════════════════════════════
 🔵 INFO
 
-  - Considere `gitleaks` em pre-commit hook
+  - .env.production versionado só com NEXT_PUBLIC_* (critério de .env público): aceitável
+  - Instale .githooks/pre-commit + pre-push do kit (commits fora do Claude)
 
 ═══════════════════════════════════════════
 📊 Score: <X> secrets detectados
@@ -141,7 +149,7 @@ Arquivos analisados: <N>
 
 - **Detecção não é remediação.** Toda chave 🚨 detectada precisa ser **rotacionada**, mesmo após remover do código. Quem viu o repo (ou histórico) viu a chave.
 - **Falso-positivo é OK.** Pedir ao usuário confirmar é melhor do que ignorar match. Mas confiança decresce: matches em `dist/` são quase sempre verdade; em `*.test.ts` podem ser dummy.
-- **Convenção `// secret-scan: ignore`.** Permita comentário inline na linha anterior para suprimir falso-positivo. Deixe um count de "linhas suprimidas" no relatório.
+- **Convenção `secret-scan: ignore`.** Comentário na própria linha suprime o falso-positivo (o hook e o CLI respeitam). No histórico, use `.secret-scan-allow.json` com `reason`. Deixe a contagem de suprimidos no relatório.
 
 ## Eficiência
 

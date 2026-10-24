@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Router Status"
+  short_description: "Estado, resultados e custos"
+  default_prompt: "Use $ai-router-status para resumir tarefas, resultados e custos do ai-router-br sem executar workers."

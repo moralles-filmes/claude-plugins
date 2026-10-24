@@ -44,6 +44,8 @@ Execute os seguintes detectores e mescle os resultados. Para cada finding, norma
 
 ## Detector 1 — knip
 
+As ferramentas rodam via `npx` com **versão fixa** (nada de `@latest`: baixar e executar a versão que estiver no registry na hora é o vetor de cadeia de suprimentos). Para atualizar, troque a versão aqui, num PR, depois de conferir o changelog.
+
 ```bash
 # Detectar package manager
 PM="npm"
@@ -51,7 +53,7 @@ PM="npm"
 [ -f yarn.lock ] && PM="yarn"
 
 # Tentar rodar knip; se falhar por config, criar config mínima e tentar de novo
-timeout 60 npx --yes knip@latest --no-progress --reporter json > .code-health/work/dead-code/knip.json 2> .code-health/work/dead-code/knip.err
+timeout 60 npx --yes knip@5.88.1 --no-progress --reporter json > .code-health/work/dead-code/knip.json 2> .code-health/work/dead-code/knip.err
 
 if [ $? -ne 0 ] && grep -qi 'config' .code-health/work/dead-code/knip.err; then
   cat > .code-health/work/dead-code/knip-config.json <<'EOF'
@@ -78,7 +80,7 @@ if [ $? -ne 0 ] && grep -qi 'config' .code-health/work/dead-code/knip.err; then
   "tailwind": true
 }
 EOF
-  timeout 60 npx --yes knip@latest --config .code-health/work/dead-code/knip-config.json --no-progress --reporter json > .code-health/work/dead-code/knip.json 2>> .code-health/work/dead-code/knip.err
+  timeout 60 npx --yes knip@5.88.1 --config .code-health/work/dead-code/knip-config.json --no-progress --reporter json > .code-health/work/dead-code/knip.json 2>> .code-health/work/dead-code/knip.err
 fi
 ```
 
@@ -95,7 +97,7 @@ Confidence:
 
 ```bash
 if [ ! -s .code-health/work/dead-code/knip.json ] || grep -q '"error"' .code-health/work/dead-code/knip.json; then
-  timeout 60 npx --yes ts-prune@latest -p tsconfig.json > .code-health/work/dead-code/ts-prune.txt 2>&1
+  timeout 60 npx --yes ts-prune@0.10.3 -p tsconfig.json > .code-health/work/dead-code/ts-prune.txt 2>&1
 fi
 ```
 
@@ -104,7 +106,7 @@ Parse linhas no formato `path:line - symbolName` e crie findings com `confidence
 ## Detector 3 — depcheck
 
 ```bash
-timeout 60 npx --yes depcheck@latest --json > .code-health/work/dead-code/depcheck.json 2> .code-health/work/dead-code/depcheck.err
+timeout 60 npx --yes depcheck@1.4.7 --json > .code-health/work/dead-code/depcheck.json 2> .code-health/work/dead-code/depcheck.err
 ```
 
 Use as listas:
@@ -113,32 +115,28 @@ Use as listas:
 
 **Cross-validação:** se uma dep aparece em depcheck E em knip, suba para confidence: high.
 
-## Detector 4 — eslint para imports/variáveis
+## Detector 4 — imports e variáveis não usados
 
 ```bash
-# Se o projeto já tem ESLint configurado (flat config ou .eslintrc), use a config dele:
+# Se o projeto já tem ESLint configurado (flat config ou .eslintrc), use o ESLint e a config DELE
+# (--no-install: nunca baixa outro ESLint do registry):
 if ls eslint.config.* .eslintrc* 2>/dev/null | grep -q .; then
-  timeout 60 npx eslint --format json \
+  timeout 60 npx --no-install eslint --format json \
     --rule '{"@typescript-eslint/no-unused-vars": ["error", {"argsIgnorePattern": "^_"}]}' \
     . 2>/dev/null > .code-health/work/dead-code/eslint.json || true
-else
-  # Sem config: ESLint 8 fixo. As flags --no-eslintrc/--parser/--plugin/--ext foram REMOVIDAS no ESLint 9
-  # (flat config), então eslint@latest quebra aqui.
-  timeout 60 npx --yes -p eslint@8 -p @typescript-eslint/parser@7 -p @typescript-eslint/eslint-plugin@7 \
-    eslint --no-eslintrc \
-    --parser '@typescript-eslint/parser' \
-    --plugin '@typescript-eslint' \
-    --rule '{"@typescript-eslint/no-unused-vars": ["error", {"argsIgnorePattern": "^_"}]}' \
-    --format json \
-    --ext .ts,.tsx,.js,.jsx \
-    'src/' 'app/' 'pages/' 'components/' 'lib/' 'hooks/' 'utils/' 2>/dev/null > .code-health/work/dead-code/eslint.json || true
+elif [ -f tsconfig.json ]; then
+  # Sem config de ESLint: o TypeScript do PRÓPRIO projeto faz o trabalho (TS6133/TS6192/TS6196),
+  # sem baixar nada. (Antes: eslint@8 via npx — ESLint 8 está fora de suporte desde out/2024.)
+  timeout 120 npx --no-install tsc --noEmit --pretty false --noUnusedLocals --noUnusedParameters -p tsconfig.json \
+    > .code-health/work/dead-code/tsc-unused.txt 2>&1 || true
 fi
+# Sem ESLint configurado e sem TypeScript instalado: detector N/A (registre em "não verificado").
 ```
 
 Parse e converta cada erro em finding com:
-- type: `unused-import` se mensagem contém "imported", senão `unused-variable`
+- ESLint (JSON): type `unused-import` se a mensagem contém "imported", senão `unused-variable`; path/line do JSON.
+- tsc (`arquivo(linha,col): error TS6133: 'x' is declared but its value is never read.`): só os códigos TS6133, TS6192 (todos os imports não usados) e TS6196; type `unused-import` quando a linha do arquivo é um `import`, senão `unused-variable`. Ignore os outros erros de tipo (não são dead code).
 - confidence: high
-- path/line: do JSON
 
 ## Detector 5 — ripgrep cross-reference para componentes React
 

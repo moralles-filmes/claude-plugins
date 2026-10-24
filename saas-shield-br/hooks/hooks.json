@@ -1,5 +1,5 @@
 {
-  "description": "saas-shield-br: bloqueia anti-patterns de RLS em migrations SQL e secrets em git commit (Bash e PowerShell); sugere /check-rls depois de editar migration.",
+  "description": "saas-shield-br: bloqueia anti-patterns de RLS em migrations SQL; secrets em git commit e git push (Bash e PowerShell) e em gravações diretas pelo MCP do GitHub; sugere /check-rls depois de editar migration.",
   "hooks": {
     "PreToolUse": [
       {
@@ -29,6 +29,17 @@
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-commit-secret-scan.mjs"],
             "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*github.*__(create_or_update_file|push_files)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mcp-write-secret-scan.mjs"],
+            "timeout": 10
           }
         ]
       }

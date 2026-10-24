@@ -19,6 +19,11 @@ assets/repo/                    espelho da raiz de um projeto; copie daqui
   .claude/padrao.json           padrões opcionais não adotados (com motivo) e exceções de portabilidade
   scripts/check-padrao.mjs      verificação do padrão para o CI
   scripts/check-portabilidade.mjs  verificação de portabilidade para o CI (GCP_MIGRATION §6)
+  scripts/security/             cópia do saas-shield-br (não edite aqui): secret-scan.mjs (staged, histórico,
+                                pré-push), deps-audit.mjs (lockfiles, audit prod × dev, watchlist, Node), padrões
+  .githooks/pre-commit|pre-push  secret-scan para quem commita fora do Claude (terminal, IDE, Codex)
+  .github/workflows/security.yml  deps-audit + secret-scan --history no PR, na main e toda semana
+  .github/dependabot.yml        npm com cooldown + github-actions
   docs/standards/*.md           13 padrões normativos + .manifest.json (lista os obrigatórios e os opcionais)
   docs/modules|adr|runbooks/    modelos
   docs/integrations/providers/  _TEMPLATE, meta, zapi
@@ -53,14 +58,15 @@ Registre em `.tasks/padrao-saas/AUDIT.md`:
    - como a permissão é representada hoje (papel textual, níveis, permissões por módulo, nada);
    - de onde vem a empresa ativa (claim do JWT, URL, estado do cliente);
    - se `.claude/tenancy-profile.yml` existe. Se não, detecte como a skill `tenant-model` do saas-shield-br descreve e proponha o arquivo.
-4. **Exposição de segredos (antes de qualquer outra coisa):** `.gitignore` cobre `.env*` (menos o `.env.example`), chaves, dumps e o estado das ferramentas (`.tasks/`, `.saas-audit/`, `.turbo/`, `.ai-router/`); `.env.example` sem valores; nenhum arquivo com segredo rastreado agora (`git ls-files` com os padrões de `$saas-shield-br:secret-scanner`) nem no histórico. Com o saas-shield-br instalado, rode `$saas-shield-br:secret-scan`; sem ele, use a Camada 2 daquela skill como referência. **Achou segredo versionado: pare a auditoria e informe** — ele é P0, a rotação vem antes de limpar o histórico, e o valor nunca aparece no relatório.
-5. Supabase, se usado: RLS habilitada e forçada em toda tabela de schema exposto; `with check` em insert/update; grants de `anon`/`authenticated`; views sem `security_invoker`; `security definer` sem `search_path`; funções executáveis por `PUBLIC`; uso da service role; FKs sem composição de tenant. Se disponível, rode os Advisors.
-6. Mutações críticas feitas direto do browser.
-7. Integrações: provedores, credenciais, webhooks (verificação? dedup?), efeito externo (idempotência?), runner assíncrono, segredos no escopo Preview da Vercel.
-8. MCP: servidores do produto e dos agentes (Supabase MCP com escrita em produção é P0).
-9. Instruções de agentes: CLAUDE.md, AGENTS.md, `.claude/rules/`, AGENTS.md aninhados, `AGENTS.override.md`, bloco do ai-router-br. Não altere configurações pessoais ou globais do usuário.
-10. CI, testes, observabilidade, backups (PITR? Storage?).
-11. Divergências entre documentação e código.
+4. **Exposição de segredos (antes de qualquer outra coisa):** `.gitignore` cobre `.env*` (menos o `.env.example`), chaves, dumps e o estado das ferramentas (`.tasks/`, `.saas-audit/`, `.turbo/`, `.ai-router/`); `.env.example` sem valores; nenhum arquivo com segredo rastreado agora (`git ls-files` com os padrões de `$saas-shield-br:secret-scanner`) nem no histórico. Execute a varredura do histórico, não só a leitura do working tree: `node assets/repo/scripts/security/secret-scan.mjs --history --repo <projeto>` (caminho relativo a esta skill; com o saas-shield-br instalado, `$saas-shield-br:secret-scan` faz o mesmo e mais). Clone raso dá INCONCLUSIVO: peça `git fetch --unshallow`. `.env*` versionado só passa com variáveis públicas (critério do `env-public.mjs`). **Achou segredo versionado: pare a auditoria e informe** — ele é P0, a rotação no provedor vem antes de limpar o histórico (runbook do saas-shield-br), e o valor nunca aparece no relatório.
+5. **Dependências e runtime:** `node assets/repo/scripts/security/deps-audit.mjs --root <projeto>` (ou `$saas-shield-br:deps-audit`). Registre o veredito, os P0/P1 (Next, React RSC, sharp, postcss, zod 3, xlsx do npm, react-router 6, Node em fim de vida, lockfiles duplicados) e as correções que exigem major como decisão do usuário. INCONCLUSIVO (sem rede, sem lockfile) também vai para o relatório.
+6. Supabase, se usado: RLS habilitada e forçada em toda tabela de schema exposto; `with check` em insert/update; grants de `anon`/`authenticated`; views sem `security_invoker`; `security definer` sem `search_path`; funções executáveis por `PUBLIC`; uso da service role; FKs sem composição de tenant. Se disponível, rode os Advisors.
+7. Mutações críticas feitas direto do browser.
+8. Integrações: provedores, credenciais, webhooks (verificação? dedup?), efeito externo (idempotência?), runner assíncrono, segredos no escopo Preview da Vercel.
+9. MCP: servidores do produto e dos agentes (Supabase MCP com escrita em produção é P0).
+10. Instruções de agentes: CLAUDE.md, AGENTS.md, `.claude/rules/`, AGENTS.md aninhados, `AGENTS.override.md`, bloco do ai-router-br. Não altere configurações pessoais ou globais do usuário.
+11. CI, testes, observabilidade, backups (PITR? Storage?). O CI instala com `--ignore-scripts`, fixa actions por SHA e roda um audit de dependências agendado?
+12. Divergências entre documentação e código.
 
 Se o plugin **saas-audit-br** estiver instalado e o projeto for grande, use `$saas-audit-br:audit --audit-only` para a varredura profunda de segurança e código e traga o resumo para cá, em vez de repetir o trabalho.
 
@@ -89,7 +95,7 @@ O `check-padrao.mjs` falha se um padrão do manifest sumir sem essa declaração
 
 Provider docs: copie `meta.md` e `zapi.md` só se o projeto usa esses provedores; para outros, crie a partir de `_TEMPLATE.md` com o que foi verificado na documentação oficial.
 
-Copie também `docs/modules/_TEMPLATE.md`, `docs/adr/_TEMPLATE.md`, `docs/runbooks/_TEMPLATE.md`, `docs/runbooks/MAINTENANCE.md`, `scripts/check-padrao.mjs` e `scripts/check-portabilidade.mjs`. Acrescente ao `.gitignore`, sem reescrever o arquivo: `.tasks/` e o estado das outras ferramentas (`.saas-audit/`, `.turbo/`, `.ai-router/`, `.code-health/`), mais o que faltar de `.env*` (menos `.env.example`), chaves e dumps apontados na auditoria.
+Copie também `docs/modules/_TEMPLATE.md`, `docs/adr/_TEMPLATE.md`, `docs/runbooks/_TEMPLATE.md`, `docs/runbooks/MAINTENANCE.md`, `scripts/check-padrao.mjs`, `scripts/check-portabilidade.mjs`, a pasta `scripts/security/` inteira (sem editar: é cópia do saas-shield-br; atualize copiando de novo) e `.githooks/pre-commit` + `.githooks/pre-push`. Proponha ao usuário ativar os hooks com `git config core.hooksPath .githooks` (configuração local do repositório; peça autorização). Acrescente ao `.gitignore`, sem reescrever o arquivo: `.tasks/` e o estado das outras ferramentas (`.saas-audit/`, `.turbo/`, `.ai-router/`, `.code-health/`, `.deps-audit/`), mais o que faltar de `.env*` (menos `.env.example`), chaves e dumps apontados na auditoria.
 
 ### 4.2 Projeto novo (modo B)
 
@@ -144,7 +150,7 @@ O nível decide **quanta infraestrutura construir**. Ele nunca dispensa os contr
 
 ## 7. Quality gates (propor, não forçar)
 
-Se o projeto tem CI, proponha: `node scripts/check-padrao.mjs`, `node scripts/check-portabilidade.mjs` (com linha de base em projeto legado), secret scan, lint, typecheck, testes, `supabase test db` com os testes de isolamento, e geração e conferência do tipo das permissões. Não crie limite cego de tamanho que force a remoção de regra crítica.
+Se o projeto tem CI, proponha: `node scripts/check-padrao.mjs`, `node scripts/check-portabilidade.mjs` (com linha de base em projeto legado), lint, typecheck, testes, `supabase test db` com os testes de isolamento, e geração e conferência do tipo das permissões. Para segurança contínua, proponha copiar `.github/workflows/security.yml` (deps-audit + secret-scan --history no PR, na main e toda semana: CVE novo aparece sem mudança de código) e `.github/dependabot.yml` (npm com cooldown + github-actions), ligar push protection e Dependabot alerts no GitHub, e instalar com `npm ci --ignore-scripts`. Não crie limite cego de tamanho que force a remoção de regra crítica.
 
 ## 8. Entrega
 
@@ -152,13 +158,14 @@ Entregue nesta ordem e **pare** antes de qualquer alteração funcional, migrati
 
 1. Diagnóstico (modo, runtime, stack confirmada, arquétipo de tenant, nível proposto).
 2. Arquivos criados ou ajustados, e o que foi movido de onde para onde.
-3. **Exposição de segredos:** o que está rastreado ou no histórico, o que o `.gitignore` não cobria e o que foi corrigido. Nomeie o arquivo e o tipo de credencial, nunca o valor. Segredo encontrado é P0 e a rotação vem antes de limpar o histórico.
-4. Riscos em P0 · P1 · P2 · P3, cada um com evidência (arquivo:linha, consulta ou comando) e marcado CONFIRMADO/INFERIDO.
-5. Lacunas por padrão: APLICÁVEL, NÃO APLICÁVEL (com justificativa) ou PENDENTE.
-6. Lacunas do modelo de acesso (seção 5).
-7. Divergências entre documentação e código.
-8. Plano em fases, do maior risco para o menor, cada fase pequena e reversível.
-9. O que **não** foi verificado e por quê.
+3. **Exposição de segredos:** o que está rastreado ou no histórico (com o resultado do `secret-scan.mjs --history`), o que o `.gitignore` não cobria e o que foi corrigido. Nomeie o arquivo e o tipo de credencial, nunca o valor. Segredo encontrado é P0 e a rotação no provedor vem antes de limpar o histórico.
+4. **Dependências e runtime:** veredito do `deps-audit.mjs`, P0/P1 com a correção, majors aguardando decisão (com plano), Node declarado × exigido.
+5. Riscos em P0 · P1 · P2 · P3, cada um com evidência (arquivo:linha, consulta ou comando) e marcado CONFIRMADO/INFERIDO.
+6. Lacunas por padrão: APLICÁVEL, NÃO APLICÁVEL (com justificativa) ou PENDENTE.
+7. Lacunas do modelo de acesso (seção 5).
+8. Divergências entre documentação e código.
+9. Plano em fases, do maior risco para o menor, cada fase pequena e reversível.
+10. O que **não** foi verificado e por quê.
 
 ## 9. Atualização de um projeto que já usa o padrão
 
@@ -185,6 +192,13 @@ Entregue nesta ordem e **pare** antes de qualquer alteração funcional, migrati
 
 - AGENTS.md: §5 ganhou a ordem de prioridade quando duas regras conflitam; §6 a regra de `.gitignore`, `.env.example` sem valor e segredo já versionado como P0; §9 a remoção de código obsoleto com checagem de referências indiretas; §10 o escopo fechado do executor. Faça o merge dessas quatro seções preservando os fatos do projeto.
 - Rode a verificação de exposição de segredos (§3, item 4) também nos projetos que já usam o padrão: ela não existia nas versões anteriores.
+
+**Plugin 3.5 (a norma continua v3.2):**
+
+- Copie `scripts/security/`, `.githooks/` e, se o usuário aceitar, `.github/workflows/security.yml` e `.github/dependabot.yml`.
+- AGENTS.md: §6 ganhou dependências (lockfile único, major = decisão) e o comando de histórico; §7 os comandos `deps` e `segredos`. Faça o merge preservando os fatos do projeto.
+- `.claude/settings.json`: `ask` para instalar/atualizar pacote e para `npx`/`pnpm dlx`/`bunx`; `deny` de leitura/edição de `.env.prod`, `.env.preview`, `.env.backup` e `.npmrc`. Faça o merge.
+- Rode a auditoria de dependências e runtime (§3, item 5) e a varredura do histórico também nos projetos que já usam o padrão.
 
 ## 10. Depois da instalação
 

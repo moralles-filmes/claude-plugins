@@ -140,7 +140,7 @@ Cada agent tem seus próprios princípios documentados, mas alguns valem para to
 Se seu projeto desvia desta stack, alguns subagents vão pedir ajuste. Para mudar, edite o frontmatter do agent + a seção "Stack assumida" do `arquiteto-chefe.md`.
 
 ```
-Frontend:    Vite + React + TypeScript + Tailwind + React Router v6
+Frontend:    Vite + React + TypeScript + Tailwind + React Router 7
              + TanStack Query v5 + React Hook Form + Zod + Zustand
              + Radix UI + lucide-react + cva
 Backend:     Supabase (Postgres + Auth + Edge Functions Deno + Storage + Realtime)
@@ -174,7 +174,7 @@ cp -r commands .claude/
 
 - **Claude Code**: 2.x (recomendado 2.1.32+ para hooks de subagent)
 - **Sistema operacional**: Windows / macOS / Linux
-- **Node**: 20+
+- **Node**: 22.12+ (LTS com suporte; o 20 chegou ao fim de vida em 30/04/2026)
 - **Supabase CLI**: 1.x
 
 ## Estrutura de arquivos
@@ -210,7 +210,12 @@ saas-builder-br/
 
 ## Versionamento
 
-Versão atual: **1.5.0**. Histórico completo em [CHANGELOG.md](./CHANGELOG.md).
+Versão atual: **1.6.0**. Histórico completo em [CHANGELOG.md](./CHANGELOG.md).
+
+### O que mudou na 1.6.0
+
+- Templates sem versão vulnerável: zod 4, React Router 7, Vite 8, Vitest 5, Node 22.12+ (o `package.json` canônico passou de 2 critical + 2 high para 0 no `npm audit`).
+- `devops-ci`: `security.yml` semanal (dependências + segredos no histórico), Dependabot com cooldown, actions por SHA, `npm ci --ignore-scripts`, segredo de deploy só no step que usa.
 
 ### O que mudou na 1.5.0
 

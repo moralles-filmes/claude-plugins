@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [2.5.0] — 2026-10-24
+
+Lacunas da auditoria de out/2026 (22 sistemas): dependências, histórico do git e runtime passam a ter processo executável, com critério de pronto.
+
+### Adicionado
+- **Skill `dependency-audit` + comando `/deps-audit` + `scripts/security/deps-audit.mjs`** (Node, sem dependências). Inventário de lockfiles (duplicado = P1), audit do npm/pnpm/bun rodado duas vezes para separar produção de desenvolvimento, ferramenta de build tratada como produção para cadeia de suprimentos, watchlist com as versões mínimas de out/2026 (Next 15.5.28/16.4.3, React 19.2.6 com RSC, sharp 0.35.5, postcss 8.5.31, zod 4.6.6, xlsx pelo CDN, jspdf 4.2.1, dompurify 3.4.17, react-router 7.18, tar 7.5.22, vitest 4.1.12, vite 6.4.5…), versão do Node contra o calendário de fim de vida e contra o `engines` das dependências, exceções com prazo (`docs/security/exceptions.json`). Correção que exige major sai marcada como **decisão do usuário**, com template de plano de migração. Sem rede, sem lockfile ou sem o gerenciador: INCONCLUSIVO (exit 2), nunca PASS. Faixas conferidas com `npm audit`, `pnpm audit` e `bun audit` reais.
+- **`scripts/security/secret-scan.mjs`**: `--history` (todas as refs), `--range A..B`, `--outgoing` (commits que ainda não saíram) e `--staged`, com a mesma lista do hook; decodifica JWT, confere `.env*` que já foi versionado, nunca imprime o valor, respeita `.secret-scan-allow.json` (com motivo) e dá INCONCLUSIVO em clone raso.
+- **`skills/secret-scanner/rotation-runbook.md`**: provedor primeiro (Supabase legado: chaves novas + desativar as JWT legadas, ou novo JWT secret), troca em todos os ambientes, prova de que a chave antiga dá 401, investigação do período, histórico só por último e por decisão do usuário.
+- **Hook MCP** (`mcp-write-secret-scan.mjs`): `create_or_update_file`/`push_files` do GitHub passam pela mesma varredura (commit pela API não passava por `git commit` no Bash).
+- **Critério de `.env` versionado aceitável** (`scripts/security/env-public.mjs`): só variáveis com prefixo público e sem nome/valor de segredo, a mesma regra do gate do ai-router-br, testada com os mesmos casos.
+
+### Alterado
+- Lista do hook movida para `scripts/security/secret-patterns.mjs` (fonte única, copiada para o kit do Padrão SaaS) e ampliada: Google/Gemini (`AIza`), DeepSeek, Meta/WhatsApp (`EAA`), URL de banco com senha, token npm e PAT do Supabase. Antes, 6 dos 8 tipos de chave dos sistemas passavam.
+- **`pre-commit-secret-scan.mjs`** também varre o `git push` (commits locais fora de qualquer remoto: pega merge, cherry-pick e commit feito no terminal) e bloqueia `.env*` pelo nome quando não é só público.
+- **`/secret-scan` executa o histórico** (antes só entregava comandos ao usuário). A Camada 2 do `secret-scanner` deixou de usar `git log -S "service_role"`: a chave é base64 e o comando não a encontrava (provado num repositório sintético). `trufflehog` sem `--only-verified` sozinho; `gitleaks git --log-opts="--all"`.
+- **`/pre-deploy`**: nova Etapa 0 (dependências e runtime) e a Etapa 1 roda o histórico além do `secret-hunter`.
+- **`edge-function-guard`**: template canônico em `npm:zod@^4.6.7` (zod 3 tem DoS, GHSA-mrhx-c7xc-m3w5) com a API do zod 4 (`z.uuid()`, `z.iso.date()`, `z.flattenError`).
+- **`check-sql-antipattern.mjs`**: tautologias em policy (`1=1`, `true = true`, `not false`) bloqueiam como `using (true)`; schema declarativo (`supabase/schemas/`) também é analisado; aviso para SQL dinâmico (`execute 'create table…'`) e para `grant` direto a `anon`.
+- INSTALL/README: Node LTS 22+; exemplos sem caminho local da máquina; ref de projeto de exemplo claramente fictício.
+
 ## [2.4.0] — 2026-10-08
 
 Alinhamento com o Padrão SaaS v3.2 e hooks reescritos.

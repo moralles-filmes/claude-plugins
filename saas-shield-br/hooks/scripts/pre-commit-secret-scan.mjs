@@ -1,18 +1,24 @@
 #!/usr/bin/env node
 /**
- * Hook PreToolUse (Bash e PowerShell): antes de um `git commit`, varre o que vai entrar
- * no commit contra a lista crítica de secrets (secret-patterns.mjs).
+ * Hook PreToolUse (Bash e PowerShell): antes de um `git commit` ou `git push`, varre o que vai
+ * entrar no commit ou sair da máquina contra a lista crítica de secrets
+ * (scripts/security/secret-patterns.mjs) e a regra de .env versionado (scripts/security/env-public.mjs).
  *
  * O hooks.json só chama este script quando o comando contém "git" (campo `if`).
  * Aqui o comando é quebrado em subcomandos (&&, ||, ;, |, &, quebra de linha, $(), bash -c,
- * pwsh -Command) e só segue se algum subcomando for `git [opções globais] commit`.
+ * pwsh -Command) e só segue se algum subcomando for `git [opções globais] commit` ou `push`.
  * `git commit-tree` e `git log --grep commit` não contam.
  *
  * O que é varrido:
- *   - o índice (blobs staged), lido de uma vez com `git cat-file --batch`;
- *   - os arquivos que um `git add` ANTERIOR no mesmo comando vai colocar no índice
+ *   - no commit: o índice (blobs staged), lido de uma vez com `git cat-file --batch`;
+ *     os arquivos que um `git add` ANTERIOR no mesmo comando vai colocar no índice
  *     (o hook roda antes do comando inteiro, então o add ainda não aconteceu);
- *   - os arquivos do working tree quando o commit usa -a/--all ou pathspec.
+ *     os arquivos do working tree quando o commit usa -a/--all ou pathspec;
+ *   - no push: os commits de HEAD que ainda não estão em nenhum remoto (git log -p HEAD --not
+ *     --remotes). Pega o que o hook de commit não vê: merge, cherry-pick, rebase e commit feito
+ *     fora do Claude (terminal, IDE, Codex).
+ * Arquivo .env* (fora .example/.sample/.template) bloqueia pelo nome, a menos que só tenha
+ * variáveis públicas. Itens de <repo>/.secret-scan-allow.json são ignorados.
  *
  * Nunca monta string de shell: git é chamado com spawnSync e array de argumentos, e as
  * listas de arquivo usam -z (nomes com espaço, acento ou aspas funcionam).
@@ -25,7 +31,9 @@ import { readFileSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
-import { SECRET_PATTERNS } from './secret-patterns.mjs'
+import { scanText } from '../../scripts/security/secret-patterns.mjs'
+import { envFileProblem } from '../../scripts/security/env-public.mjs'
+import { loadAllowlist, scanLog } from '../../scripts/security/secret-scan.mjs'
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_FILES = 3000
@@ -52,25 +60,27 @@ try {
 }
 
 const command = payload?.tool_input?.command
-if (typeof command !== 'string' || !/commit/i.test(command)) process.exit(0)
+if (typeof command !== 'string' || !/commit|push/i.test(command)) process.exit(0)
 
 const baseCwd = typeof payload?.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd()
 const events = []
 collectGitEvents(command, baseCwd, events, 0)
 const commits = events.filter((e) => e.kind === 'commit')
-if (commits.length === 0) process.exit(0)
+const pushes = events.filter((e) => e.kind === 'push')
+if (commits.length === 0 && pushes.length === 0) process.exit(0)
 
 // ─── varredura ──────────────────────────────────────────────────────────────
 
 const findings = []
 const seen = new Set()
+const allowlists = new Map() // top → itens de .secret-scan-allow.json
 
 for (const commit of commits) {
   const top = gitText(commit.cwd, commit.globals, ['rev-parse', '--show-toplevel'])?.trim()
   if (!top) continue
 
   // 1. índice
-  scanStaged(commit)
+  scanStaged(commit, top)
 
   // 2. o que adds anteriores no mesmo comando vão colocar no índice
   for (const add of events) {
@@ -86,9 +96,28 @@ for (const commit of commits) {
   if (commit.pathspecs.length) scanWorkingTree(commit, top, ['--modified', '--others', '--exclude-standard'], commit.pathspecs)
 }
 
-if (findings.length === 0) process.exit(0)
+// 4. push: commits locais que ainda não estão em nenhum remoto
+const pushFindings = []
+for (const push of pushes) {
+  const top = gitText(push.cwd, push.globals, ['rev-parse', '--show-toplevel'])?.trim()
+  if (!top || push.globals.length) continue // --git-dir/--work-tree no push: fora do escopo, o pre-push do projeto cobre
+  let result
+  try {
+    result = scanLog(top, ['HEAD', '--not', '--remotes'])
+  } catch {
+    continue // sem HEAD, git falhou: não trava
+  }
+  const allow = allowlistFor(top)
+  for (const f of result.findings) {
+    if (allow.some((e) => e.file === f.file && e.id === f.id && (!e.commit || f.commit.startsWith(e.commit)))) continue
+    pushFindings.push(f)
+  }
+}
 
-const lines = [
+if (findings.length === 0 && pushFindings.length === 0) process.exit(0)
+
+const lines = []
+if (findings.length) lines.push(
   '🛡️ saas-shield-br bloqueou o git commit: há secret no que vai ser commitado.',
   '',
   ...findings.map((f) => `  - ${f.file}:${f.line} (${f.source}) — ${f.name} [${f.id}] — ${f.preview}`),
@@ -98,15 +127,29 @@ const lines = [
   '  2. Rotacione a chave no provedor. Ela já está em texto puro na máquina e pode estar no histórico.',
   '  3. Refaça o stage (git add) e tente o commit de novo.',
   '',
-  'Falso-positivo? Mostre o trecho ao usuário e só siga com autorização explícita dele.',
-  'Scan completo (histórico, .env, bundle): /secret-scan.',
-]
+)
+if (pushFindings.length) lines.push(
+  '🛡️ saas-shield-br bloqueou o git push: há secret em commit que ainda não saiu da máquina.',
+  '',
+  ...pushFindings.map((f) => `  - ${f.commit.slice(0, 12)} ${f.file} ${f.change} — ${f.name} [${f.id}]`),
+  '',
+  'O que fazer:',
+  '  1. Não faça o push. O commit ainda é local: reescreva-o (git reset/rebase no SEU branch) tirando o secret.',
+  '  2. Se esse commit já esteve em outro lugar (outro remoto, fork, CI), rotacione no provedor primeiro:',
+  '     saas-shield-br skills/secret-scanner/rotation-runbook.md.',
+  '',
+)
+lines.push(
+  'Falso-positivo? Mostre o trecho ao usuário e só siga com autorização explícita dele',
+  '(ou registre em .secret-scan-allow.json com o motivo).',
+  'Scan completo (histórico inteiro, .env, bundle): /secret-scan.',
+)
 process.stderr.write(lines.join('\n') + '\n')
 process.exit(2)
 
 // ─── funções ────────────────────────────────────────────────────────────────
 
-function scanStaged(commit) {
+function scanStaged(commit, top) {
   const raw = gitBuffer(commit.cwd, commit.globals, [
     'diff', '--cached', '--raw', '-z', '--no-abbrev', '--no-renames', '--diff-filter=ACMT',
   ])
@@ -123,7 +166,7 @@ function scanStaged(commit) {
     entries.push({ path, sha })
   }
   for (const { path, content } of readBlobs(commit, entries.slice(0, MAX_FILES))) {
-    scanContent(path, content, 'staged')
+    scanContent(path, content, 'staged', top)
   }
 }
 
@@ -143,7 +186,7 @@ function scanWorkingTree(event, top, flags, pathspecs) {
       continue // apagado ou ilegível
     }
     if (isBinary(buf)) continue
-    scanContent(rel, buf.toString('utf8'), 'working tree')
+    scanContent(rel, buf.toString('utf8'), 'working tree', top)
   }
 }
 
@@ -174,23 +217,26 @@ function readBlobs(event, entries) {
   return result
 }
 
-function scanContent(file, content, source) {
-  for (const p of SECRET_PATTERNS) {
-    for (const m of content.matchAll(p.regex)) {
-      if (p.validate && !p.validate(m[0])) continue
-      const key = `${file}\0${p.id}`
-      if (seen.has(key)) break
-      seen.add(key)
-      findings.push({
-        file,
-        source,
-        id: p.id,
-        name: p.name,
-        line: content.slice(0, m.index).split('\n').length,
-        preview: p.id === 'private-key-block' ? m[0] : `${m[0].slice(0, 10)}…`,
-      })
-      break
-    }
+function allowlistFor(top) {
+  if (!allowlists.has(top)) {
+    let list = []
+    try { list = loadAllowlist(join(top, '.secret-scan-allow.json')) } catch { list = [] }
+    allowlists.set(top, list)
+  }
+  return allowlists.get(top)
+}
+
+function scanContent(file, content, source, top) {
+  const allow = top ? allowlistFor(top) : []
+  const env = envFileProblem(file, content)
+  const hits = scanText(content)
+  if (env) hits.push({ ...env, line: 1, preview: 'arquivo .env' })
+  for (const h of hits) {
+    const key = `${file}\0${h.id}`
+    if (seen.has(key)) continue
+    if (allow.some((e) => !e.commit && e.file === file && e.id === h.id)) continue
+    seen.add(key)
+    findings.push({ file, source, id: h.id, name: h.name, line: h.line, preview: h.preview })
   }
 }
 
@@ -300,7 +346,7 @@ function resolvePath(cwd, p) {
   return isAbsolute(p) ? p : resolve(cwd, p)
 }
 
-/** Percorre os subcomandos em ordem, seguindo `cd`, e registra `git add` e `git commit`. */
+/** Percorre os subcomandos em ordem, seguindo `cd`, e registra `git add`, `git commit` e `git push`. */
 function collectGitEvents(cmd, startCwd, out, depth) {
   if (depth > 3) return startCwd
   const { segments, nested } = splitCommands(cmd)
@@ -347,6 +393,7 @@ function collectGitEvents(cmd, startCwd, out, depth) {
     const order = out.length
     if (sub === 'commit') out.push({ kind: 'commit', order, cwd: gitCwd, globals, ...parseCommitArgs(args) })
     else if (sub === 'add' || sub === 'stage') out.push({ kind: 'add', order, cwd: gitCwd, globals, ...parseAddArgs(args) })
+    else if (sub === 'push') out.push({ kind: 'push', order, cwd: gitCwd, globals })
   }
   return cwd
 }

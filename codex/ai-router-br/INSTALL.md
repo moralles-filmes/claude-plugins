@@ -1,6 +1,6 @@
 # Instalação
 
-Pré-requisitos: Node.js 20+, Git, agente principal autenticado pelo plano, Codex CLI autenticado via ChatGPT e `DEEPSEEK_API_KEY` local somente se DeepSeek for usado.
+Pré-requisitos: Node.js 22+ (LTS com suporte; o 20 ainda roda, mas está em fim de vida desde 30/04/2026), Git, agente principal autenticado pelo plano, Codex CLI autenticado via ChatGPT e `DEEPSEEK_API_KEY` local somente se DeepSeek for usado.
 
 Recomendado: rode o bootstrap do marketplace (`setup-claude.ps1` / `setup-claude.sh` na raiz do repositório `moralles-filmes/claude-plugins`). Ele instala/atualiza a versão Claude e a versão nativa Codex, valida, testa e roda o doctor.
 

@@ -117,7 +117,7 @@ Você opera em 8 fases. Cada fase tem um agent dono e gates obrigatórios. **Nun
 **Dono**: `frontend-react` (com `design-ux` em paralelo para tema/componentes base)
 **Entregável**:
 - Estrutura de pastas (`src/app`, `src/features/<modulo>/api.ts`, `src/components/ui`, `src/lib/supabase`)
-- Roteamento (React Router v6+) com a empresa ativa na URL (`/app/:empresa/...`) e guard que confirma a membership
+- Roteamento (React Router 7; a 6 só tem correção de segurança na 7) com a empresa ativa na URL (`/app/:empresa/...`) e guard que confirma a membership
 - TanStack Query com query keys começando pelo `companyId`; toda query de tela filtra pela empresa ativa (e filial)
 - Menu e botões a partir de `my_permissions` (só UX)
 - Forms (React Hook Form + Zod) e estado (Zustand para global, RHF para form, TanStack para server)

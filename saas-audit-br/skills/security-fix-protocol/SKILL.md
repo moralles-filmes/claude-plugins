@@ -26,7 +26,8 @@ Nunca executar automaticamente:
 - rotação real de credencial;
 - alteração massiva de dados de produção;
 - restore em produção para “testar”;
-- desativação de controles de segurança para fazer teste passar.
+- desativação de controles de segurança para fazer teste passar;
+- salto de **major** de dependência, `npm audit fix --force` ou troca de gerenciador de pacotes.
 
 Para esses casos, prepare:
 - mudança;
@@ -35,6 +36,13 @@ Para esses casos, prepare:
 - rollback/roll-forward;
 - validação;
 - passo manual.
+
+## Dependências
+
+- **Pode no `--fix`:** atualização dentro da faixa do `package.json` (patch/minor) e `overrides`/`pnpm.overrides`/`resolutions` para transitiva presa pelo pai, sempre com `deps-audit.mjs` antes e depois, instalação limpa com o lockfile (`npm ci` / `--frozen-lockfile`), build e testes.
+- **Não pode:** major. Prepare o plano de migração da skill `saas-shield-br:dependency-audit` (motivo, breaking changes, pré-requisitos como Node, testes, rollback) e pergunte ao usuário: migrar agora, mitigar e agendar, ou aceitar o risco até uma data.
+- **Triagem prod × dev:** P0/P1 só para dependência de produção ou ferramenta que roda no build/CI com segredos; ferramenta só local é P2. Use o audit de produção (`--omit=dev`/`--prod`/`--production`) para separar.
+- Pacote abandonado com correção só no canal oficial (ex.: SheetJS pelo CDN) é troca de fonte: entra no plano com o hash do lockfile, não no `--fix`.
 
 ## Ordem
 
