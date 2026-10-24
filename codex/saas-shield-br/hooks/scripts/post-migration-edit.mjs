@@ -17,7 +17,7 @@ try {
 }
 
 const filePath = payload?.tool_input?.file_path ?? ''
-if (typeof filePath !== 'string' || !/supabase[\\/]migrations[\\/].+\.sql$/i.test(filePath)) process.exit(0)
+if (typeof filePath !== 'string' || !/supabase[\\/](migrations|schemas)[\\/].+\.sql$/i.test(filePath)) process.exit(0)
 
 const msg = [
   'saas-shield-br: você editou uma migration.',

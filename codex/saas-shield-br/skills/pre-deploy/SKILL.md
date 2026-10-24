@@ -1,6 +1,6 @@
 ---
 name: pre-deploy
-description: "Checklist completo antes de fazer deploy — orquestra secrets + isolamento + identidade + integrações + schema-diff + rls + vercel guards. Use quando o usuário pedir (equivale ao comando /pre-deploy do Claude Code)."
+description: "Checklist completo antes de fazer deploy — orquestra dependências/runtime + secrets (inclusive histórico git) + isolamento + identidade + integrações + schema-diff + rls + vercel guards. Use quando o usuário pedir (equivale ao comando /pre-deploy do Claude Code)."
 ---
 `<argumentos>` = o que o usuário pediu junto com a skill — formato `[opcional: 'staging' ou 'production' — default production]`.
 
@@ -14,9 +14,18 @@ Carregue a skill `tenant-model` e leia `.claude/tenancy-profile.yml` (ou detecte
 
 Execute **em ordem**, parando no primeiro bloqueante crítico (falha rápida):
 
+### Etapa 0 — Dependências e runtime
+Invoque a skill `dependency-audit` (ela executa `<plugin-root>/scripts/security/deps-audit.mjs`: lockfiles, audit prod × dev, watchlist de out/2026, Node em fim de vida).
+- P0/P1 de produção sem exceção válida → **bloqueie** e liste a correção de cada um (patch → overrides → CDN oficial).
+- Correção que exige major → bloqueante em production até o usuário decidir (plano de migração da skill); não migre por conta.
+- INCONCLUSIVO (sem rede, sem lockfile, gerenciador ausente) → bloqueante em production; atenção em staging.
+
 ### Etapa 1 — Secrets
-Dispare o agente `secret-hunter` (Agent tool). Se houver crítico (P0):
-- **PARE** — rotacione antes de qualquer outra coisa. Não prossiga até `PASS`.
+Rode o histórico **e** o estático:
+1. `node <plugin-root>/scripts/security/secret-scan.mjs --history --repo .` (na sessão principal; o agente não tem shell). Clone raso dá INCONCLUSIVO: `git fetch --unshallow` e repita.
+2. Dispare o agente `secret-hunter` (Agent tool) para código, `.env*` e bundle.
+Se houver crítico (P0) em qualquer um:
+- **PARE** — siga `skills/secret-scanner/rotation-runbook.md` (provedor primeiro) antes de qualquer outra coisa. Não prossiga até `PASS`.
 
 ### Etapa 2 — Isolamento multi-tenant
 Dispare o agente `tenant-isolation-auditor` (Agent tool). Se P0/P1 → bloqueie o deploy e liste fixes priorizados com cenário de exploração.
@@ -44,7 +53,8 @@ Invoque a skill `edge-function-guard` em cada função em `supabase/functions/*`
 ```
 🚀 PRE-DEPLOY — <staging|production>  | Arquétipo: <A–E>
 
-1. 🔐 Secrets:            <PASS|FAIL>
+0. 📦 Dependências/Node:  <PASS|FAIL|INCONCLUSIVE>
+1. 🔐 Secrets (+histórico): <PASS|FAIL|INCONCLUSIVE>
 2. 🛡️ Isolamento tenant:  <PASS|FAIL>
 3. 👤 Identidade/acesso:  <PASS|FAIL>
 4. 🔌 Integrações:        <PASS|FAIL|N/A>

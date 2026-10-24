@@ -166,4 +166,4 @@ O plugin deduplica findings por causa raiz e não transforma hipótese sem evid�
 
 ## Versão
 
-1.3.0 — histórico em [CHANGELOG.md](CHANGELOG.md).
+1.4.0 — histórico em [CHANGELOG.md](CHANGELOG.md).

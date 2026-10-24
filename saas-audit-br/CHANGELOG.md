@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 — 2026-10-24
+
+- **Dependências e histórico do git entram na wave de segurança**, executados pelo orquestrador (os agentes do shield não têm shell): `secret-scan --history` e `dependency-audit`. Antes, um REPORT sem P0/P1 convivia com Next e zod vulneráveis e com a chave no histórico, sem aparecer nem como INCONCLUSIVE.
+- **`security-fix-protocol`**: o `--fix` pode atualizar dentro da faixa e usar `overrides`, sempre com `deps-audit` antes e depois; **major nunca é automático** (plano + decisão do usuário); triagem prod × dev; `npm audit fix --force` proibido.
+- **`security-regression-verifier`**: lockfile alterado exige `deps-audit` depois do patch; sem ele, INCONCLUSIVE.
+
 ## 1.3.0 — 2026-10-08
 
 - **`--audit-only` passa a ser o padrão** de `/saas-audit-br:audit` e `/saas-audit-br:module`. Antes, sem modo informado, o audit corrigia código (`--fix`); para rodar o plugin em todos os sistemas existentes, o padrão seguro é só auditar e planejar. `--fix`/`--full` precisam ser explícitos e o `STATE.md` grava a origem (`Mode: fix (explicit)`). `resume` pergunta antes de editar quando o estado é anterior à 1.3.0 e o modo não está marcado como explícito. Depois de um `--audit-only` concluído, `--fix` reaproveita `FINDINGS.md`/`PLAN.md` se o `HEAD` não mudou. O `ai-router-br` já passa `--fix` explícito ao auditar módulo, então esse fluxo não muda.

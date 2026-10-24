@@ -99,6 +99,12 @@ git diff --name-only <base>...HEAD -- <dir-migrations>                   # só s
 
 Lista vazia → `migration-validator` N/A, com o motivo "histórico já aplicado coberto pelo `rls-auditor`". Migrations que o usuário disser estarem pendentes de aplicação entram na lista.
 
+**Executados por você, em paralelo à wave** (os agentes do shield não têm shell; sem isto a wave dá PASS com chave no histórico do git e Next/zod vulneráveis):
+
+- **Segredos no histórico:** `$saas-shield-br:secret-scan` (ou, com o kit do Padrão SaaS, `node scripts/security/secret-scan.mjs --history --repo .`). Achado = P0 `secret`, com o runbook de rotação (provedor primeiro). Exit 2 (clone raso) vai para "cobertura que não pôde ser validada".
+- **Dependências e runtime:** skill `$saas-shield-br:dependency-audit` (ou `node scripts/security/deps-audit.mjs --root . --report .saas-audit/deps-audit.json`). Cada P0/P1 vira finding de categoria `dependency` ou `runtime`, com a correção que o script dá. Correção que exige **major** vai para o plano como **decisão do usuário**, nunca para o `--fix`. INCONCLUSIVE (sem rede, sem lockfile) vai para "cobertura que não pôde ser validada".
+- Sem o saas-shield-br e sem o kit: `npm audit --omit=dev --json` (ou `pnpm audit --prod --json` / `bun audit --production --json`) e registre que o histórico não foi varrido.
+
 Seleção:
 - sem tenancy → pule tenant/RLS específicos e registre N/A;
 - sem integrações/webhooks/fila → integration-reliability N/A.

@@ -1,0 +1,40 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 10 * * 1'           # segunda, 07:23 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version-file: .nvmrc }
+      - run: corepack enable         # pnpm/yarn na versão do campo packageManager
+      - if: hashFiles('bun.lock', 'bun.lockb') != ''
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Dependências (audit prod × dev, watchlist, lockfiles, runtime)
+        run: |
+          if [ -f scripts/security/deps-audit.mjs ]; then node scripts/security/deps-audit.mjs --root . --report deps-audit.json
+          else npm audit --omit=dev --audit-level=high; fi
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: deps-audit, path: deps-audit.json, if-no-files-found: ignore }
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0 }      # sem isso o histórico não existe no runner (o script acusa INCONCLUSIVO)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version-file: .nvmrc }
+      - name: Segredos no histórico (todas as refs)
+        run: node scripts/security/secret-scan.mjs --history --repo .

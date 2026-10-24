@@ -47,6 +47,7 @@
 - No Windows, ferramentas instaladas apenas como shim `.cmd` (ex.: `vitest`, `jest`, `pnpm`) não são executáveis sem shell; use `npm test`, `npm run <script>` ou `node <entrypoint>`.
 - Um `.pem` rastreado bloqueia delegação mesmo quando é só um certificado público (pode conter chave privada; o gate erra para o lado seguro).
 - Um `.env` público que traga anon key do Supabase (JWT) ou chave de API de navegador (`AIza...`, nome com `KEY`) continua bloqueando: pelo formato, o gate não distingue chave pública de chave secreta.
+- A mesma regra de `.env` público está no saas-shield-br (`scripts/security/env-public.mjs`, usada pelo hook pré-commit, pelo pré-push e pelo `secret-scan.mjs`), testada com os mesmos casos. Mudou aqui, mude lá.
 - A classificação é heurística e tende a errar para o lado seguro (ex.: "dropdown" pode subir para TIER 0).
 
 ## Prompt injection entre workers

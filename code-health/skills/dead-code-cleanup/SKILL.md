@@ -68,7 +68,7 @@ Delegue a varredura pesada para o subagent `dead-code-scanner`. Ele roda 6 passe
 |---|---|---|
 | 1 | `knip` (preferido) ou `ts-prune` | Arquivos não importados, exports não usados, deps não usadas, devDeps não usadas, duplicate exports |
 | 2 | `depcheck` | Dependências em package.json sem uso real |
-| 3 | `eslint --no-eslintrc --rule no-unused-vars` | Variáveis/imports não usados dentro de arquivos |
+| 3 | ESLint do projeto (`no-unused-vars`) ou, sem config, `tsc --noUnusedLocals --noUnusedParameters` do projeto | Variáveis/imports não usados dentro de arquivos |
 | 4 | `ripgrep` cross-reference | Componentes React exportados nunca importados |
 | 5 | `ripgrep` para assets | Arquivos em `public/`, `assets/`, `static/` sem referência no código |
 | 6 | `ripgrep` para mortos óbvios | Blocos `/* ... */` enormes, código atrás de `if (false)`, `// TODO: remover`, `// DEPRECATED` |
@@ -111,7 +111,7 @@ Se knip falhar por falta de config, crie um `knip.json` mínimo:
 Para cada finding, classifique em uma das três categorias:
 
 **🟢 ALTA CONFIANÇA — auto-removível com aprovação em massa**
-- Imports não usados dentro de um arquivo (eslint comprovou)
+- Imports não usados dentro de um arquivo (eslint ou tsc comprovou)
 - `console.log` deixados no código (que não estão em arquivos de logging dedicados)
 - Variáveis declaradas e nunca lidas
 - DevDependencies não importadas em nenhum arquivo

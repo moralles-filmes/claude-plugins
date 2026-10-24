@@ -3,7 +3,7 @@
 #
 # Reconstrói numa máquina nova (ou atualiza nesta) o ambiente Claude Code + Codex a partir de
 # https://github.com/moralles-filmes/claude-plugins :
-#   - verifica Git, Node.js 20+, Claude Code e Codex CLI (instala Claude Code/Codex pelos
+#   - verifica Git, Node.js 22+ (LTS), Claude Code e Codex CLI (instala Claude Code/Codex pelos
 #     instaladores oficiais quando faltarem)
 #   - verifica login do Claude (assinatura) e do Codex via ChatGPT (nunca troca por API key)
 #   - registra/atualiza marketplaces e instala/atualiza TODOS os plugins do marketplace
@@ -113,11 +113,12 @@ if [ -d "$REPO_ROOT/.git" ]; then
 fi
 
 # ─── Node.js ────────────────────────────────────────────────────────────
-step "Node.js 20+"
+step "Node.js 22+ (LTS)"
 NODE_OK=0
 if has node; then
   nv="$(node --version)"; major="${nv#v}"; major="${major%%.*}"
-  if [ "${major:-0}" -ge 20 ] 2>/dev/null; then NODE_OK=1; ok "node $nv"
+  if [ "${major:-0}" -ge 22 ] 2>/dev/null; then NODE_OK=1; ok "node $nv"
+  elif [ "${major:-0}" -ge 20 ] 2>/dev/null; then NODE_OK=1; warn "node $nv está em fim de vida (o 20 saiu de suporte em 30/04/2026). Funciona, mas atualize para o LTS 22 ou 24: https://nodejs.org/en/download"
   else warn "node $nv é anterior ao 20. Atualize pelo LTS de https://nodejs.org/en/download."; fi
 else
   warn "Node.js não encontrado. Instale o LTS de https://nodejs.org/en/download. Sem Node o ai-router-br, seus hooks e os testes não rodam."
@@ -240,7 +241,7 @@ fi
 # ─── Validação e testes ─────────────────────────────────────────────────
 step "Validação e testes essenciais"
 if [ "$SKIP_TESTS" = 1 ]; then info "Ignorado (--skip-tests)."
-elif [ "$NODE_OK" = 0 ]; then warn "Ignorado: Node.js 20+ indisponível."
+elif [ "$NODE_OK" = 0 ]; then warn "Ignorado: Node.js 20+ indisponível (recomendado: 22+)."
 elif [ ! -f "$MARKETPLACE_FILE" ]; then would "validar e testar depois do clone"
 else
   node "$REPO_ROOT/scripts/validate.mjs" >/dev/null 2>&1 && ok "scripts/validate.mjs (marketplace Claude + Codex, sincronia do ai-router-br)" || fail "scripts/validate.mjs falhou (rode: node scripts/validate.mjs)"

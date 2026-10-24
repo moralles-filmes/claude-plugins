@@ -1,5 +1,18 @@
 # Changelog — padrao-saas
 
+## 3.5.0
+
+A norma continua v3.2: `docs/standards/` e o manifest não mudaram. Projetos já instalados fazem o merge descrito na skill `aplicar` §9 ("Plugin 3.5").
+
+- **`scripts/security/` no kit** (cópia do saas-shield-br, conferida pelo `validate.mjs` do marketplace): `secret-scan.mjs` (staged, histórico, pré-push), `deps-audit.mjs` (lockfiles, audit prod × dev, watchlist de out/2026, Node), padrões e regra de `.env` público.
+- **`.githooks/pre-commit` e `pre-push`**: a varredura de segredos vale para quem commita fora do Claude Code (terminal, IDE, Codex), com teste ponta a ponta.
+- **`.github/workflows/security.yml` e `.github/dependabot.yml`** no kit (os mesmos do `devops-ci` do saas-builder-br), propostos nos quality gates.
+- **Auditoria da `aplicar`**: o histórico do git é varrido de verdade (antes, a referência era a Camada 2 do secret-scanner, cujo comando não achava a chave) e há um item novo de dependências e runtime. A entrega ganhou a seção de dependências.
+- **AGENTS.md**: §6 com dependências (lockfile único, major = decisão do usuário) e o comando de histórico; §7 com `deps` e `segredos`.
+- **`.claude/settings.json`**: `ask` para instalar/atualizar pacote e para `npx`/`pnpm dlx`/`bunx`; `deny` de leitura/edição de `.env.prod`, `.env.preview`, `.env.backup` e `.npmrc`.
+- **`mudanca`**: o fechamento roda `deps-audit` quando a mudança tocou `package.json` ou lockfile, e `secret-scan --outgoing` antes do push.
+- **MAINTENANCE.md**: segurança semanal, exceções mensais, runtime e cópias trimestrais.
+
 ## 3.4.0
 
 A norma continua v3.2: `docs/standards/` e o manifest não mudaram. Projetos já instalados fazem só o merge do AGENTS.md e das rules (skill `aplicar` §9).

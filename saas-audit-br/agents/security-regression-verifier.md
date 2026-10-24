@@ -29,6 +29,7 @@ Receba do orquestrador:
 7. Webhooks/idempotência/concorrência relevantes continuam corretos?
 8. O patch não introduziu secret/log inseguro?
 9. Falhas observadas já existiam antes ou são novas?
+10. Se `package.json` ou lockfile mudou: o orquestrador rodou o `deps-audit.mjs` depois do patch, sem P0/P1 novo, com um lockfile só e sem salto de major não aprovado? Sem esse resultado, este item é INCONCLUSIVE.
 
 ## Segurança de execução
 

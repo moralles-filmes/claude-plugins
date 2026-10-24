@@ -11,7 +11,7 @@ Carregue este arquivo apenas quando precisar de comandos exatos. Não está no S
 ### Instalação on-the-fly (sem persistir no projeto)
 
 ```bash
-npx --yes knip@latest --no-progress --reporter compact
+npx --yes knip@5.88.1 --no-progress --reporter compact   # versão fixa: nunca @latest
 ```
 
 ### Reporters úteis
@@ -110,22 +110,26 @@ jq -r '.issues[] | select(.devDependencies != null) | .devDependencies[].name' .
 comm -12 .code-health/work/dead-code-cleanup/depcheck-dev.txt .code-health/work/dead-code-cleanup/knip-dev.txt   # interseção = altíssima confiança
 ```
 
-## eslint para imports/variáveis não usados (granular por arquivo)
+## Imports/variáveis não usados (granular por arquivo)
+
+Use o ESLint **do projeto** (`npx --no-install`, nunca baixe outro). Com config (flat ou `.eslintrc`):
 
 ```bash
-# Sem usar config do projeto
-npx eslint --no-eslintrc \
-  --parser-options 'ecmaVersion:latest,sourceType:module,ecmaFeatures:{jsx:true}' \
-  --parser '@typescript-eslint/parser' \
-  --plugin '@typescript-eslint' \
-  --rule '{"@typescript-eslint/no-unused-vars": "error"}' \
-  'src/**/*.{ts,tsx}' --format json > .code-health/work/dead-code-cleanup/eslint.json
-
-# Com config do projeto + auto-fix dos imports
-npx eslint --fix --rule '{"unused-imports/no-unused-imports": "error"}' src/
+npx --no-install eslint --format json \
+  --rule '{"@typescript-eslint/no-unused-vars": ["error", {"argsIgnorePattern": "^_"}]}' \
+  . > .code-health/work/dead-code-cleanup/eslint.json
 ```
 
-Plugin auxiliar: `eslint-plugin-unused-imports` faz auto-fix mais agressivo que o regular `no-unused-vars`.
+Sem config de ESLint: o TypeScript do projeto detecta o mesmo, sem download (TS6133, TS6192, TS6196):
+
+```bash
+npx --no-install tsc --noEmit --pretty false --noUnusedLocals --noUnusedParameters -p tsconfig.json \
+  > .code-health/work/dead-code-cleanup/tsc-unused.txt
+```
+
+As flags `--no-eslintrc`/`--parser`/`--plugin` não existem no ESLint 9+ (flat config), e o ESLint 8 está fora de suporte: não use mais `npx eslint@8`.
+
+Auto-fix de imports, se o projeto já usa `eslint-plugin-unused-imports`: `npx --no-install eslint --fix --rule '{"unused-imports/no-unused-imports": "error"}' src/`.
 
 ## ripgrep para cross-reference manual
 

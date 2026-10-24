@@ -6,7 +6,7 @@ Funciona em qualquer projeto que você abrir.
 
 ### 1. Coloque a pasta num lugar permanente
 
-Já está em `C:\Users\morae\Documents\claude-plugins\saas-shield-br` — pode deixar aí ou mover.
+Fica em `<caminho-do-repo>\claude-plugins\saas-shield-br` (onde você clonou o marketplace) — pode deixar aí ou mover.
 
 ### 2. Adicione como marketplace local
 
@@ -19,7 +19,7 @@ Edite `~/.claude/settings.json` (ou crie):
       {
         "name": "local",
         "type": "local",
-        "path": "C:/Users/morae/Documents/claude-plugins"
+        "path": "<caminho-do-repo>/claude-plugins"
       }
     ]
   }
@@ -109,7 +109,7 @@ Se você usa Opção B/C e quer hooks, adicione o bloco `hooks` em `~/.claude/se
         "hooks": [{
           "type": "command",
           "command": "node",
-          "args": ["C:/Users/morae/Documents/claude-plugins/saas-shield-br/hooks/scripts/check-sql-antipattern.mjs"],
+          "args": ["<caminho-do-repo>/claude-plugins/saas-shield-br/hooks/scripts/check-sql-antipattern.mjs"],
           "timeout": 10
         }]
       },
@@ -120,17 +120,26 @@ Se você usa Opção B/C e quer hooks, adicione o bloco `hooks` em `~/.claude/se
             "type": "command",
             "if": "Bash(*git*)",
             "command": "node",
-            "args": ["C:/Users/morae/Documents/claude-plugins/saas-shield-br/hooks/scripts/pre-commit-secret-scan.mjs"],
+            "args": ["<caminho-do-repo>/claude-plugins/saas-shield-br/hooks/scripts/pre-commit-secret-scan.mjs"],
             "timeout": 15
           },
           {
             "type": "command",
             "if": "PowerShell(*git*)",
             "command": "node",
-            "args": ["C:/Users/morae/Documents/claude-plugins/saas-shield-br/hooks/scripts/pre-commit-secret-scan.mjs"],
+            "args": ["<caminho-do-repo>/claude-plugins/saas-shield-br/hooks/scripts/pre-commit-secret-scan.mjs"],
             "timeout": 15
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*github.*__(create_or_update_file|push_files)",
+        "hooks": [{
+          "type": "command",
+          "command": "node",
+          "args": ["<caminho-do-repo>/claude-plugins/saas-shield-br/hooks/scripts/mcp-write-secret-scan.mjs"],
+          "timeout": 10
+        }]
       }
     ]
   }
@@ -143,11 +152,11 @@ Se você usa Opção B/C e quer hooks, adicione o bloco `hooks` em `~/.claude/se
 
 ## Dependências
 
-Os hooks exigem **Node.js 18+** disponível no PATH. Se você usa Bun ou Deno como principal mas tem Node instalado para tooling, está tudo certo.
+Os hooks e os scripts de `scripts/security/` precisam de Node no PATH. Use uma **LTS com suporte (22 ou 24)**: os scripts rodam em versões mais antigas, mas o 18 e o 20 já estão em fim de vida. Se você usa Bun ou Deno como principal mas tem Node instalado para tooling, está tudo certo.
 
 Verifique:
 ```bash
-node --version  # >= 18.0.0
+node --version  # v22.x ou v24.x
 ```
 
 Se não tiver, instale Node.js (recomendado via [fnm](https://github.com/Schniz/fnm) ou [Volta](https://volta.sh)).
@@ -195,7 +204,7 @@ $claudeDir = "$env:USERPROFILE\.claude"
 - Tente invocar explicitamente: "Use a skill rls-reviewer e audita esse arquivo"
 
 **Hook não roda**
-- Confira `node --version >= 18`
+- Confira `node --version` (LTS 22 ou 24)
 - Confira que `${CLAUDE_PLUGIN_ROOT}` foi resolvido (em Opção A é automático)
 - Veja logs em `~/.claude/logs/`
 

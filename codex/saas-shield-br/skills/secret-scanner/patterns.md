@@ -4,7 +4,7 @@ Padrões organizados por provedor. Severidade: 🚨 = expôs key real | 🟡 = p
 
 ## Lista do hook pré-commit (fonte única)
 
-O hook `pre-commit-secret-scan.mjs` bloqueia o `git commit` com a lista de **`hooks/scripts/secret-patterns.mjs`**. Aquele módulo é a lista canônica do hook: não copie as regex para outro lugar. Para incluir um padrão, adicione lá e documente o `id` aqui (o teste `tests/secret-scan.test.mjs` confere).
+O hook `pre-commit-secret-scan.mjs` (commit e push), o hook das ferramentas MCP do GitHub e o CLI `scripts/security/secret-scan.mjs` (staged, histórico, commits que vão sair) usam a lista de **`scripts/security/secret-patterns.mjs`**. Aquele módulo é a lista canônica: não copie as regex para outro lugar. Para incluir um padrão, adicione lá, documente o `id` aqui e escreva o teste que deve reprovar (o teste `tests/secret-scan.test.mjs` confere a documentação).
 
 Só entra no hook o que é incidente num commit. O resto desta página é para o `$saas-shield-br:secret-scan`.
 
@@ -12,18 +12,31 @@ Só entra no hook o que é incidente num commit. O resto desta página é para o
 |---|---|---|
 | `supabase-service-role-jwt` | JWT legado do Supabase com `"role":"service_role"` e `iss` do Supabase | O hook decodifica o payload (base64url do segmento do meio). JWT `anon` passa; a chave demo do `supabase start` (`"iss":"supabase-demo"`) é pública e passa |
 | `supabase-secret-key` | Chave nova `sb_secret_…` | `sb_publishable_…` é pública e passa |
+| `supabase-personal-access-token` | `sbp_…` (token da CLI/Management API) | Dá acesso à conta inteira, não só a um projeto |
 | `stripe-live-secret` | `sk_live_…` | |
 | `stripe-live-restricted` | `rk_live_…` | |
 | `stripe-webhook-secret` | `whsec_…` | |
 | `aws-access-key-id` | `AKIA…` (16 caracteres) | Ignora os exemplos da documentação da AWS (terminados em `EXAMPLE`) |
 | `anthropic-api-key` | `sk-ant-api…` / `sk-ant-admin…` | |
-| `openai-api-key` | `sk-…`, `sk-proj-…`, `sk-svcacct-…`, `sk-admin-…` | Exclui `sk-ant-` para não contar a chave Anthropic duas vezes |
+| `openai-api-key` | `sk-…`, `sk-proj-…`, `sk-svcacct-…`, `sk-admin-…` (40+ caracteres) | Exclui `sk-ant-` para não contar a chave Anthropic duas vezes |
+| `deepseek-api-key` | `sk-` + 32 hexadecimais | Não colide com a OpenAI (tamanho diferente) |
+| `google-api-key` | `AIza…` (Gemini, Maps, Firebase) | Chave de navegador do Maps também casa: restrinja por domínio no console e mantenha fora do Git |
+| `meta-access-token` | `EAA…` (WhatsApp Cloud API, Graph API) | Não casa dentro de base64 (precisa estar isolado) |
+| `database-url-with-password` | `postgres://usuario:senha@host`, mysql, mongodb, redis, amqp | Senha de exemplo (`password`, `senha`, `postgres`, `${VAR}`, `<…>`) e host local (`localhost`, `127.0.0.1`, `db`) passam |
+| `npm-access-token` | `npm_…` | Token de publicação: quem tem publica versão com malware no seu nome |
 | `github-token` | `ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_` | |
 | `github-fine-grained-pat` | `github_pat_…` | |
 | `slack-token` | `xoxb-`, `xoxa-`, `xoxp-`, `xoxr-`, `xoxs-` | |
 | `private-key-block` | `-----BEGIN … PRIVATE KEY-----` | |
+| `env-file-versionado` | Arquivo `.env*` (fora `.example`/`.sample`/`.template`) com qualquer valor que não seja público | Regra em `scripts/security/env-public.mjs`, abaixo. Pega segredo sem formato conhecido (token da Z-API, da Vercel, senha) |
 
-O hook varre o índice (`git cat-file --batch`), os arquivos que um `git add` anterior no mesmo comando vai adicionar e o working tree em `commit -a`/pathspec. A mensagem mostra só os primeiros caracteres do match.
+O hook varre o índice (`git cat-file --batch`), os arquivos que um `git add` anterior no mesmo comando vai adicionar e o working tree em `commit -a`/pathspec. No `git push`, varre os commits de `HEAD` que ainda não estão em nenhum remoto, o que cobre merge, cherry-pick e commit feito fora do Claude. A mensagem mostra só os primeiros caracteres do match. Falso-positivo: marque a linha com `secret-scan: ignore` ou registre em `.secret-scan-allow.json` (`file`, `id`, `commit` opcional, `reason` obrigatório).
+
+### Quando um `.env` versionado é aceitável
+
+Só `.env.example`/`.env.sample`/`.env.template` (documentação, sem valor real) ou um `.env*` em que **todas** as linhas são comentário, vazias ou `PREFIXO_PUBLICO_NOME=valor`, com prefixo que o framework já põe no bundle do navegador (`NEXT_PUBLIC_`, `VITE_`, `PUBLIC_`, `EXPO_PUBLIC_`, `REACT_APP_`, `NUXT_PUBLIC_`, `GATSBY_`), sem nome com cara de segredo (`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `SERVICE_ROLE`, `AUTH`, `DSN`…) e sem valor com formato de segredo (JWT, `sk-`, `AIza`, `sb_secret_`, PEM, URL com usuário:senha). Até 16 KB, uma linha por valor.
+
+A anon key do Supabase em JWT continua bloqueando: pelo formato não dá para separar anon de service_role, e um `.env` versionado não deve depender de decodificar. Coloque a anon/publishable key na Vercel, não no Git. É a mesma regra do gate do `ai-router-br` (`lib/security.mjs`, `publicEnvFile`), testada com os mesmos casos.
 
 ## Supabase
 
@@ -135,37 +148,32 @@ DATABASE_URL=postgresql://user:password@host:5432/db
 ### `.env.example` incorreto (achado comum)
 ```env
 # 🚨 valor real esquecido no example
-VITE_SUPABASE_URL=https://xqzpnopkqksmolbhgoph.supabase.co
+VITE_SUPABASE_URL=https://abcdefghijklmnopqrst.supabase.co   # ref real do projeto
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
 ```
 
 ## Fluxo de remediação por tipo de secret
 
+O passo a passo está em [`rotation-runbook.md`](./rotation-runbook.md). Resumo da ordem, que não muda:
+
 ```
-DETECTOU secret X em arquivo F
+DETECTOU secret X (código, .env, bundle ou histórico)
 │
-├── X está em src/, dist/, .env (não .example)?
-│   ├── SIM → 🚨 Rotacionar imediatamente
-│   │       1. Provedor: Settings → revogar/rotacionar key
-│   │       2. Atualizar produção (Vercel env, Supabase secrets, etc.)
-│   │       3. Remover do código (mover para .env.local + .gitignore)
-│   │       4. Verificar histórico git: se está lá, reescrever ou aceitar exposição
-│   │
-│   └── NÃO (em .env.example/test) → 🟡 Substituir por placeholder
-│
-└── X também está em git log?
-    └── SIM → Reescrita de histórico ou rotacionar e seguir
+├── 1. Contenha no provedor: revogue/rotacione X e emita outra   ← SEMPRE primeiro
+├── 2. Troque em todos os ambientes (Vercel, Supabase, CI, workers, apps) e faça deploy
+├── 3. Prove que X morreu: requisição com X → 401/403
+├── 4. Investigue o período exposto (desde quando, logs do provedor, forks)
+├── 5. Remova do código atual (env no servidor; .env fora do Git)
+└── 6. Histórico: só depois, e só se o usuário decidir. Em repo público, X já é pública
 ```
 
-## Ferramentas complementares (sugerir ao usuário)
+Em `.env.example`/teste com valor que parece real: substitua por placeholder e confirme com o usuário se é real; se for, siga a ordem acima.
 
-- **gitleaks** — `brew install gitleaks && gitleaks detect`
-- **trufflehog** — varredura mais agressiva, inclui histórico git
-- **detect-secrets** (Yelp) — bom para CI
-- **GitHub secret scanning** — automático em repos públicos
+## Ferramentas complementares
 
-Sugira hook pre-commit:
-```bash
-# .husky/pre-commit ou lefthook.yml
-gitleaks protect --staged --no-banner
-```
+- **`scripts/security/secret-scan.mjs`** (deste plugin, sem dependências) — `--history` (todas as refs), `--range A..B`, `--outgoing`, `--staged`. É o que o `$saas-shield-br:secret-scan` executa.
+- **gitleaks** — `gitleaks git . --log-opts="--all" --redact` (v8.19+; versões antigas: `gitleaks detect --source . --redact`, que também varre o histórico).
+- **trufflehog** — `trufflehog git file://. --results=verified,unknown`. Não use `--only-verified` sozinho: chave revogada ou de provedor sem verificador some do relatório.
+- **GitHub secret scanning + push protection** — ligue em Settings → Code security (automático em repo público só para os parceiros do GitHub).
+
+Hook pre-commit para quem commita fora do Claude (terminal, IDE, Codex): o kit do `padrao-saas` instala `.githooks/pre-commit` e `.githooks/pre-push` chamando `node scripts/security/secret-scan.mjs --staged` / `--outgoing`.

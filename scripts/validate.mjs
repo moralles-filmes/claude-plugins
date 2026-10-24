@@ -17,6 +17,10 @@
  *   7. Hooks.json (se existir) é JSON válido
  *   8. O frontmatter de skills, agents e commands é YAML válido (`: ` e ` #` só entre
  *      aspas, aspas fechadas) — se não parseia, o Claude Code ignora todos os campos
+ *   9. Scripts .mjs dos plugins (hooks/scripts e scripts/) passam em `node --check`
+ *  10. Templates e exemplos não fixam versão vulnerável (watchlist do saas-shield-br) nem
+ *      Node em fim de vida — senão todo projeto novo nasce com o problema
+ *  11. Cópias do pacote scripts/security do saas-shield-br (kit do padrao-saas) idênticas à fonte
  *
  * Saída:
  *   - exit 0 → tudo OK
@@ -25,7 +29,7 @@
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, dirname, basename, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execSync } from 'node:child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -468,6 +472,21 @@ for (const dir of pluginDirs) {
   }
 }
 
+// ─── 6b. scripts/**/*.mjs dos plugins ────────────────────────────────
+
+step('Validando scripts dos plugins (node --check)')
+
+for (const dir of pluginDirs) {
+  for (const path of walk(join(REPO_ROOT, dir, 'scripts')).filter(f => /\.(mjs|js)$/.test(f))) {
+    try {
+      execSync(`node --check "${path}"`, { stdio: 'pipe' })
+      ok(`${rel(path)} (syntax OK)`)
+    } catch (e) {
+      err(`${rel(path)}: erro de sintaxe Node — ${e.stderr?.toString().trim() || e.message}`)
+    }
+  }
+}
+
 // ─── 7. Marketplace Codex (.agents/plugins/marketplace.json) ─────────
 
 step('Validando marketplace Codex')
@@ -558,6 +577,75 @@ if (existsSync(codexBuilder)) {
   } catch (e) {
     err(`${`${e.stderr ?? ''}${e.stdout ?? ''}`.trim().split('\n').slice(0, 6).join(' | ')}`)
   }
+}
+
+// ─── 9c. Templates sem versão vulnerável nem Node em fim de vida ─────
+// Data-driven: as regras vêm de saas-shield-br/scripts/security/watchlist.json (a mesma do
+// deps-audit). Fica de fora o que é histórico ou fixture: CHANGELOG, tests/, codex/ (gerado).
+
+step('Validando templates (versões da watchlist e Node em fim de vida)')
+
+const depsAudit = join(REPO_ROOT, 'saas-shield-br', 'scripts', 'security', 'deps-audit.mjs')
+if (existsSync(depsAudit)) {
+  const { checkWatch, loadWatchlist } = await import(pathToFileURL(depsAudit).href)
+  const rules = new Map(loadWatchlist().packages.map(r => [r.name, r]))
+  const NODE_EOL_PATTERNS = [
+    [/node-version:\s*['"]?(1[0-9]|20)(?:\.[0-9x]+)*['"]?(?=[\s,}\]]|$)/m, 'node-version de CI em Node fim de vida'],
+    [/FROM\s+node:(1[0-9]|20)\b/, 'imagem Docker com Node em fim de vida'],
+    [/"node"\s*:\s*">=\s*(1[0-9]|20)(?:\.\d+)*"/, 'engines.node aceitando Node em fim de vida'],
+    [/\bNode(?:\.js)?\s*(?:18|20)\+/, 'documentação pedindo Node em fim de vida'],
+  ]
+  const files = pluginDirs.flatMap(d => walk(join(REPO_ROOT, d)))
+    .concat(walk(join(REPO_ROOT, '.github')), walk(join(REPO_ROOT, '.githooks')), [join(REPO_ROOT, 'README.md')])
+    .filter(f => /\.(md|json|ya?ml|mjs|sh|ps1)$|(^|[\\/])pre-(push|commit)$/.test(f))
+    .filter(f => !/[\\/](tests|node_modules)[\\/]|CHANGELOG\.md$|[\\/]scripts[\\/]security[\\/](watchlist\.json|deps-audit\.mjs)$/.test(f))
+  let stale = 0
+  for (const f of files) {
+    const text = readFileSync(f, 'utf8')
+    const lines = text.split('\n')
+    lines.forEach((line, i) => {
+      for (const m of line.matchAll(/"((?:@[a-z0-9._-]+\/)?[a-z0-9._-]+)"\s*:\s*"[\^~>=\s]*(\d+\.\d+(?:\.\d+)?)/g)) {
+        const rule = rules.get(m[1])
+        const bad = rule && checkWatch(rule, m[2])
+        if (bad) { err(`${rel(f)}:${i + 1}: ${m[1]} ${m[2]} vulnerável (${rule.issue}) — ${bad.reason}`); stale++ }
+      }
+      for (const m of line.matchAll(/\bnpm:((?:@[a-z0-9._-]+\/)?[a-z0-9._-]+)@[\^~]?(\d+(?:\.\d+){0,2})/g)) {
+        const rule = rules.get(m[1])
+        const v = m[2].split('.').length === 1 ? `${m[2]}.0.0` : m[2]
+        const bad = rule && checkWatch(rule, v)
+        if (bad) { err(`${rel(f)}:${i + 1}: npm:${m[1]}@${m[2]} vulnerável (${rule.issue}) — ${bad.reason}`); stale++ }
+      }
+      for (const [re, msg] of NODE_EOL_PATTERNS) if (re.test(line)) { err(`${rel(f)}:${i + 1}: ${msg} — use uma LTS com suporte (22 ou 24)`); stale++ }
+    })
+  }
+  if (!stale) ok(`${files.length} arquivos sem versão vulnerável da watchlist nem Node em fim de vida`)
+}
+
+// ─── 9d. Kit do padrao-saas: cópias do saas-shield-br idênticas ─────
+// O kit grava scripts/security/ e o security.yml/dependabot.yml nos projetos. A fonte é o
+// saas-shield-br (scripts) e o devops-ci do saas-builder-br (workflows): cópia divergente é erro.
+
+step('Validando cópias do kit (scripts/security, security.yml, dependabot.yml)')
+
+const shieldSec = join(REPO_ROOT, 'saas-shield-br', 'scripts', 'security')
+const kitRepo = join(REPO_ROOT, 'padrao-saas', 'skills', 'aplicar', 'assets', 'repo')
+if (existsSync(shieldSec) && existsSync(kitRepo)) {
+  const lf = f => readFileSync(f, 'utf8').replace(/\r\n/g, '\n')
+  let diverged = 0
+  const src = readdirSync(shieldSec).filter(f => !f.startsWith('.'))
+  const kit = existsSync(join(kitRepo, 'scripts', 'security')) ? readdirSync(join(kitRepo, 'scripts', 'security')) : []
+  for (const f of new Set([...src, ...kit])) {
+    const a = join(shieldSec, f), b = join(kitRepo, 'scripts', 'security', f)
+    if (!existsSync(a) || !existsSync(b) || lf(a) !== lf(b)) { err(`padrao-saas kit: scripts/security/${f} difere de saas-shield-br/scripts/security/${f} — copie de novo`); diverged++ }
+  }
+  const devops = lf(join(REPO_ROOT, 'saas-builder-br', 'agents', 'devops-ci.md'))
+  const blocks = [...devops.matchAll(/```yaml\n([\s\S]*?)```/g)].map(m => m[1])
+  for (const [file, pick] of [['.github/workflows/security.yml', b => b.startsWith('name: security\n')], ['.github/dependabot.yml', b => b.startsWith('# .github/dependabot.yml\n')]]) {
+    const block = blocks.find(pick)
+    const path = join(kitRepo, file)
+    if (!block || !existsSync(path) || lf(path) !== block) { err(`padrao-saas kit: ${file} difere do bloco correspondente em saas-builder-br/agents/devops-ci.md`); diverged++ }
+  }
+  if (!diverged) ok(`kit em dia com a fonte (${src.length} scripts de segurança + security.yml + dependabot.yml)`)
 }
 
 // ─── 10. Versão do plugin.json = topo do CHANGELOG ──────────────────

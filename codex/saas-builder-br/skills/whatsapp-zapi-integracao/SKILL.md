@@ -125,7 +125,7 @@ import { z } from "zod";
 const SendInput = z.object({
   to: z.string().regex(/^\d{10,15}$/),
   message: z.string().min(1).max(4096),
-  client_msg_id: z.string().uuid(), // gerado uma vez por intenção no frontend
+  client_msg_id: z.uuid(), // gerado uma vez por intenção no frontend
 });
 
 Deno.serve(async (req) => {
@@ -248,15 +248,15 @@ Confirme no provider doc se a Z-API assina webhooks. Se não assinar, use o fall
 
 ```ts
 const MAX_BYTES = 1_000_000;
-const ZapiEvent = z.object({
+const ZapiEvent = z.looseObject({ // mantém os campos extras do provedor (zod 4; antes .passthrough())
   type: z.string(),
   instanceId: z.string(),
   messageId: z.string(),
-}).passthrough();
+});
 
 Deno.serve(async (req) => {
   const [connectionId = "", secret = ""] = new URL(req.url).pathname.split("/").slice(-2);
-  if (!z.string().uuid().safeParse(connectionId).success) return new Response(null, { status: 401 });
+  if (!z.uuid().safeParse(connectionId).success) return new Response(null, { status: 401 });
   const admin = adminClient();
 
   // Conta externa → conexão → company_id. Nada do payload decide o tenant.
@@ -294,8 +294,8 @@ const ZapiReceived = z.object({
   messageId: z.string(),
   senderName: z.string().optional(),
   text: z.object({ message: z.string() }).optional(),
-  image: z.object({ imageUrl: z.string().url() }).optional(),
-  audio: z.object({ audioUrl: z.string().url() }).optional(),
+  image: z.object({ imageUrl: z.url() }).optional(),
+  audio: z.object({ audioUrl: z.url() }).optional(),
 });
 type ZapiReceived = z.infer<typeof ZapiReceived>;
 

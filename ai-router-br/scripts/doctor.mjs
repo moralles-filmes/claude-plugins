@@ -23,6 +23,8 @@ const nodeMajor=Number(process.versions.node.split('.')[0]);
 const deepseekKey=probe.deepseek_key==='missing' && present('DEEPSEEK_API_KEY')?'set_in_windows_restart_required':probe.deepseek_key;
 const blockers=[];
 if(nodeMajor<20) blockers.push('node_below_20');
+// O 20 ainda roda o router, mas está em fim de vida desde 30/04/2026: avisa sem bloquear.
+const warnings=nodeMajor<22?['node_eol_upgrade_to_22_or_24']:[];
 if(repo.error) blockers.push(['tracked_secret','tracked_router_config'].includes(repo.error)?repo.error:'not_a_git_repo');
 else if(repo.dirty) blockers.push('dirty_worktree');
 if(codexAuth!=='chatgpt' && probe.deepseek_key!=='ok') blockers.push('no_external_worker_configured');
@@ -33,7 +35,7 @@ const routing=Object.fromEntries(COMPLEXITIES.map(k=>[k,ladderFor(config,k).map(
   return `${[c.executor,c.model,c.effort].filter(Boolean).join(':')}${why?` (indisponível: ${why})`:''}`;
 })]));
 console.log(JSON.stringify({
-  node:process.version,node_20_plus:nodeMajor>=20,git:v('git'),claude:v('claude'),codex:codexBin?v(codexBin,[...codexPre,'--version']):null,
+  node:process.version,node_20_plus:nodeMajor>=20,node_22_plus:nodeMajor>=22,git:v('git'),claude:v('claude'),codex:codexBin?v(codexBin,[...codexPre,'--version']):null,
   codex_command:codexBin||null,codex_auth:codexAuth,codex_chatgpt:codexAuth==='chatgpt',
   codex_models:probe.codex_models?[...probe.codex_models.models.keys()]:null,codex_models_fetched_at:probe.codex_models?.fetched_at??null,
   deepseek_key_present:deepseekKey!=='missing',deepseek_key_format:deepseekKey,
@@ -41,7 +43,7 @@ console.log(JSON.stringify({
   anthropic_base_url_overridden:Boolean(process.env.ANTHROPIC_BASE_URL),
   git_repo:!repo.error,git_dirty:Boolean(repo.dirty),tracked_secret:repo.error==='tracked_secret',tracked_router_config:repo.error==='tracked_router_config',
   router_initialized:fs.existsSync(path.join(root,'.ai-router','config.yml')),
-  external_worker_ready:blockers.length===0,external_worker_blockers:blockers,
+  external_worker_ready:blockers.length===0,external_worker_blockers:blockers,warnings,
   routing,
   optional_integrations:{saas_audit_br:Object.keys(installed).some(k=>k.startsWith('saas-audit-br@'))},
   note:'Secret values are never printed.'

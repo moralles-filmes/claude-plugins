@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [1.6.0] — 2026-10-24
+
+### Corrigido (versões vulneráveis nos templates)
+- **`vite-react-arquitetura`**: o `package.json` canônico tinha 2 critical, 2 high e 8 moderate (`npm audit`). Agora zod ^4.6.7, @hookform/resolvers ^5.9.2, react-router-dom ^7.18.4, vite ^8.3.5, @vitejs/plugin-react ^6.1.2, vitest ^5.0.5, postcss ^8.5.31, `engines.node >=22.12`: 0 critical/high. Ficam 3 moderate do Tailwind 3 em ferramenta de build, cuja correção é o Tailwind 4 (major, decisão; a config de tokens do `design-ux` muda). O bootstrap instala as versões do `package.json` (`npm install --ignore-scripts`) em vez de `npm i <pacote>` sem versão.
+- Exemplos com API só do zod 3 (`invalid_type_error`, `z.record` de 1 argumento, `.passthrough()`) passaram para o zod 4 em `frontend-react`, `integrador-apis`, `backend-supabase` (import map `npm:zod@^4.6.7`) e `whatsapp-zapi-integracao`.
+- React Router 6 → 7 nas descrições; Node 20 (fim de vida) → 22.12+.
+
+### Adicionado
+- **`devops-ci`**: `security.yml` (deps-audit + secret-scan --history no PR, na main e toda semana) e `dependabot.yml` (npm com cooldown de 7 dias + github-actions); actions fixadas por SHA; Node pelo `.nvmrc`; `npm ci --ignore-scripts`; segredo de deploy só no `env:` do step que usa (antes ficava no job inteiro, exposto aos install scripts); `vercel` e Supabase CLI com versão fixa; checklist e anti-padrões de cadeia de suprimentos.
+
 ## [1.5.1] — 2026-10-20
 
 ### Alterado

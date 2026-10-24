@@ -1,0 +1,135 @@
+{
+  "reviewed_at": "2026-10-24",
+  "max_age_days": 90,
+  "source": "Auditoria de 23–24/10/2026 (22 sistemas, 39 PRs). Faixas conferidas com npm audit em 24/10/2026. O audit do gerenciador continua sendo a fonte da verdade: esta lista existe para funcionar sem rede (--no-audit) e para dar a correção certa (overrides, CDN, major).",
+  "packages": [
+    {
+      "name": "next",
+      "severity": "P0",
+      "issue": "RCE sem login: otimizador de imagem (SVG/AVIF), `use cache` e `next/og` (out/2026)",
+      "fixed": { "15": "15.5.28", "16": "16.4.3" },
+      "hint": "Atualize o next para a versão corrigida da sua major. Junto, force sharp ≥ 0.35.5 e postcss ≥ 8.5.31 com overrides: o Next fixa o postcss numa versão vulnerável."
+    },
+    {
+      "name": "sharp",
+      "severity": "P0",
+      "issue": "Otimizador de imagem vulnerável (cadeia do RCE do Next, out/2026)",
+      "fixed_any": "0.35.5",
+      "hint": "Se vem do next (transitiva/opcional): \"overrides\": { \"sharp\": \"^0.35.5\" }. Confira com npm ls sharp."
+    },
+    {
+      "name": "postcss",
+      "severity": "P1",
+      "issue": "postcss vulnerável fixado pelo Next (out/2026)",
+      "fixed_any": "8.5.31",
+      "hint": "Transitiva do next: \"overrides\": { \"next\": { \"postcss\": \"^8.5.31\" } } (npm/bun) ou pnpm.overrides { \"next>postcss\": \"^8.5.31\" }. Confira com npm ls postcss."
+    },
+    {
+      "name": "react",
+      "severity": "P1",
+      "issue": "DoS em React Server Components, corrigido no React 19.2.6+",
+      "fixed": { "19": "19.2.6" },
+      "affected_majors": [19],
+      "only_if_any": ["next", "react-server-dom-webpack", "react-server-dom-turbopack", "react-server-dom-parcel"],
+      "hint": "Atualize react e react-dom para ≥ 19.2.6 (mesma major) junto com o next."
+    },
+    {
+      "name": "react-dom",
+      "severity": "P1",
+      "issue": "DoS em React Server Components, corrigido no React 19.2.6+",
+      "fixed": { "19": "19.2.6" },
+      "affected_majors": [19],
+      "only_if_any": ["next", "react-server-dom-webpack", "react-server-dom-turbopack", "react-server-dom-parcel"],
+      "hint": "Atualize react e react-dom para ≥ 19.2.6 (mesma major) junto com o next."
+    },
+    {
+      "name": "zod",
+      "severity": "P1",
+      "issue": "DoS por memória ao validar coleção grande (GHSA-mrhx-c7xc-m3w5); zod 3 inteiro é vulnerável",
+      "fixed": { "4": "4.6.6" },
+      "min_major": 4,
+      "hint": "zod 3 → 4: z.record exige 2 argumentos; mensagem de tipo vira { error }; .flatten() → z.flattenError; @hookform/resolvers ≥ 5. Até migrar: limite o tamanho do payload antes do parse."
+    },
+    {
+      "name": "xlsx",
+      "severity": "P1",
+      "issue": "SheetJS abandonado no registry do npm; as versões corrigidas só saem no CDN oficial (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)",
+      "source_must_start": "https://cdn.sheetjs.com/",
+      "hint": "npm i https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz (o lockfile grava o hash). Dependabot não atualiza dependência por URL: anote na watchlist do projeto."
+    },
+    {
+      "name": "jspdf",
+      "severity": "P1",
+      "issue": "Vulnerabilidades críticas até 4.2.0",
+      "fixed_any": "4.2.1",
+      "hint": "Atualize para ≥ 4.2.1."
+    },
+    {
+      "name": "dompurify",
+      "severity": "P1",
+      "issue": "Bypass de sanitização (XSS) até 3.4.16",
+      "fixed_any": "3.4.17",
+      "hint": "Atualize para ≥ 3.4.17; se vem de outra lib (ex.: jspdf), use overrides."
+    },
+    {
+      "name": "react-router",
+      "severity": "P1",
+      "issue": "Vulnerabilidades corrigidas só na linha 7 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg)",
+      "fixed": { "7": "7.18.0" },
+      "min_major": 7,
+      "hint": "6 → 7: React Router 7 exige Node ≥ 20; a v7 aceita os imports de react-router-dom."
+    },
+    {
+      "name": "react-router-dom",
+      "severity": "P1",
+      "issue": "Vulnerabilidades corrigidas só na linha 7 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg)",
+      "fixed": { "7": "7.18.0" },
+      "min_major": 7,
+      "hint": "6 → 7: React Router 7 exige Node ≥ 20."
+    },
+    {
+      "name": "tar",
+      "severity": "P1",
+      "issue": "Path traversal/extração arbitrária até 7.5.20 (tar 6 vinha pelo Expo 52)",
+      "fixed_any": "7.5.22",
+      "hint": "Se vem do Expo, a correção é migrar o Expo (o time foi do 52 para o 57). Senão, overrides { \"tar\": \"^7.5.22\" } e teste."
+    },
+    {
+      "name": "uuid",
+      "severity": "P2",
+      "issue": "uuid < 11.1.1 (vinha pelo exceljs)",
+      "fixed_any": "11.1.1",
+      "hint": "Transitiva do exceljs: overrides { \"exceljs\": { \"uuid\": \"^11.1.1\" } } e teste a exportação."
+    },
+    {
+      "name": "image-size",
+      "severity": "P1",
+      "issue": "DoS até 2.0.2",
+      "fixed_any": "2.0.4",
+      "hint": "Atualize para ≥ 2.0.4."
+    },
+    {
+      "name": "serialize-javascript",
+      "severity": "P1",
+      "issue": "XSS/injeção até 7.1.2",
+      "fixed_any": "7.1.4",
+      "hint": "Geralmente transitiva de bundler/plugin: overrides { \"serialize-javascript\": \"^7.1.4\" } e rode o build."
+    },
+    {
+      "name": "vitest",
+      "severity": "P2",
+      "issue": "Leitura de arquivo/injeção via mock até 4.1.10 (ferramenta de desenvolvimento)",
+      "fixed": { "4": "4.1.12" },
+      "min_major": 4,
+      "hint": "Ferramenta de dev: corrija no próximo ciclo; vira P1 se o servidor do vitest (UI/browser mode) fica exposto na rede."
+    },
+    {
+      "name": "vite",
+      "severity": "P2",
+      "issue": "Dev server com leitura de arquivo fora da raiz (linhas 5 e 6 até 6.4.3)",
+      "fixed": { "6": "6.4.5" },
+      "min_major": 6,
+      "hint": "Roda no build da Vercel/CI: para cadeia de suprimentos conta como produção. Atualize; 5 → 6+ é major."
+    }
+  ]
+}

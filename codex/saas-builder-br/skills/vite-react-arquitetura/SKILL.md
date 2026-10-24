@@ -78,11 +78,14 @@ description: "Estrutura de pastas + arquivos canônicos para iniciar um novo Saa
 
 ### `package.json` — dependências mínimas
 
+Versões conferidas com `npm audit` em 24/10/2026: 0 critical/high. Sobram 3 moderate do Tailwind 3 em ferramenta de build (`postcss-selector-parser`), cuja correção é o Tailwind 4 (major, fica como decisão; ver `$saas-shield-br:dependency-audit`). Antes de criar o projeto, rode o `deps-audit.mjs` de novo: versões envelhecem.
+
 ```json
 {
   "name": "<projeto>",
   "private": true,
   "type": "module",
+  "engines": { "node": ">=22.12" },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -93,7 +96,7 @@ description: "Estrutura de pastas + arquivos canônicos para iniciar um novo Saa
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.0",
+    "@hookform/resolvers": "^5.9.2",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@supabase/supabase-js": "^2.45.0",
@@ -105,9 +108,9 @@ description: "Estrutura de pastas + arquivos canônicos para iniciar um novo Saa
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",
-    "react-router-dom": "^6.27.0",
+    "react-router-dom": "^7.18.4",
     "tailwind-merge": "^2.5.4",
-    "zod": "^3.23.8",
+    "zod": "^4.6.7",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
@@ -119,18 +122,18 @@ description: "Estrutura de pastas + arquivos canônicos para iniciar um novo Saa
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@vitejs/plugin-react": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
     "autoprefixer": "^10.4.20",
-    "eslint": "^9.13.0",
+    "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "jsdom": "^25.0.1",
     "msw": "^2.6.0",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.14",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.10",
-    "vitest": "^2.1.4"
+    "postcss": "^8.5.31",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   }
 }
 ```
@@ -234,7 +237,7 @@ export const supabase = createClient<Database>(
 import { z } from "zod";
 
 const schema = z.object({
-  VITE_SUPABASE_URL: z.string().url(),
+  VITE_SUPABASE_URL: z.url(),
   VITE_SUPABASE_ANON_KEY: z.string().min(20),
   VITE_APP_NAME: z.string().default("App"),
 });
@@ -355,22 +358,19 @@ export function Component() {
 ## Bootstrap em 5 comandos
 
 ```bash
-# 1. Cria projeto Vite
+# 1. Cria projeto Vite (Node 22.12+; o mesmo valor vai no .nvmrc e no CI)
 npm create vite@latest meu-saas -- --template react-ts
-cd meu-saas
+cd meu-saas && echo 22 > .nvmrc
 
-# 2. Instala dependências canônicas
-npm i @supabase/supabase-js @tanstack/react-query @tanstack/react-query-devtools \
-      react-router-dom react-hook-form zod @hookform/resolvers zustand \
-      class-variance-authority clsx tailwind-merge lucide-react \
-      @radix-ui/react-dialog @radix-ui/react-slot
+# 2. Instala as dependências canônicas NAS VERSÕES do package.json acima
+#    (cole o package.json e rode npm install; não use `npm i <pacote>` sem versão:
+#    ele traz a major mais nova, que pode não bater com os exemplos das skills)
+npm install --ignore-scripts
+# 0 P0/P1 antes de seguir: skill $saas-shield-br:dependency-audit
+#   (com o kit do Padrão SaaS: node scripts/security/deps-audit.mjs --root .)
 
-npm i -D tailwindcss postcss autoprefixer @tailwindcss/forms \
-      @testing-library/react @testing-library/jest-dom @testing-library/user-event \
-      vitest jsdom msw @playwright/test
-
-# 3. Tailwind init
-npx tailwindcss init -p
+# 3. Tailwind 3 init
+npx tailwindcss@3 init -p
 
 # 4. Inicia Supabase local
 npx supabase init

@@ -1,0 +1,14 @@
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }   # versão recém-publicada espera 7 dias (malware costuma ser retirado antes)
+    open-pull-requests-limit: 10
+    groups:
+      producao: { dependency-type: production, update-types: [minor, patch] }
+      desenvolvimento: { dependency-type: development, update-types: [minor, patch] }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

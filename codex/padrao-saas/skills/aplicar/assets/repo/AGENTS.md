@@ -60,14 +60,15 @@ Não adicione infraestrutura, troque a stack ou amplie escopo só para preencher
   - Service role / secret key (ignora RLS) e tokens de provedor ficam apenas no servidor.
   - Antes de usar a service role, resolva o tenant, verifique a permissão e filtre a coluna de tenant explicitamente em toda query.
   - A publishable/anon key pode ir ao browser porque a proteção vem de RLS e grants.
-- **Segredos.** Nunca em Git, browser, logs, traces, mensagens de erro, prompts de IA, resultados de tool ou documentação. Arquivo local com segredo fica no `.gitignore`; `.env.example` só com as chaves, sem valor. Segredo já versionado é P0: pare, avise, rotacione e só então trate o histórico — sem repetir o valor no relatório.
+- **Segredos.** Nunca em Git, browser, logs, traces, mensagens de erro, prompts de IA, resultados de tool ou documentação. Arquivo local com segredo fica no `.gitignore`; `.env.example` só com as chaves, sem valor. Segredo já versionado é P0: pare, avise, rotacione no provedor e só então trate o histórico — sem repetir o valor no relatório. Varredura do histórico: `node scripts/security/secret-scan.mjs --history`. `.env*` versionado só com variáveis públicas (`NEXT_PUBLIC_`/`VITE_`… sem nome nem valor de segredo).
+- **Dependências.** Instalação com lockfile congelado e um lockfile só. Correção que exige major (zod 3→4, React Router 6→7, Expo, NestJS, Sentry) é decisão do usuário, com plano; nunca `npm audit fix --force`.
 - **Efeitos reais.** Testes, CI e **preview deployments** nunca disparam mensagens, e-mails, cobranças ou webhooks reais.
 - **Produção.** Deploy, push, merge, migration remota e alteração destrutiva exigem autorização explícita nesta conversa. Uma autorização vale para o mesmo escopo e ambiente até a tarefa terminar; mudança de escopo ou ambiente exige nova autorização. Commit local em branch de trabalho é livre (OPERATIONS §1).
 
 ## 7. Comandos oficiais
 
 ```text
-install:    {{pnpm install --frozen-lockfile}}
+install:    {{pnpm install --frozen-lockfile}}   (sem install scripts no CI: npm ci --ignore-scripts)
 dev:        {{pnpm dev}}
 lint:       {{pnpm lint}}
 typecheck:  {{pnpm typecheck}}
@@ -76,6 +77,8 @@ test db:    {{supabase test db}}
 build:      {{pnpm build}}
 padrão:     node scripts/check-padrao.mjs
 portável:   node scripts/check-portabilidade.mjs
+deps:       node scripts/security/deps-audit.mjs          (0 P0/P1; major = decisão do usuário)
+segredos:   node scripts/security/secret-scan.mjs --history
 db local:   {{supabase start / supabase db reset}}   (nunca contra produção)
 ```
 

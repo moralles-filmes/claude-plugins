@@ -29,7 +29,7 @@ supabase/functions/
   _shared/application/<modulo>/    casos de uso + portas (interfaces)
   _shared/adapters/                supabase-js, provedores, Deno.env — único lugar com SDK e Deno.*
   _shared/errors.ts                classes de erro (ARCHITECTURE §9)
-  deno.json                        import map: "zod" → "npm:zod@3"
+  deno.json                        import map: "zod" → "npm:zod@^4.6.7" (zod 3: GHSA-mrhx-c7xc-m3w5)
 ```
 
 `domain/` e `application/` não usam `Deno.*` nem `supabase-js`: rodam igual no Deno e no Node (GCP_MIGRATION §6). O `node scripts/check-portabilidade.mjs` acusa o desvio.
@@ -52,9 +52,9 @@ import { AuthorizationError } from "../../errors.ts";
 import { sha256Hex } from "../../domain/hash.ts";
 
 export const BaixarEstoqueInput = z.object({
-  productId: z.string().uuid(),
+  productId: z.uuid(),
   qty: z.number().int().positive(),
-  operationId: z.string().uuid(), // idempotência: o cliente gera uma vez por intenção
+  operationId: z.uuid(), // idempotência: o cliente gera uma vez por intenção
 });
 export type BaixarEstoqueInput = z.infer<typeof BaixarEstoqueInput>;
 

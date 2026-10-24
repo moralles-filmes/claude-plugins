@@ -5,7 +5,7 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 ## Plugins inclusos
 
 - **[padrao-saas](./padrao-saas/)** — Padrão SaaS: a norma dos projetos (arquitetura, segurança, multi-tenancy, controle de acesso por empresa/filial/módulo, banco, integrações, API pública, ciclo de vida da empresa, testes, operação). Skills `aplicar`, `novo-modulo` e `mudanca` (mudança em várias camadas feita em fases, com contexto limpo por fase). Os plugins abaixo executam; este diz o quê e por quê. Comece pelo [LEIA-ME](./padrao-saas/LEIA-ME.md).
-- **[saas-shield-br](./saas-shield-br/)** — Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite (segurança RLS, isolamento tenant, secrets, custo, PT-BR). Fonte única dos templates de migration, Edge Function e deploy usados pelos outros plugins.
+- **[saas-shield-br](./saas-shield-br/)** — Suite de skills + agents para SaaS multi-tenant em Supabase + Vercel + React/Vite (segurança RLS, isolamento tenant, secrets inclusive no histórico do git, audit de dependências e versão do Node, custo, PT-BR). Fonte única dos templates de migration, Edge Function e deploy e dos scripts `scripts/security/` (secret-scan, deps-audit) usados pelos outros plugins.
 - **[code-health](./code-health/)** — Auditoria e limpeza de código JS/TS/React/Next.js/Vite, Supabase-aware (dead code, botões fantasma, rotas quebradas, mocks, stubs, referências Supabase quebradas).
 - **[saas-builder-br](./saas-builder-br/)** — Orquestrador + subagents para construir SaaS multi-tenant (Vite + React + TS / Supabase / Vercel), com gates pontuais do saas-shield-br e auditoria completa delegada ao saas-audit-br.
 - **[turbo](./turbo/)** — Otimização de performance ponta a ponta (React/Next + Postgres/Supabase), com baseline medido e guarda-corpos contra regressão.
@@ -33,7 +33,7 @@ cd claude-plugins
 
 O setup, de forma idempotente:
 
-1. verifica Git e Node.js 20+;
+1. verifica Git e Node.js 22+ (LTS; o 20 ainda funciona, com aviso de fim de vida);
 2. verifica Claude Code e Codex CLI — se faltarem, instala pelos instaladores oficiais (`irm https://claude.ai/install.ps1 | iex` e `irm https://chatgpt.com/codex/install.ps1 | iex`; no macOS/Linux, os equivalentes `install.sh`);
 3. confere o login do Claude (assinatura) e se o Codex está autenticado **via ChatGPT** — nunca troca login por API key; se precisar, pede só o `codex login` interativo;
 4. registra/atualiza os marketplaces e instala/atualiza **todos** os plugins deste repositório (lidos de `.claude-plugin/marketplace.json`, inclui `ai-router-br`) + `frontend-design`, `skill-creator` e `superpowers`;
