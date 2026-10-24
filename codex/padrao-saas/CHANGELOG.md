@@ -1,5 +1,15 @@
 # Changelog — padrao-saas
 
+## 3.4.0
+
+A norma continua v3.2: `docs/standards/` e o manifest não mudaram. Projetos já instalados fazem só o merge do AGENTS.md e das rules (skill `aplicar` §9).
+
+- **Verificação de exposição de segredos na instalação.** A auditoria da skill `aplicar` ganhou um item que roda **antes** dos demais: confere o `.gitignore` (`.env*`, chaves, dumps e o estado das ferramentas), o `.env.example` sem valores e se há segredo rastreado ou no histórico, delegando a varredura ao `saas-shield-br:secret-scan`. Segredo encontrado para a auditoria, é P0 e entra na Entrega com arquivo e tipo de credencial — nunca o valor. Antes, o padrão protegia daqui para frente, mas não auditava o que já estava no repositório.
+- **Ordem de prioridade quando duas regras conflitam** (AGENTS.md §5): segurança e proteção de dados → integridade dos dados → instrução do usuário → padrão → arquitetura → convenções → preferência. Regra de baixo não justifica violar as duas primeiras; o agente expõe o risco e pede confirmação.
+- **Regra de `.gitignore` e segredo versionado** no AGENTS.md §6 e em `.claude/rules/seguranca-multitenancy.md`.
+- **Código obsoleto** (AGENTS.md §9): o que a mudança tornou morto é removido depois de conferir referências indiretas (string, rota, config, migration, job, permissão); nada de `funcaoNova2()` convivendo com a original, e nada de apagar o que só *parece* sem uso.
+- **Escopo fechado do executor** (AGENTS.md §10): subagente não decide arquitetura por conta, não altera arquivo fora da fase, não cria implementação concorrente, e dois executores não editam os mesmos arquivos.
+
 ## 3.3.0
 
 A norma continua v3.2: `docs/standards/` e o manifest não mudaram.
