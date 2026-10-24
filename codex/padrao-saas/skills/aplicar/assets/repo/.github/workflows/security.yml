@@ -38,3 +38,16 @@ jobs:
         with: { node-version-file: .nvmrc }
       - name: Segredos no histórico (todas as refs)
         run: node scripts/security/secret-scan.mjs --history --repo .
+
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Análise estática (Semgrep CE; relata, não reprova)
+        run: |                         # versão fixa: o Dependabot não atualiza esta linha (revisão trimestral)
+          pipx run --spec semgrep==1.180.0 semgrep scan --config p/default --metrics=off --json --output semgrep.json --quiet .
+          n=$(jq '.results | length' semgrep.json)
+          { echo "### Semgrep: $n achado(s)"; jq -r '.results[:30][] | "- `\(.extra.severity)` \(.check_id | split(".") | last) — \(.path):\(.start.line)"' semgrep.json; } >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: semgrep, path: semgrep.json, if-no-files-found: ignore }

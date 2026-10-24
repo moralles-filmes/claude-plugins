@@ -14,7 +14,10 @@ Arquivos:
 - `PLAN.md` — plano de correção e ordem.
 - `TESTS.md` — testes executados e resultados.
 - `REPORT.md` — relatório final.
+- `SUMMARY.md` e `ci-result.json` — só no modo `--ci`: resumo curto e resultado legível por máquina para o workflow agendado.
 - `modules/<slug>/STATE.md` — estado de auditoria focada, quando aplicável.
+
+No modo `--ci`, `.saas-audit-prev/` traz a auditoria da execução anterior (baixada pelo workflow). É só leitura: serve para o `Previous audit commit` e para comparar findings pela `Key`.
 
 ## Regra de tamanho
 
@@ -24,7 +27,7 @@ Shape recomendado:
 
 ```markdown
 # SaaS Audit State
-Mode: audit-only (default) | fix (explicit) | full (explicit)
+Mode: audit-only (default) | fix (explicit) | full (explicit) | ci (scheduled)
 Scope: full | module:<nome>
 Last scope: full | module:<slug> → .saas-audit/modules/<slug>/STATE.md
 Phase: baseline | discovery | audit | classify | plan | fix-p0 | fix-p1 | fix-p2 | hardening | regression | done

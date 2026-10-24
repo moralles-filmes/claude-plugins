@@ -28,6 +28,11 @@ padrao-saas/
       .claude/padrao.json        padrões opcionais não adotados (com motivo) e exceções de portabilidade
       scripts/check-padrao.mjs   verificação do padrão para o CI do projeto
       scripts/check-portabilidade.mjs  mede o acoplamento ao Supabase (CI barra dívida nova)
+      scripts/security/          cópia do saas-shield-br: secret-scan e deps-audit
+      .githooks/                 pre-commit e pre-push com secret-scan (vale fora do Claude Code)
+      .github/workflows/         ci.yml (banco local + testes de isolamento), security.yml (dependências,
+                                 segredos e Semgrep toda semana), auditoria.yml (saas-audit-br --ci agendado)
+      .github/dependabot.yml     npm com cooldown + github-actions
       docs/standards/            13 padrões + .manifest.json
         ARCHITECTURE  SECURITY  MULTI_TENANCY  ACCESS_CONTROL  DATABASE  INTEGRATIONS
         PUBLIC_API  TENANT_LIFECYCLE  MODULES  PERFORMANCE  TESTING  OPERATIONS  GCP_MIGRATION

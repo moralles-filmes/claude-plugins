@@ -20,7 +20,8 @@
  *   9. Scripts .mjs dos plugins (hooks/scripts e scripts/) passam em `node --check`
  *  10. Templates e exemplos não fixam versão vulnerável (watchlist do saas-shield-br) nem
  *      Node em fim de vida — senão todo projeto novo nasce com o problema
- *  11. Cópias do pacote scripts/security do saas-shield-br (kit do padrao-saas) idênticas à fonte
+ *  11. Cópias do pacote scripts/security do saas-shield-br (kit do padrao-saas) idênticas à fonte,
+ *      e workflows do kit idênticos aos blocos do devops-ci (saas-builder-br)
  *
  * Saída:
  *   - exit 0 → tudo OK
@@ -622,10 +623,10 @@ if (existsSync(depsAudit)) {
 }
 
 // ─── 9d. Kit do padrao-saas: cópias do saas-shield-br idênticas ─────
-// O kit grava scripts/security/ e o security.yml/dependabot.yml nos projetos. A fonte é o
-// saas-shield-br (scripts) e o devops-ci do saas-builder-br (workflows): cópia divergente é erro.
+// O kit grava scripts/security/ e os workflows (ci, security, auditoria, dependabot) nos projetos.
+// A fonte é o saas-shield-br (scripts) e o devops-ci do saas-builder-br (workflows): cópia divergente é erro.
 
-step('Validando cópias do kit (scripts/security, security.yml, dependabot.yml)')
+step('Validando cópias do kit (scripts/security, ci.yml, security.yml, auditoria.yml, dependabot.yml)')
 
 const shieldSec = join(REPO_ROOT, 'saas-shield-br', 'scripts', 'security')
 const kitRepo = join(REPO_ROOT, 'padrao-saas', 'skills', 'aplicar', 'assets', 'repo')
@@ -640,12 +641,18 @@ if (existsSync(shieldSec) && existsSync(kitRepo)) {
   }
   const devops = lf(join(REPO_ROOT, 'saas-builder-br', 'agents', 'devops-ci.md'))
   const blocks = [...devops.matchAll(/```yaml\n([\s\S]*?)```/g)].map(m => m[1])
-  for (const [file, pick] of [['.github/workflows/security.yml', b => b.startsWith('name: security\n')], ['.github/dependabot.yml', b => b.startsWith('# .github/dependabot.yml\n')]]) {
+  const workflows = [
+    ['.github/workflows/ci.yml', b => b.startsWith('name: CI\n')],
+    ['.github/workflows/security.yml', b => b.startsWith('name: security\n')],
+    ['.github/workflows/auditoria.yml', b => b.startsWith('name: auditoria\n')],
+    ['.github/dependabot.yml', b => b.startsWith('# .github/dependabot.yml\n')],
+  ]
+  for (const [file, pick] of workflows) {
     const block = blocks.find(pick)
     const path = join(kitRepo, file)
     if (!block || !existsSync(path) || lf(path) !== block) { err(`padrao-saas kit: ${file} difere do bloco correspondente em saas-builder-br/agents/devops-ci.md`); diverged++ }
   }
-  if (!diverged) ok(`kit em dia com a fonte (${src.length} scripts de segurança + security.yml + dependabot.yml)`)
+  if (!diverged) ok(`kit em dia com a fonte (${src.length} scripts de segurança + ${workflows.length} arquivos do GitHub)`)
 }
 
 // ─── 10. Versão do plugin.json = topo do CHANGELOG ──────────────────

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.7.0] — 2026-10-24
+
+### Adicionado
+- **`devops-ci`: `auditoria.yml`**, a auditoria do saas-audit-br agendada (`/saas-audit-br:audit --ci`) pelo `claude-code-action`, com os plugins do marketplace e a assinatura do Claude (`CLAUDE_CODE_OAUTH_TOKEN`). Só leitura, compara com a execução anterior e reprova quando aparece P0 novo ou a auditoria fica incompleta.
+- **`devops-ci`: job `sast` no `security.yml`** (Semgrep CE com versão fixa, só relatando no começo), com o caminho para reprovar só o que o PR introduz (`--error --baseline-commit`).
+
+### Alterado
+- **`devops-ci`: `ci.yml` serve também para projeto existente.** Sem `supabase/config.toml` ou sem testes em `supabase/tests/`, os passos de banco não rodam e o PR recebe aviso, em vez de quebrar ou passar calado. O mesmo arquivo agora está no kit do padrao-saas, e o `validate.mjs` confere os três workflows contra os blocos deste agente.
+
 ## [1.6.0] — 2026-10-24
 
 ### Corrigido (versões vulneráveis nos templates)

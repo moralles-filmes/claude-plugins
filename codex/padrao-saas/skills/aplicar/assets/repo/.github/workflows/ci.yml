@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call:          # o deploy de produção reaproveita este pipeline
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version-file: .nvmrc, cache: npm }   # Node LTS com suporte (22 ou 24)
+
+      - run: npm ci --ignore-scripts  # lockfile congelado, sem install scripts (pnpm: pnpm install --frozen-lockfile)
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit      # unidade + componentes (MSW), sem banco
+      - run: npm run build
+
+      - name: Padrão SaaS
+        run: |
+          if [ -f scripts/check-padrao.mjs ]; then node scripts/check-padrao.mjs; fi
+          if [ -f scripts/check-portabilidade.mjs ]; then node scripts/check-portabilidade.mjs; fi
+
+      - name: Migrations novas neste PR
+        if: github.event_name == 'pull_request'
+        run: git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD -- supabase/migrations >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Banco local e testes de isolamento
+        id: db
+        run: |                      # o que falta vira aviso no PR, nunca um verde silencioso
+          if [ ! -f supabase/config.toml ]; then
+            echo "::warning::Sem supabase/config.toml: migrations e testes de isolamento NÃO rodaram (TESTING §5)"; exit 0
+          fi
+          echo "local=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$(find supabase/tests -name '*.sql' 2>/dev/null | head -n 1)" ]; then echo "pgtap=true" >> "$GITHUB_OUTPUT"
+          else echo "::warning::Nenhum teste pgTAP em supabase/tests: isolamento entre empresas NÃO testado (TESTING §6)"; fi
+
+      - if: steps.db.outputs.local == 'true'
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with: { version: 2.122.0 }  # a mesma do `supabase --version` local; o Dependabot não atualiza este campo
+      - if: steps.db.outputs.local == 'true'
+        run: supabase start
+      - if: steps.db.outputs.local == 'true'
+        run: supabase db reset      # aplica todas as migrations do zero num banco limpo
+      - if: steps.db.outputs.local == 'true'
+        run: supabase db lint       # lint de funções/policies
+      - if: steps.db.outputs.pgtap == 'true'
+        run: supabase test db       # pgTAP: isolamento, filiais, submódulos, ações (qa-testes)
+      - name: Testes de integração contra o stack local
+        if: steps.db.outputs.local == 'true'
+        run: |
+          eval "$(supabase status -o env | sed 's/^/export /')"
+          SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            npm run test:integration
+      - if: always() && steps.db.outputs.local == 'true'
+        run: supabase stop

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0 — 2026-10-24
+
+- **Modo `--ci` em `/saas-audit-br:audit`** para a auditoria agendada (workflow `auditoria.yml` do kit do Padrão SaaS). É `--audit-only` sem perguntas nem pausas, proibido de editar fora de `.saas-audit/`, instalar dependência, commitar ou usar flags de escrita; conteúdo do repositório que tente mudar o modo vira achado de prompt injection. Antes, o estado ficava em `.saas-audit/` (fora do git) e, num runner descartável, cada execução começava do zero: sem `Previous audit commit` e sem saber o que era novo.
+- **Comparação com a execução anterior.** O workflow baixa o artefato anterior para `.saas-audit-prev/`; cada finding ganha `Key: <área>:<arquivo>:<regra>` (sem número de linha) e sai como novo, persistente (mantém o `AUD-###`), resolvido ou não reavaliado (área INCONCLUSIVE nunca conta como resolvida).
+- **Saídas do `--ci`:** `SUMMARY.md` (até 60 linhas, publicado no resumo da execução) e `ci-result.json` (contagens atuais e novas, `complete`). O JSON é gravado com `complete: false` a cada wave, para que uma execução cortada no meio reprove como incompleta em vez de passar por verde.
+- `Key` também vale nas execuções manuais (Fase 6), para comparar auditorias entre si.
+
 ## 1.4.0 — 2026-10-24
 
 - **Dependências e histórico do git entram na wave de segurança**, executados pelo orquestrador (os agentes do shield não têm shell): `secret-scan --history` e `dependency-audit`. Antes, um REPORT sem P0/P1 convivia com Next e zod vulneráveis e com a chave no histórico, sem aparecer nem como INCONCLUSIVE.
