@@ -15,7 +15,7 @@ Write-Host ""
 & claude plugin marketplace add $root
 
 # 2. Instala todos os plugins (mantenha em sincronia com .claude-plugin/marketplace.json)
-$plugins = @("saas-shield-br", "code-health", "saas-builder-br", "turbo", "saas-audit-br", "ai-router-br")
+$plugins = @("saas-shield-br", "code-health", "saas-builder-br", "turbo", "saas-audit-br", "ai-router-br", "frontend-premium-br")
 foreach ($p in $plugins) {
     Write-Host ""
     Write-Host "==> Instalando $p..." -ForegroundColor Cyan

@@ -18,7 +18,7 @@ echo ""
 claude plugin marketplace add "$ROOT"
 
 # 2. Instala todos os plugins (mantenha em sincronia com .claude-plugin/marketplace.json)
-for p in saas-shield-br code-health saas-builder-br turbo saas-audit-br ai-router-br; do
+for p in saas-shield-br code-health saas-builder-br turbo saas-audit-br ai-router-br frontend-premium-br; do
   echo ""
   echo "==> Instalando $p..."
   claude plugin install "$p"

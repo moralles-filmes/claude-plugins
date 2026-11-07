@@ -1,0 +1,12 @@
+{
+  "name": "frontend-premium-br",
+  "version": "1.0.0",
+  "description": "Frontend premium, 3D e animações cinematográficas para sites e landing pages, dentro do Padrão SaaS: skill futuristic-web-design (direção de arte, WebGL/R3F, scroll storytelling, tipografia cinética, shaders, microinterações) com catálogo das bibliotecas (React Bits, Three.js, R3F, Drei, GSAP, Lenis, Magic UI, Motion Primitives, R3F Scroll Rig, React Postprocessing), orçamento de performance e acessibilidade; skill web-animation-design (MIT, vercel-labs/open-agents); MCPs Magic UI e shadcn (com registro React Bits) em versão fixada. 3D e animação pesada ficam no site público, nunca nas telas operacionais do app. 2 skills, 2 MCPs.",
+  "author": {
+    "name": "Yuri Moraes",
+    "email": "morallesfilms@gmail.com"
+  },
+  "homepage": "https://github.com/moralles-filmes/claude-plugins",
+  "license": "MIT",
+  "keywords": ["frontend", "3d", "webgl", "three", "react-three-fiber", "gsap", "animation", "shadcn", "magic-ui", "react-bits", "landing-page", "pt-br"]
+}

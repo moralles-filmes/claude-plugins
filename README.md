@@ -11,6 +11,7 @@ Marketplace pessoal de plugins Claude Code do Yuri Moraes.
 - **[turbo](./turbo/)** — Otimização de performance ponta a ponta (React/Next + Postgres/Supabase), com baseline medido e guarda-corpos contra regressão.
 - **[saas-audit-br](./saas-audit-br/)** — Orquestrador de auditoria completa de SaaS (audit → fix → test), reutilizando saas-shield-br + code-health. Por padrão só audita; correção só com `--fix`/`--full`.
 - **[ai-router-br](./ai-router-br/)** — Roteamento seguro de tarefas por risco, complexidade e custo entre o agente principal, Codex worker (login ChatGPT, modelo pela complexidade), DeepSeek worker (API) e subagentes Claude Haiku/Sonnet. Versão nativa Codex em [codex/ai-router-br](./codex/ai-router-br/).
+- **[frontend-premium-br](./frontend-premium-br/)** — Sites e landing pages premium, 3D e cinematográficos dentro do Padrão SaaS: skill `futuristic-web-design` (catálogo de bibliotecas, orçamento de performance, acessibilidade), `web-animation-design` e MCPs Magic UI e shadcn (registro React Bits). Não entra nas telas do app.
 
 ## Instalando em uma máquina nova
 

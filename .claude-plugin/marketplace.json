@@ -47,6 +47,11 @@
                         "name":  "ai-router-br",
                         "source":  "./ai-router-br",
                         "description":  "Roteamento seguro de tarefas por risco, complexidade e custo: Claude principal, Codex worker via login ChatGPT com modelo escolhido pela complexidade (gpt-6-luna para braçal, gpt-6.1-sol para coding; astra só explícito), DeepSeek worker via API e subagentes Claude Haiku/Sonnet como último degrau antes do principal. Checa disponibilidade (binário/modelos do Codex, formato da chave DeepSeek). Auto-inicializa .ai-router/ no primeiro uso de cada projeto, isola workers em worktrees, aplica allowlist/budget/fallback só por indisponibilidade e exige revisão antes de integrar. Mostra no chat quem executou cada tarefa (executor, modelo, custo). Versão nativa Codex em codex/ai-router-br. 6 skills, 3 subagents, 2 hooks."
+                    },
+                    {
+                        "name":  "frontend-premium-br",
+                        "source":  "./frontend-premium-br",
+                        "description":  "Frontend premium, 3D e animações cinematográficas para sites e landing pages dentro do Padrão SaaS: skill futuristic-web-design (direção de arte, R3F/Three.js, GSAP+Lenis, tipografia cinética, shaders, microinterações, orçamento de performance mobile e acessibilidade) com catálogo de 10 bibliotecas, skill web-animation-design e MCPs Magic UI e shadcn (registro React Bits) em versão fixada. 3D fica no site público, nunca nas telas do app. 2 skills, 2 MCPs."
                     }
                 ]
 }
