@@ -33,16 +33,7 @@ Referências sob demanda em `skills/futuristic-web-design/references/`:
 
 Ficaram de fora de propósito: `vercel-optimize` (sobrepõe turbo/cost-optimizer), `deploy-to-vercel` e `vercel-cli-with-tokens` (sobrepõem devops-ci/vercel-deploy-guard), `writing-guidelines` e `react-native-skills` (fora do escopo).
 
-Instalar numa máquina nova:
-
-```bash
-git clone --filter=blob:none --no-checkout https://github.com/vercel-labs/agent-skills.git /tmp/vas
-cd /tmp/vas && git sparse-checkout set skills/react-best-practices skills/web-design-guidelines skills/react-view-transitions skills/composition-patterns
-git checkout 1a2c79d4e6c4a2283dc2c614b6538cbe1ed5ca62
-for s in react-best-practices web-design-guidelines react-view-transitions composition-patterns; do
-  n=$(sed -n 's/^name: *//p' skills/$s/SKILL.md | head -1); cp -r skills/$s ~/.claude/skills/$n
-done
-```
+Numa máquina nova, o `setup-claude` instala essas skills sozinho (passo `scripts/sync-global.mjs`, que lê `global/claude/vercel-skills.json` na raiz do repositório). Para só esse passo: `node scripts/sync-global.mjs --apply`. Para trocar o commit, edite o JSON e rode de novo.
 
 A skill oficial `frontend-design` vem do plugin `frontend-design@claude-plugins-official`, já instalado pelo `setup-claude`.
 
@@ -58,4 +49,4 @@ A skill oficial `frontend-design` vem do plugin `frontend-design@claude-plugins-
 - Plugin: `claude plugin marketplace update morallesfilms-local` + `claude plugin update frontend-premium-br@morallesfilms-local`, depois reinicie.
 - Versões dos MCPs: edite `.mcp.json` (prefira versão publicada há 14+ dias), suba a versão do plugin e registre no CHANGELOG.
 - `web-animation-design`: ver `NOTICE.md`.
-- Remover: `claude plugin uninstall frontend-premium-br@morallesfilms-local`; as skills Vercel saem apagando as quatro pastas listadas no lock e o próprio lock em `~/.claude/skills/`; a linha 6 da precedência sai do `~/.claude/CLAUDE.md`.
+- Remover: `claude plugin uninstall frontend-premium-br@morallesfilms-local`; as skills Vercel saem apagando as quatro pastas listadas no lock e o próprio lock em `~/.claude/skills/`; a linha 6 da precedência e a seção Frontend saem de `global/claude/CLAUDE.md` (o setup propaga para as máquinas).

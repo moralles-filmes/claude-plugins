@@ -692,6 +692,21 @@ for (const dir of pluginDirs) {
   }
 }
 
+// Scripts da raiz (sync-global.mjs): mesmo critério, em scripts/*.test.mjs.
+{
+  const files = readdirSync(join(REPO_ROOT, 'scripts')).filter(f => f.endsWith('.test.mjs')).map(f => join(REPO_ROOT, 'scripts', f))
+  if (files.length) {
+    try {
+      execSync(`node --test ${files.map(f => `"${f}"`).join(' ')}`, { stdio: 'pipe', encoding: 'utf8' })
+      ok(`scripts/: ${files.length} arquivo(s) de teste passaram`)
+    } catch (e) {
+      const out = `${e.stdout ?? ''}${e.stderr ?? ''}`
+      const failed = out.split('\n').filter(l => /^\s*not ok /.test(l)).slice(0, 8).map(l => l.trim()).join(' | ')
+      err(`scripts/: testes falharam — ${failed || 'rode node --test scripts/*.test.mjs'}`)
+    }
+  }
+}
+
 // ─── 12. SQL de referência do padrao-saas (pgTAP) ───────────────────
 // Local: sem psql/servidor vira aviso. CI: job próprio roda com --required.
 

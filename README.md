@@ -39,12 +39,13 @@ O setup, de forma idempotente:
 3. confere o login do Claude (assinatura) e se o Codex está autenticado **via ChatGPT** — nunca troca login por API key; se precisar, pede só o `codex login` interativo;
 4. registra/atualiza os marketplaces e instala/atualiza **todos** os plugins deste repositório (lidos de `.claude-plugin/marketplace.json`, inclui `ai-router-br`) + `frontend-design`, `skill-creator` e `superpowers`;
 5. instala a versão nativa Codex do `ai-router-br` (`.agents/plugins/marketplace.json`) e coloca o bloco curto do router no `AGENTS.md` global do Codex;
-6. valida os plugins, roda os testes essenciais e o doctor;
-7. verifica apenas se `DEEPSEEK_API_KEY` **existe** (nunca mostra o valor). Se faltar, configure-a localmente nas variáveis de ambiente do usuário ou no seu gerenciador de secrets — **nunca cole a chave em chat, Git, CLAUDE.md, AGENTS.md ou `.ai-router/`**. Sem ela tudo funciona com Claude + Codex.
+6. sincroniza a configuração pessoal que não vem pelos plugins (`scripts/sync-global.mjs`): o bloco de precedência e de frontend de [`global/claude/CLAUDE.md`](./global/claude/CLAUDE.md) no `~/.claude/CLAUDE.md`, entre os marcadores `<!-- morallesfilms-local:start/end -->` (o que estiver fora deles é preservado, e há backup antes de escrever), e as skills da Vercel listadas em [`global/claude/vercel-skills.json`](./global/claude/vercel-skills.json) em `~/.claude/skills`, copiadas de um commit fixo;
+7. valida os plugins, roda os testes essenciais e o doctor;
+8. verifica apenas se `DEEPSEEK_API_KEY` **existe** (nunca mostra o valor). Se faltar, configure-a localmente nas variáveis de ambiente do usuário ou no seu gerenciador de secrets — **nunca cole a chave em chat, Git, CLAUDE.md, AGENTS.md ou `.ai-router/`**. Sem ela tudo funciona com Claude + Codex.
 
 **Depois do setup, uma vez por máquina:** ligue a atualização automática do marketplace (`/plugin` → Marketplaces → `morallesfilms-local` → Enable auto-update). Sem isso a máquina fica na versão instalada até alguém atualizar à mão. Veja [Atualizar](#atualizar).
 
-Rode o mesmo comando no futuro para atualizar: ele faz só `git pull --ff-only` (e pula se houver mudanças locais), nunca usa comandos Git destrutivos e não mexe em secrets. Opções: `-CheckOnly` (só verifica, não altera nada), `-NoInstall`, `-NoPull`, `-SkipCodex`, `-SkipExtras`, `-SkipTests`, `-LocalMarketplace` (no `.sh`: `--check-only`, `--no-install`, ...).
+Rode o mesmo comando no futuro para atualizar: ele faz só `git pull --ff-only` (e pula se houver mudanças locais), nunca usa comandos Git destrutivos e não mexe em secrets. Opções: `-CheckOnly` (só verifica, não altera nada), `-NoInstall`, `-NoPull`, `-SkipCodex`, `-SkipExtras`, `-SkipTests`, `-SkipGlobal` (não mexe no CLAUDE.md global nem nas skills pessoais), `-LocalMarketplace` (no `.sh`: `--check-only`, `--no-install`, ...).
 
 ## Usando em um projeto novo
 
