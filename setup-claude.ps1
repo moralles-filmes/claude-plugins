@@ -8,6 +8,8 @@
 #   - registra/atualiza marketplaces e instala/atualiza TODOS os plugins do marketplace
 #     (inclui ai-router-br) + plugins oficiais de uso diario
 #   - instala a versao nativa Codex do ai-router-br
+#   - sincroniza a configuracao pessoal (bloco no ~/.claude/CLAUDE.md e skills da Vercel
+#     em ~/.claude/skills) via scripts/sync-global.mjs, preservando o que ja existe
 #   - valida plugins, roda testes essenciais e o doctor
 #   - verifica apenas a EXISTENCIA de DEEPSEEK_API_KEY (nunca o valor)
 #
@@ -26,6 +28,7 @@
 #   -SkipCodex         pula a parte Codex
 #   -SkipExtras        nao instala os plugins oficiais extras
 #   -SkipTests         pula validacao e testes
+#   -SkipGlobal        nao mexe no ~/.claude/CLAUDE.md nem nas skills pessoais
 #   -LocalMarketplace  registra o checkout local como marketplace (desenvolvimento)
 #
 # Pode ser executado de novo a qualquer momento: nunca usa comandos Git destrutivos, nunca
@@ -39,6 +42,7 @@ $NoPull           = [bool]$Opt['nopull']
 $SkipCodex        = [bool]$Opt['skipcodex']
 $SkipExtras       = [bool]$Opt['skipextras']
 $SkipTests        = [bool]$Opt['skiptests']
+$SkipGlobal       = [bool]$Opt['skipglobal']
 $LocalMarketplace = [bool]$Opt['localmarketplace']
 
 $RepoUrl         = "https://github.com/moralles-filmes/claude-plugins.git"
@@ -273,6 +277,20 @@ function Invoke-Setup {
             $x = Invoke-Native claude @("plugin", $verb, $p)
             if ($x.Code -eq 0) { Write-Ok "$p ($verb)" } else { Write-Fail "claude plugin $verb $p falhou: $($x.Output)" }
         }
+    }
+
+    # --- Configuracao pessoal: CLAUDE.md global e skills da Vercel ----------
+    Write-Step "Configuracao pessoal do Claude (CLAUDE.md global e skills)"
+    $syncGlobal = Join-Path $RepoRoot "scripts\sync-global.mjs"
+    if ($SkipGlobal) { Write-Info "Ignorado (-SkipGlobal)." }
+    elseif (-not $NodeOk) { Write-Warn "Ignorado: Node.js 20+ indisponivel." }
+    elseif (-not (Test-Path $syncGlobal)) { Write-Would "sincronizar depois do clone" }
+    else {
+        $sgArgs = @($syncGlobal)
+        if (-not $CheckOnly) { $sgArgs += "--apply" }
+        $sg = Invoke-Native node $sgArgs
+        foreach ($line in ($sg.Output -split "`n")) { if ($line.Trim()) { Write-Info $line.Trim() } }
+        if ($sg.Code -ne 0) { Write-Fail "scripts/sync-global.mjs falhou (detalhes acima)" }
     }
 
     # --- ai-router-br nativo no Codex --------------------------------------

@@ -1,0 +1,17 @@
+{
+  "repo": "https://github.com/vercel-labs/agent-skills.git",
+  "commit": "1a2c79d4e6c4a2283dc2c614b6538cbe1ed5ca62",
+  "skills": [
+    { "dir": "skills/react-best-practices", "name": "vercel-react-best-practices" },
+    { "dir": "skills/web-design-guidelines", "name": "web-design-guidelines" },
+    { "dir": "skills/react-view-transitions", "name": "vercel-react-view-transitions" },
+    { "dir": "skills/composition-patterns", "name": "vercel-composition-patterns" }
+  ],
+  "skipped": {
+    "vercel-optimize": "sobrepõe turbo e saas-shield-br:cost-optimizer",
+    "deploy-to-vercel": "sobrepõe saas-builder-br:devops-ci e saas-shield-br:vercel-deploy-guard",
+    "vercel-cli-with-tokens": "manuseia token da Vercel; deploy segue o devops-ci",
+    "writing-guidelines": "fora do escopo de frontend",
+    "react-native-skills": "fora do escopo (web)"
+  }
+}

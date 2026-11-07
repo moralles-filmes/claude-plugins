@@ -9,6 +9,8 @@
 #   - registra/atualiza marketplaces e instala/atualiza TODOS os plugins do marketplace
 #     (inclui ai-router-br) + plugins oficiais de uso diário
 #   - instala a versão nativa Codex do ai-router-br
+#   - sincroniza a configuração pessoal (bloco no ~/.claude/CLAUDE.md e skills da Vercel
+#     em ~/.claude/skills) via scripts/sync-global.mjs, preservando o que já existe
 #   - valida plugins, roda testes essenciais e o doctor
 #   - verifica apenas a EXISTÊNCIA de DEEPSEEK_API_KEY (nunca o valor)
 #
@@ -24,6 +26,7 @@
 #   --skip-codex         pula a parte Codex
 #   --skip-extras        não instala os plugins oficiais extras
 #   --skip-tests         pula validação e testes
+#   --skip-global        não mexe no ~/.claude/CLAUDE.md nem nas skills pessoais
 #   --local-marketplace  registra o checkout local como marketplace (desenvolvimento)
 #
 # Pode ser executado de novo a qualquer momento: nunca usa comandos Git destrutivos, nunca
@@ -35,7 +38,7 @@ set -uo pipefail
 # truncated download never runs partially and child commands cannot consume the rest of the script from stdin.
 main() {
 
-CHECK_ONLY=0; NO_INSTALL=0; NO_PULL=0; SKIP_CODEX=0; SKIP_EXTRAS=0; SKIP_TESTS=0; LOCAL_MARKETPLACE=0
+CHECK_ONLY=0; NO_INSTALL=0; NO_PULL=0; SKIP_CODEX=0; SKIP_EXTRAS=0; SKIP_TESTS=0; SKIP_GLOBAL=0; LOCAL_MARKETPLACE=0
 for arg in "$@"; do
   case "$arg" in
     --check-only) CHECK_ONLY=1 ;;
@@ -44,6 +47,7 @@ for arg in "$@"; do
     --skip-codex) SKIP_CODEX=1 ;;
     --skip-extras) SKIP_EXTRAS=1 ;;
     --skip-tests) SKIP_TESTS=1 ;;
+    --skip-global) SKIP_GLOBAL=1 ;;
     --local-marketplace) LOCAL_MARKETPLACE=1 ;;
     *) echo "Opção desconhecida: $arg" >&2; exit 2 ;;
   esac
@@ -214,6 +218,18 @@ if [ "$HAS_CLAUDE" = 1 ]; then
     if [ "$CHECK_ONLY" = 1 ]; then would "claude plugin $verb $p"; continue; fi
     claude plugin "$verb" "$p" >/dev/null 2>&1 && ok "$p ($verb)" || fail "claude plugin $verb $p falhou"
   done
+fi
+
+# ─── Configuração pessoal: CLAUDE.md global e skills da Vercel ──────────
+step "Configuração pessoal do Claude (CLAUDE.md global e skills)"
+if [ "$SKIP_GLOBAL" = 1 ]; then info "Ignorado (--skip-global)."
+elif [ "$NODE_OK" = 0 ]; then warn "Ignorado: Node.js 20+ indisponível."
+elif [ ! -f "$REPO_ROOT/scripts/sync-global.mjs" ]; then would "sincronizar depois do clone"
+else
+  sg_args=(); [ "$CHECK_ONLY" = 1 ] || sg_args=(--apply)
+  if sg_out="$(node "$REPO_ROOT/scripts/sync-global.mjs" ${sg_args[@]+"${sg_args[@]}"} 2>&1)"; then sg_rc=0; else sg_rc=$?; fi
+  while IFS= read -r line; do [ -n "$line" ] && info "$line"; done <<< "$sg_out"
+  [ "$sg_rc" = 0 ] || fail "scripts/sync-global.mjs falhou (detalhes acima)"
 fi
 
 # ─── ai-router-br nativo no Codex ───────────────────────────────────────
