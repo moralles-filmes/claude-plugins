@@ -1,4 +1,4 @@
-# Catálogo de modelos — revisado em 2026-10-16
+# Catálogo de modelos — revisado em 2026-11-15
 
 A escada de modelos fica em `templates/config.yml` (`routing.*`) e, como cópia de segurança, em `lib/models.mjs` (`DEFAULT_ROUTING`); um teste exige que as duas sejam iguais. Revise este arquivo e a escada quando um fornecedor lançar, aposentar ou reprecificar modelo.
 
@@ -6,10 +6,10 @@ A escada de modelos fica em `templates/config.yml` (`routing.*`) e, como cópia 
 
 | Complexidade | 1º degrau | Fallback, em ordem | Quando |
 |---|---|---|---|
-| `mechanical` | DeepSeek | Codex `gpt-6-luna` · low → Claude Haiku | rename, boilerplate, fixtures, inventário, docs |
-| `simple` | DeepSeek | Codex `gpt-6-luna` · medium → Claude Haiku | mudança localizada ou plano já mapeado em `steps` |
-| `standard` | Codex `gpt-6.1-sol` · low | Codex `gpt-6-sol` · low → DeepSeek → Claude Sonnet | feature ou bug comum |
-| `complex` | Codex `gpt-6.1-sol` · high | Codex `gpt-6-sol` · high → Claude Sonnet | arquitetura, concorrência, performance, causa raiz |
+| `mechanical` | DeepSeek | Codex `gpt-6-luna` · low → Codex `gpt-5.6-luna` · low → Claude Haiku | rename, boilerplate, fixtures, inventário, docs |
+| `simple` | DeepSeek | Codex `gpt-6-luna` · medium → Codex `gpt-5.6-luna` · medium → Claude Haiku | mudança localizada ou plano já mapeado em `steps` |
+| `standard` | Codex `gpt-6.1-sol` · low | Codex `gpt-6-sol` · low → Codex `gpt-5.6-sol` · low → DeepSeek → Claude Sonnet | feature ou bug comum |
+| `complex` | Codex `gpt-6.1-sol` · high | Codex `gpt-6-sol` · high → Codex `gpt-5.6-sol` · high → Claude Sonnet | arquitetura, concorrência, performance, causa raiz |
 
 TIER 0 (risco crítico) não entra na escada: fica sempre com o agente principal. A complexidade escolhe o modelo, nunca o tier de risco.
 
@@ -35,6 +35,7 @@ Fonte: models_cache.json local (fetched 2026-10-16), https://learn.chatgpt.com/d
 
 - O Luna custa 20× menos créditos que o 6.1-Sol e 100× menos que o Astra. O Astra fica **fora da escada** de propósito: só roda com `--executor codex --model gpt-6-astra`.
 - Esforço: `-c model_reasoning_effort="low|medium|high|xhigh|max|ultra"` (Luna vai até `max`). Esforço maior gasta mais tokens; não há multiplicador publicado.
+- Degrau `gpt-5.6-*`: há contas ChatGPT cujo catálogo (conferido em 2026-11-15) traz `gpt-6-astra` e a família `gpt-5.6-*`, mas não `gpt-6-luna`, `gpt-6-sol` nem `gpt-6.1-sol`. Sem esse degrau, o Codex nunca rodava nessas contas e tudo ia para DeepSeek ou Claude. Ele só entra quando os modelos da geração 6 não estão listados; custa mais créditos que o equivalente da geração 6 (Sol 500 contra 250 na saída).
 - `gpt-6.1-sol` ainda está em rollout: algumas contas recebem "model is not supported when using Codex with a ChatGPT account". O router trata isso como `model_unavailable` e desce para `gpt-6-sol`.
 - O modelo do `~/.codex/config.toml` do usuário só vale quando o Codex é forçado sem degrau na escada (legado).
 - No Windows, o app desktop instala o CLI em `%LOCALAPPDATA%\OpenAI\Codex\bin\<build>\codex.exe`, fora do PATH: o router procura lá (o mais recente) depois do PATH. `AI_ROUTER_CODEX_BIN` (caminho absoluto) força outro binário.

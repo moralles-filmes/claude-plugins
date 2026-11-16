@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2 — 2026-11-15
+- Escada: degrau Codex `gpt-5.6-luna` (mechanical/simple) e `gpt-5.6-sol` (standard/complex) logo depois dos modelos da geração 6. Há contas ChatGPT cujo catálogo traz `gpt-6-astra` e a família `gpt-5.6-*`, mas nenhum Luna/Sol 6. Nelas, todo degrau Codex saía como `codex_model_not_listed` e o trabalho ia para DeepSeek ou Claude. Quando a conta lista a geração 6, ela continua na frente.
+- Teste novo com o catálogo dessas contas. `references/models.md` registra o custo maior da 5.6.
+- Projetos já inicializados: o `routing.*` do `.ai-router/config.yml` só remove ou reordena degraus, então uma escada copiada da 1.4.1 não ganha o degrau novo. Apague o bloco `routing` (vale o padrão do plugin) ou copie as linhas novas de `templates/config.yml`.
+
 ## 1.4.1 — 2026-10-24
 - Node recomendado passa a 22+ (`engines`, INSTALL, setup): o 20 está em fim de vida desde 30/04/2026. O `doctor` continua aceitando o 20, com o aviso `node_eol_upgrade_to_22_or_24` no campo novo `warnings` e o campo `node_22_plus`.
 - `references/security.md`: a regra de `.env` público é a mesma do saas-shield-br (`scripts/security/env-public.mjs`).

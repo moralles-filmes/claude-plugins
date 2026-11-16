@@ -9,10 +9,10 @@ import { relevantNotSent, normalizeRelative, safeResolve, pathAllowed, forbidden
 // Same lists as templates/config.yml; this copy covers configs that predate `routing`.
 export const COMPLEXITIES=['mechanical','simple','standard','complex'];
 export const DEFAULT_ROUTING={
-  mechanical:['deepseek','codex:gpt-6-luna:low','claude:haiku'],
-  simple:['deepseek','codex:gpt-6-luna:medium','claude:haiku'],
-  standard:['codex:gpt-6.1-sol:low','codex:gpt-6-sol:low','deepseek','claude:sonnet'],
-  complex:['codex:gpt-6.1-sol:high','codex:gpt-6-sol:high','claude:sonnet']
+  mechanical:['deepseek','codex:gpt-6-luna:low','codex:gpt-5.6-luna:low','claude:haiku'],
+  simple:['deepseek','codex:gpt-6-luna:medium','codex:gpt-5.6-luna:medium','claude:haiku'],
+  standard:['codex:gpt-6.1-sol:low','codex:gpt-6-sol:low','codex:gpt-5.6-sol:low','deepseek','claude:sonnet'],
+  complex:['codex:gpt-6.1-sol:high','codex:gpt-6-sol:high','codex:gpt-5.6-sol:high','claude:sonnet']
 };
 export const CLAUDE_WORKERS={haiku:'ai-router-br:claude-worker-haiku',sonnet:'ai-router-br:claude-worker-sonnet'};
 const EFFORTS=new Set(['low','medium','high','xhigh','max','ultra']);

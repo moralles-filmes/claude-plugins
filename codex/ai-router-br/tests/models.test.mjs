@@ -36,7 +36,7 @@ test('project routing can drop or reorder rungs, never add a model or a complexi
   assert.deepEqual(config.routing.standard,DEFAULT_ROUTING.standard);
   assert.equal(config.routing.frontier,undefined);
   for (const k of ['routing.simple','routing.standard','routing.frontier']) assert.ok(ignored.includes(k),k);
-  assert.deepEqual(ladderFor(config,'mechanical').map(c=>c.executor),['deepseek','codex','claude']);
+  assert.deepEqual(ladderFor(config,'mechanical').map(c=>c.executor),['deepseek','codex','codex','claude']);
   // Configs without routing (older tests, older projects) still get the plugin ladder.
   assert.equal(ladderFor({},'complex')[0].model,'gpt-6.1-sol');
 });
@@ -57,10 +57,24 @@ test('complexity: declared wins, tiers map to rungs, a mapped plan lowers one ru
   assert.equal(t0.tier,0); assert.equal(t0.executor,'main');
 });
 
+test('ChatGPT account without the gpt-6 workhorses falls to the gpt-5.6 rung before DeepSeek or Claude',async()=>{
+  const d=repo();
+  const models={fetched_at:'2026-11-12T00:00:00Z',models:new Map([['gpt-6-astra',['low','medium','high']],['gpt-5.6-sol',['low','medium','high']],['gpt-5.6-luna',['low','medium','high']]])};
+  const probe=probeFor({host:'claude',codex_models:models});
+  const std=await route({root:d,task:task({complexity:'standard'}),config:baseConfig(),dryRun:true,probe});
+  assert.equal(std.executor,'codex'); assert.equal(std.model,'gpt-5.6-sol'); assert.equal(std.effort,'low');
+  assert.deepEqual(std.skipped_candidates.map(c=>[c.model,c.reason]),[['gpt-6.1-sol','codex_model_not_listed'],['gpt-6-sol','codex_model_not_listed']]);
+  const cx=await route({root:d,task:task({complexity:'complex'}),config:baseConfig(),dryRun:true,probe});
+  assert.equal(cx.model,'gpt-5.6-sol'); assert.equal(cx.effort,'high');
+  const simple=await route({root:d,task:task({complexity:'simple'}),config:baseConfig(),dryRun:true,probe:probeFor({host:'claude',deepseek_key:'malformed',codex_models:models})});
+  assert.equal(simple.model,'gpt-5.6-luna'); assert.equal(simple.effort,'medium');
+  rm(d);
+});
+
 test('dry-run walks the ladder by availability: cheap first, Claude subagent before the main model',async()=>{
   const d=repo(); const t=task({complexity:'simple'});
   const ok=await route({root:d,task:t,config:baseConfig(),dryRun:true,probe:probeFor({host:'claude'})});
-  assert.equal(ok.executor,'deepseek'); assert.deepEqual(ok.fallback_chain,[{executor:'codex',model:'gpt-6-luna',effort:'medium'},{executor:'claude',model:'haiku',agent:'ai-router-br:claude-worker-haiku'}]);
+  assert.equal(ok.executor,'deepseek'); assert.deepEqual(ok.fallback_chain,[{executor:'codex',model:'gpt-6-luna',effort:'medium'},{executor:'codex',model:'gpt-5.6-luna',effort:'medium'},{executor:'claude',model:'haiku',agent:'ai-router-br:claude-worker-haiku'}]);
   const noKey=await route({root:d,task:t,config:baseConfig(),dryRun:true,probe:probeFor({host:'claude',deepseek_key:'malformed'})});
   assert.equal(noKey.executor,'codex'); assert.equal(noKey.model,'gpt-6-luna'); assert.equal(noKey.effort,'medium');
   assert.deepEqual(noKey.skipped_candidates,[{executor:'deepseek',reason:'deepseek_key_malformed'}]);
