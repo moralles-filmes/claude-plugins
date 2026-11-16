@@ -14,8 +14,8 @@ pedido normal (o usuário não precisa citar o router)
   -> pequena? resolve diretamente
   -> TIER 0? agente principal
   -> TIER 1-3? escada da complexidade (models.md), sem os degraus indisponíveis nesta máquina:
-       mechanical/simple: DeepSeek -> Codex gpt-6-luna -> subagente Claude Haiku
-       standard/complex:  Codex gpt-6.1-sol -> Codex gpt-6-sol -> (DeepSeek) -> subagente Claude Sonnet
+       mechanical/simple: DeepSeek -> Codex gpt-6-luna -> Codex gpt-5.6-luna -> subagente Claude Haiku
+       standard/complex:  Codex gpt-6.1-sol -> Codex gpt-6-sol -> Codex gpt-5.6-sol -> (DeepSeek) -> subagente Claude Sonnet
   -> degrau indisponível no dispatch? desce para o próximo
   -> degrau Claude (ou repo sujo / secret rastreado)? status delegate_claude: o principal chama o Agent tool
   -> worker externo em worktree isolada (repo limpo, .ai-router/ não versionado)

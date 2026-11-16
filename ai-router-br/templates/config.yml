@@ -16,12 +16,13 @@ risk:
 # executor[:model[:effort]]. The first available rung runs; the next ones are the fallback, in order.
 # claude:haiku / claude:sonnet are Claude Code subagents (Agent tool), never the main model.
 # Codex credits per 1M output tokens (2026-10-16): gpt-6-luna 12.5, gpt-6.1-sol 250, gpt-6-sol 250, gpt-6-astra 1250.
+# gpt-5.6-* rungs are the fallback for ChatGPT accounts whose catalog has no gpt-6 workhorse yet (unlisted rungs are skipped).
 # gpt-6-astra is left out on purpose; use it only with: --executor codex --model gpt-6-astra
 routing:
-  mechanical: [deepseek, codex:gpt-6-luna:low, claude:haiku]
-  simple: [deepseek, codex:gpt-6-luna:medium, claude:haiku]
-  standard: [codex:gpt-6.1-sol:low, codex:gpt-6-sol:low, deepseek, claude:sonnet]
-  complex: [codex:gpt-6.1-sol:high, codex:gpt-6-sol:high, claude:sonnet]
+  mechanical: [deepseek, codex:gpt-6-luna:low, codex:gpt-5.6-luna:low, claude:haiku]
+  simple: [deepseek, codex:gpt-6-luna:medium, codex:gpt-5.6-luna:medium, claude:haiku]
+  standard: [codex:gpt-6.1-sol:low, codex:gpt-6-sol:low, codex:gpt-5.6-sol:low, deepseek, claude:sonnet]
+  complex: [codex:gpt-6.1-sol:high, codex:gpt-6-sol:high, codex:gpt-5.6-sol:high, claude:sonnet]
 
 budgets:
   cheap_max_usd: 0.15

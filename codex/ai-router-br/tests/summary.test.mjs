@@ -66,7 +66,7 @@ test('CLI prints summary_line first and the hook script turns it into a user-vis
     assert.equal(r.status,0); const json=JSON.parse(r.stdout);
     assert.equal(Object.keys(json)[0],'summary_line');
     // The ladder names the model; the user's config.toml (gpt-cli-test) no longer decides it.
-    assert.equal(json.summary_line,`${SUMMARY_PREFIX} · TIER 1 · standard → Codex (gpt-6.1-sol · low) · fallback: Codex (gpt-6-sol · low) → DeepSeek (deepseek-flash) → Claude Sonnet (subagente) · classificação`);
+    assert.equal(json.summary_line,`${SUMMARY_PREFIX} · TIER 1 · standard → Codex (gpt-6.1-sol · low) · fallback: Codex (gpt-6-sol · low) → Codex (gpt-5.6-sol · low) → DeepSeek (deepseek-flash) → Claude Sonnet (subagente) · classificação`);
     const hook=(input,env={})=>spawnSync(process.execPath,[path.join(pluginRoot,'scripts','router-notice.mjs')],{encoding:'utf8',input,env:{...process.env,AI_ROUTER_WORKER:'',...env}});
     const payload=JSON.stringify({hook_event_name:'PostToolUse',tool_name:'PowerShell',tool_input:{command:`node "${path.join(pluginRoot,'scripts','ai-router.mjs')}" dry-run --root .`},tool_response:{stdout:r.stdout}});
     const h=hook(payload); assert.equal(h.status,0); assert.deepEqual(JSON.parse(h.stdout),{systemMessage:json.summary_line});
